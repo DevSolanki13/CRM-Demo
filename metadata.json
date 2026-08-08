@@ -1,0 +1,6 @@
+{
+  "name": "Customizable CRM Demo",
+  "description": "Full-stack customizable SaaS CRM with pipeline Kanban board, recurring order automation, outbound sales tracking, RBAC, and client re-branding settings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
