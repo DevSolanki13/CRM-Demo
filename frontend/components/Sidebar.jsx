@@ -9,32 +9,10 @@ import {
   Users2,
   BarChart3,
   Settings,
-  FileSpreadsheet,
-  RefreshCw
+  FileSpreadsheet
 } from 'lucide-react';
-import { UserRole } from '../types/crm';
 
-export type ActiveTab =
-  | 'dashboard'
-  | 'leads'
-  | 'pipeline'
-  | 'contacts'
-  | 'companies'
-  | 'tasks'
-  | 'employees'
-  | 'reports'
-  | 'settings';
-
-interface SidebarProps {
-  activeTab: ActiveTab;
-  setActiveTab: (tab: ActiveTab) => void;
-  userRole: UserRole;
-  pendingTasksCount: number;
-  renewalsDueCount: number;
-  onOpenImportExport: () => void;
-}
-
-export const Sidebar: React.FC<SidebarProps> = ({
+export const Sidebar = ({
   activeTab,
   setActiveTab,
   userRole,
@@ -65,10 +43,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'employees',
       label: 'Team & Workload',
       icon: Users2,
-      roles: ['Admin', 'Manager'] as UserRole[]
+      roles: ['Admin', 'Manager']
     },
     { id: 'reports', label: 'Reports & Renewal Tracker', icon: BarChart3 },
-    { id: 'settings', label: 'Customization Hub', icon: Settings, roles: ['Admin'] as UserRole[] },
+    { id: 'settings', label: 'Customization Hub', icon: Settings, roles: ['Admin'] },
   ];
 
   return (
@@ -90,11 +68,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id as ActiveTab)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                isActive
                   ? 'bg-white/20 text-white font-semibold shadow-xs border border-white/20'
                   : 'hover:bg-white/10 text-white/80 hover:text-white'
-                }`}
+              }`}
             >
               <div className="flex items-center gap-3">
                 <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-white/70'}`} />

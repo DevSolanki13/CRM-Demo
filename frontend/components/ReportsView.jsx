@@ -4,32 +4,18 @@ import {
   TrendingUp, 
   DollarSign, 
   RefreshCw, 
-  Trophy, 
-  Users, 
-  Filter, 
-  Send, 
-  Plus, 
-  CheckCircle2, 
-  Calendar 
+  Trophy 
 } from 'lucide-react';
-import { CRMState, User, Deal } from '../types/crm';
-import { formatCurrency, formatDate } from '../utils/crmHelpers';
+import { formatCurrency, formatDate } from '../utils/crmHelpers.js';
 
-interface ReportsViewProps {
-  state: CRMState;
-  currentUser: User;
-  onCreateDeal: (deal: Partial<Deal>) => Promise<void>;
-}
-
-export const ReportsView: React.FC<ReportsViewProps> = ({
+export const ReportsView = ({
   state,
   currentUser,
   onCreateDeal
 }) => {
-  const { deals, leads, users, stages, activities } = state;
+  const { deals, users, stages } = state;
 
-  const [selectedRep, setSelectedRep] = useState<string>('All');
-  const [selectedSource, setSelectedSource] = useState<string>('All');
+  const [selectedRep, setSelectedRep] = useState('All');
 
   // Filter deals based on selection
   const filteredDeals = deals.filter(d => {
@@ -50,7 +36,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   const renewalDueDeals = deals.filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again'));
 
   // Quick Action to create new repeat deal
-  const handleCreateRenewalDeal = async (oldDeal: Deal) => {
+  const handleCreateRenewalDeal = async (oldDeal) => {
     await onCreateDeal({
       title: `${oldDeal.companyName || 'Repeat'} Renewal Order`,
       value: oldDeal.value,

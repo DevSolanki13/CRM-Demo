@@ -1,29 +1,14 @@
 import React, { useState } from 'react';
 import { 
   Settings, 
-  Building2, 
   Palette, 
   Kanban, 
-  RefreshCw, 
-  Plus, 
-  Trash2, 
   Save, 
   RotateCcw, 
-  Layers, 
   Check 
 } from 'lucide-react';
-import { CRMBrandingSettings, PipelineStage, CustomFieldDefinition } from '../types/crm';
 
-interface SettingsViewProps {
-  branding: CRMBrandingSettings;
-  stages: PipelineStage[];
-  onUpdateBranding: (branding: Partial<CRMBrandingSettings>) => Promise<void>;
-  onCreateStage: (stage: Partial<PipelineStage>) => Promise<void>;
-  onUpdateStage: (id: string, stage: Partial<PipelineStage>) => Promise<void>;
-  onResetDemoData: () => Promise<void>;
-}
-
-export const SettingsView: React.FC<SettingsViewProps> = ({
+export const SettingsView = ({
   branding,
   stages,
   onUpdateBranding,
@@ -31,15 +16,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onUpdateStage,
   onResetDemoData
 }) => {
-  const [brandingForm, setBrandingForm] = useState<CRMBrandingSettings>({ ...branding });
-  const [activeTab, setActiveTab] = useState<'branding' | 'stages' | 'customFields' | 'reset'>('branding');
+  const [brandingForm, setBrandingForm] = useState({ ...branding });
+  const [activeTab, setActiveTab] = useState('branding');
   
   const [newStageName, setNewStageName] = useState('');
   const [newStageColor, setNewStageColor] = useState('#2563eb');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
-  const handleSaveBranding = async (e: React.FormEvent) => {
+  const handleSaveBranding = async (e) => {
     e.preventDefault();
     await onUpdateBranding(brandingForm);
     setSavedSuccess(true);
@@ -57,7 +42,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setNewStageName('');
   };
 
-  const handleUpdateStageName = async (id: string, name: string) => {
+  const handleUpdateStageName = async (id, name) => {
     await onUpdateStage(id, { name });
   };
 

@@ -5,25 +5,18 @@ import {
   X, 
   CheckCircle2
 } from 'lucide-react';
-import { exportToCSV } from '../utils/crmHelpers';
-import { CRMState } from '../types/crm';
+import { exportToCSV } from '../utils/crmHelpers.js';
 
-interface ExportModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  state: CRMState;
-}
-
-export const ImportExportModal: React.FC<ExportModalProps> = ({
+export const ImportExportModal = ({
   isOpen,
   onClose,
   state
 }) => {
-  const [exportedStatus, setExportedStatus] = useState<string | null>(null);
+  const [exportedStatus, setExportedStatus] = useState(null);
 
   if (!isOpen) return null;
 
-  const triggerExportStatus = (filename: string) => {
+  const triggerExportStatus = (filename) => {
     setExportedStatus(`Successfully exported ${filename}!`);
     setTimeout(() => {
       setExportedStatus(null);

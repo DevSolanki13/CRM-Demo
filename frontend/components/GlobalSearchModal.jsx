@@ -7,17 +7,9 @@ import {
   Building2, 
   Briefcase 
 } from 'lucide-react';
-import { CRMState } from '../types/crm';
-import { formatCurrency } from '../utils/crmHelpers';
+import { formatCurrency } from '../utils/crmHelpers.js';
 
-interface GlobalSearchModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  state: CRMState;
-  onSelectResult: (type: 'lead' | 'contact' | 'deal' | 'company', item: any) => void;
-}
-
-export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
+export const GlobalSearchModal = ({
   isOpen,
   onClose,
   state,
@@ -26,7 +18,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);

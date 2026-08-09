@@ -3,30 +3,13 @@ import {
   CheckSquare, 
   Plus, 
   Calendar, 
-  Clock, 
   CheckCircle2, 
-  PhoneCall, 
-  Mail, 
-  Users, 
-  RefreshCw, 
-  Sparkles, 
   Trash2, 
-  X,
-  FileText
+  X
 } from 'lucide-react';
-import { Task, TaskType, User } from '../types/crm';
-import { formatDate, filterByRole } from '../utils/crmHelpers';
+import { formatDate, filterByRole } from '../utils/crmHelpers.js';
 
-interface TasksViewProps {
-  tasks: Task[];
-  users: User[];
-  currentUser: User;
-  onCreateTask: (task: Partial<Task>) => Promise<void>;
-  onUpdateTask: (id: string, task: Partial<Task>) => Promise<void>;
-  onDeleteTask: (id: string) => Promise<void>;
-}
-
-export const TasksView: React.FC<TasksViewProps> = ({
+export const TasksView = ({
   tasks,
   users,
   currentUser,
@@ -34,13 +17,13 @@ export const TasksView: React.FC<TasksViewProps> = ({
   onUpdateTask,
   onDeleteTask
 }) => {
-  const [activeScope, setActiveScope] = useState<'my' | 'team'>('my');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'done'>('pending');
-  const [typeFilter, setTypeFilter] = useState<string>('All');
+  const [activeScope, setActiveScope] = useState('my');
+  const [statusFilter, setStatusFilter] = useState('pending');
+  const [typeFilter, setTypeFilter] = useState('All');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState<Partial<Task>>({
+  const [formData, setFormData] = useState({
     title: '',
     dueDate: new Date().toISOString().split('T')[0],
     type: 'Call',
@@ -74,14 +57,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.title) return;
     await onCreateTask(formData);
     setIsModalOpen(false);
   };
 
-  const handleToggleStatus = async (task: Task) => {
+  const handleToggleStatus = async (task) => {
     const nextStatus = task.status === 'pending' ? 'done' : 'pending';
     await onUpdateTask(task.id, { status: nextStatus });
   };
@@ -138,7 +121,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
           
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e) => setStatusFilter(e.target.value)}
             className="bg-[#fcfcf9] border border-[#e0e0d5] rounded-full px-3 py-1.5 text-xs text-[#2d2d2a] focus:outline-none focus:border-[#5A5A40]"
           >
             <option value="pending">Pending Tasks</option>
@@ -284,7 +267,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                   <label className="block text-[#6b6b60] font-semibold mb-1">Type</label>
                   <select
                     value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value as TaskType })}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                     className="w-full bg-[#fcfcf9] border border-[#e0e0d5] rounded-xl p-2.5 text-[#2d2d2a] focus:outline-none focus:border-[#5A5A40]"
                   >
                     <option value="Call">Call</option>

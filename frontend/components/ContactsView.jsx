@@ -6,35 +6,16 @@ import {
   Building2, 
   Mail, 
   Phone, 
-  User, 
   Edit3, 
   Trash2, 
   X, 
   MessageSquare, 
   PhoneCall, 
-  Send, 
-  Clock, 
   Briefcase 
 } from 'lucide-react';
-import { Contact, Company, User as UserType, Note, ActivityLog, Deal } from '../types/crm';
-import { formatDate, filterByRole } from '../utils/crmHelpers';
+import { formatDate, filterByRole } from '../utils/crmHelpers.js';
 
-interface ContactsViewProps {
-  contacts: Contact[];
-  companies: Company[];
-  users: UserType[];
-  deals: Deal[];
-  notes: Note[];
-  activities: ActivityLog[];
-  currentUser: UserType;
-  onCreateContact: (contact: Partial<Contact>) => Promise<void>;
-  onUpdateContact: (id: string, contact: Partial<Contact>) => Promise<void>;
-  onDeleteContact: (id: string) => Promise<void>;
-  onCreateNote: (note: Partial<Note>) => Promise<void>;
-  onCreateActivity: (activity: Partial<ActivityLog>) => Promise<void>;
-}
-
-export const ContactsView: React.FC<ContactsViewProps> = ({
+export const ContactsView = ({
   contacts,
   companies,
   users,
@@ -49,17 +30,17 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
   onCreateActivity
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('All');
+  const [selectedCompanyId, setSelectedCompanyId] = useState('All');
   
   // Drawer / Detail state
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [selectedContact, setSelectedContact] = useState(null);
   const [newNoteText, setNewNoteText] = useState('');
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [editingContact, setEditingContact] = useState(null);
 
-  const [formData, setFormData] = useState<Partial<Contact>>({
+  const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
@@ -68,7 +49,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
     ownerId: currentUser.id
   });
 
-  const userContacts = filterByRole<Contact>(contacts, currentUser);
+  const userContacts = filterByRole(contacts, currentUser);
 
   const filteredContacts = userContacts.filter(c => {
     const matchesSearch = 
@@ -93,13 +74,13 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (contact: Contact) => {
+  const handleOpenEdit = (contact) => {
     setEditingContact(contact);
     setFormData({ ...contact });
     setIsModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.name) return;
 
@@ -111,7 +92,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
     setIsModalOpen(false);
   };
 
-  const handleAddNote = async (e: React.FormEvent) => {
+  const handleAddNote = async (e) => {
     e.preventDefault();
     if (!selectedContact || !newNoteText.trim()) return;
 
@@ -126,7 +107,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
     setNewNoteText('');
   };
 
-  const handleLogCall = async (isOutbound: boolean) => {
+  const handleLogCall = async (isOutbound) => {
     if (!selectedContact) return;
     await onCreateActivity({
       type: isOutbound ? 'Outbound Call' : 'Inbound Call',
@@ -142,7 +123,6 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
 
   const contactDeals = selectedContact ? deals.filter(d => d.contactId === selectedContact.id) : [];
   const contactNotes = selectedContact ? notes.filter(n => n.linkedType === 'Contact' && n.linkedId === selectedContact.id) : [];
-  const contactActivities = selectedContact ? activities.filter(a => a.linkedType === 'Contact' && a.linkedId === selectedContact.id) : [];
 
   return (
     <div className="p-6 space-y-6 bg-[#f5f5f0] text-[#2d2d2a] min-h-full">

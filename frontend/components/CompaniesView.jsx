@@ -6,25 +6,14 @@ import {
   Globe, 
   MapPin, 
   Users, 
-  DollarSign, 
   Edit3, 
   Trash2, 
   X, 
   Briefcase 
 } from 'lucide-react';
-import { Company, Contact, Deal } from '../types/crm';
-import { formatCurrency } from '../utils/crmHelpers';
+import { formatCurrency } from '../utils/crmHelpers.js';
 
-interface CompaniesViewProps {
-  companies: Company[];
-  contacts: Contact[];
-  deals: Deal[];
-  onCreateCompany: (company: Partial<Company>) => Promise<void>;
-  onUpdateCompany: (id: string, company: Partial<Company>) => Promise<void>;
-  onDeleteCompany: (id: string) => Promise<void>;
-}
-
-export const CompaniesView: React.FC<CompaniesViewProps> = ({
+export const CompaniesView = ({
   companies,
   contacts,
   deals,
@@ -33,13 +22,13 @@ export const CompaniesView: React.FC<CompaniesViewProps> = ({
   onDeleteCompany
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [editingCompany, setEditingCompany] = useState(null);
 
-  const [formData, setFormData] = useState<Partial<Company>>({
+  const [formData, setFormData] = useState({
     name: '',
     industry: '',
     website: '',
@@ -58,13 +47,13 @@ export const CompaniesView: React.FC<CompaniesViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (comp: Company) => {
+  const handleOpenEdit = (comp) => {
     setEditingCompany(comp);
     setFormData({ ...comp });
     setIsModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.name) return;
 

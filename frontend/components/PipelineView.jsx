@@ -2,37 +2,17 @@ import React, { useState } from 'react';
 import { 
   Kanban, 
   Plus, 
-  DollarSign, 
   Building2, 
   User, 
-  Clock, 
   RefreshCw, 
-  Sparkles, 
-  MoreHorizontal, 
-  Trash2, 
   Edit3, 
   ChevronRight,
   ChevronLeft,
   X
 } from 'lucide-react';
-import { Deal, PipelineStage, User as UserType, Company, Contact, CRMBrandingSettings } from '../types/crm';
-import { formatCurrency, formatDate, filterByRole } from '../utils/crmHelpers';
+import { formatCurrency, filterByRole } from '../utils/crmHelpers.js';
 
-interface PipelineViewProps {
-  deals: Deal[];
-  stages: PipelineStage[];
-  users: UserType[];
-  companies: Company[];
-  contacts: Contact[];
-  currentUser: UserType;
-  branding: CRMBrandingSettings;
-  onCreateDeal: (deal: Partial<Deal>) => Promise<void>;
-  onUpdateDeal: (id: string, deal: Partial<Deal>) => Promise<void>;
-  onDeleteDeal: (id: string) => Promise<void>;
-  onOpenSettings: () => void;
-}
-
-export const PipelineView: React.FC<PipelineViewProps> = ({
+export const PipelineView = ({
   deals,
   stages,
   users,
@@ -45,13 +25,13 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
   onDeleteDeal,
   onOpenSettings
 }) => {
-  const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
+  const [draggedDealId, setDraggedDealId] = useState(null);
   
   // Modal for Quick Add / Edit Deal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [editingDeal, setEditingDeal] = useState(null);
 
-  const [formData, setFormData] = useState<Partial<Deal>>({
+  const [formData, setFormData] = useState({
     title: '',
     value: 10000,
     stageId: stages[0]?.id || '',
@@ -64,18 +44,18 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
   });
 
   const sortedStages = [...stages].sort((a, b) => a.order - b.order);
-  const userDeals = filterByRole<Deal>(deals, currentUser);
+  const userDeals = filterByRole(deals, currentUser);
 
-  const handleDragStart = (e: React.DragEvent, dealId: string) => {
+  const handleDragStart = (e, dealId) => {
     e.dataTransfer.setData('text/plain', dealId);
     setDraggedDealId(dealId);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e) => {
     e.preventDefault();
   };
 
-  const handleDrop = async (e: React.DragEvent, targetStageId: string) => {
+  const handleDrop = async (e, targetStageId) => {
     e.preventDefault();
     const dealId = e.dataTransfer.getData('text/plain') || draggedDealId;
     if (!dealId) return;
@@ -91,7 +71,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
     setDraggedDealId(null);
   };
 
-  const handleMoveStep = async (deal: Deal, direction: 'prev' | 'next') => {
+  const handleMoveStep = async (deal, direction) => {
     const currentIndex = sortedStages.findIndex(s => s.id === deal.stageId);
     if (currentIndex === -1) return;
 
@@ -105,7 +85,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
     });
   };
 
-  const handleOpenAddModal = (stageId?: string) => {
+  const handleOpenAddModal = (stageId) => {
     setEditingDeal(null);
     setFormData({
       title: '',
@@ -121,13 +101,13 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (deal: Deal) => {
+  const handleOpenEditModal = (deal) => {
     setEditingDeal(deal);
     setFormData({ ...deal });
     setIsModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.title || !formData.value) return;
 

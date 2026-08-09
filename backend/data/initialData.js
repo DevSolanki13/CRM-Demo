@@ -1,17 +1,4 @@
-import { 
-  User, 
-  Company, 
-  Contact, 
-  Lead, 
-  PipelineStage, 
-  Deal, 
-  Task, 
-  Note, 
-  ActivityLog, 
-  CRMBrandingSettings 
-} from '../types/crm';
-
-export const initialBranding: CRMBrandingSettings = {
+export const initialBranding = {
   appName: 'NexusCRM',
   tagline: 'Customizable B2B Sales & Recurring Order Platform',
   logoIcon: 'Building2',
@@ -24,7 +11,7 @@ export const initialBranding: CRMBrandingSettings = {
   ]
 };
 
-export const initialUsers: User[] = [
+export const initialUsers = [
   {
     id: 'u-1',
     name: 'Alex Vance',
@@ -59,7 +46,7 @@ export const initialUsers: User[] = [
   },
 ];
 
-export const initialStages: PipelineStage[] = [
+export const initialStages = [
   { id: 'stg-1', name: 'New Lead', order: 1, category: 'New', color: '#64748b' },
   { id: 'stg-2', name: 'Contacted', order: 2, category: 'Contacted', color: '#0284c7' },
   { id: 'stg-3', name: 'Sample Sent', order: 3, category: 'Sample Sent', color: '#8b5cf6' },
@@ -70,7 +57,7 @@ export const initialStages: PipelineStage[] = [
   { id: 'stg-8', name: 'Closed Lost', order: 8, category: 'Lost', color: '#ef4444' },
 ];
 
-export const initialCompanies: Company[] = [
+export const initialCompanies = [
   { id: 'c-1', name: 'AeroTech Solutions', industry: 'Aerospace & Tech', website: 'https://aerotech.example.com', address: '100 Innovation Way, Austin TX', notes: 'High volume electronics components buyer.', createdAt: '2026-01-10' },
   { id: 'c-2', name: 'BioPharma Health', industry: 'Pharmaceuticals', website: 'https://biopharma.example.com', address: '450 Science Park, Boston MA', notes: 'Requires ISO certified laboratory packaging samples.', createdAt: '2026-01-15' },
   { id: 'c-3', name: 'Nexus Logistics', industry: 'Supply Chain', website: 'https://nexuslogistics.example.com', address: '88 Harbor Dr, Seattle WA', notes: 'Quarterly order cycle for specialized container seals.', createdAt: '2026-02-01' },
@@ -81,7 +68,7 @@ export const initialCompanies: Company[] = [
   { id: 'c-8', name: 'Vanguard Medical Systems', industry: 'Healthcare Equipment', website: 'https://vanguardmed.example.com', address: '90 Hospital Plaza, Chicago IL', notes: 'Surgical tray silicone liners.', createdAt: '2026-03-25' },
 ];
 
-export const initialContacts: Contact[] = [
+export const initialContacts = [
   { id: 'cnt-1', name: 'David Miller', email: 'dmiller@aerotech.example.com', phone: '+1 (512) 555-0192', jobTitle: 'VP Procurement', companyId: 'c-1', companyName: 'AeroTech Solutions', ownerId: 'u-3', ownerName: 'Marcus Vance', customFields: { 'Preferred Channel': 'Email' }, createdAt: '2026-01-12' },
   { id: 'cnt-2', name: 'Rachel Green', email: 'r.green@biopharma.example.com', phone: '+1 (617) 555-0144', jobTitle: 'QA Director', companyId: 'c-2', companyName: 'BioPharma Health', ownerId: 'u-4', ownerName: 'Elena Rostova', customFields: { 'Preferred Channel': 'Phone' }, createdAt: '2026-01-18' },
   { id: 'cnt-3', name: 'Michael Chang', email: 'mchang@nexuslogistics.example.com', phone: '+1 (206) 555-0188', jobTitle: 'Operations Director', companyId: 'c-3', companyName: 'Nexus Logistics', ownerId: 'u-3', ownerName: 'Marcus Vance', customFields: { 'Preferred Channel': 'In-Person' }, createdAt: '2026-02-02' },
@@ -92,7 +79,7 @@ export const initialContacts: Contact[] = [
   { id: 'cnt-8', name: 'Amanda Sterling', email: 'asterling@vanguardmed.example.com', phone: '+1 (312) 555-0199', jobTitle: 'Surgical Equipment Buyer', companyId: 'c-8', companyName: 'Vanguard Medical Systems', ownerId: 'u-4', ownerName: 'Elena Rostova', customFields: { 'Preferred Channel': 'Phone' }, createdAt: '2026-03-27' },
 ];
 
-export const initialLeads: Lead[] = [
+export const initialLeads = [
   { id: 'ld-1', title: 'BioPharma Lab Packaging Contract', contactName: 'Rachel Green', contactEmail: 'r.green@biopharma.example.com', contactPhone: '+1 (617) 555-0144', companyName: 'BioPharma Health', source: 'Inbound Inquiry', isOutbound: false, status: 'Qualified', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-07-01', lastActivityDate: '2026-08-05' },
   { id: 'ld-2', title: 'Artisan Foods Eco-Wrap Campaign', contactName: 'Sofia Rodriguez', contactEmail: 'sofia@artisanfoods.example.com', contactPhone: '+1 (503) 555-0123', companyName: 'Artisan Foods Co', source: 'Cold Outbound', isOutbound: true, status: 'Contacted', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-07-10', lastActivityDate: '2026-08-07' },
   { id: 'ld-3', title: 'AeroTech Electronics Thermal Pads', contactName: 'David Miller', contactEmail: 'dmiller@aerotech.example.com', contactPhone: '+1 (512) 555-0192', companyName: 'AeroTech Solutions', source: 'LinkedIn', isOutbound: true, status: 'Qualified', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-07-12', lastActivityDate: '2026-08-06' },
@@ -101,14 +88,14 @@ export const initialLeads: Lead[] = [
   { id: 'ld-6', title: 'Vanguard Silicone Liners Supply', contactName: 'Amanda Sterling', contactEmail: 'asterling@vanguardmed.example.com', contactPhone: '+1 (312) 555-0199', companyName: 'Vanguard Medical Systems', source: 'Referral', isOutbound: false, status: 'Qualified', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-08-04', lastActivityDate: '2026-08-08' },
 ];
 
-export const initialDeals: Deal[] = [
+export const initialDeals = [
   {
     id: 'dl-1',
     leadId: 'ld-1',
     title: 'BioPharma Lab Packaging Contract',
     value: 62000,
     currency: 'USD',
-    stageId: 'stg-3', // Sample Sent
+    stageId: 'stg-3',
     stageName: 'Sample Sent',
     expectedCloseDate: '2026-09-20',
     contactId: 'cnt-2',
@@ -129,7 +116,7 @@ export const initialDeals: Deal[] = [
     title: 'Artisan Foods Eco-Wrap Campaign',
     value: 28000,
     currency: 'USD',
-    stageId: 'stg-2', // Contacted
+    stageId: 'stg-2',
     stageName: 'Contacted',
     expectedCloseDate: '2026-08-15',
     contactId: 'cnt-4',
@@ -151,7 +138,7 @@ export const initialDeals: Deal[] = [
     title: 'AeroTech Electronics Thermal Pads',
     value: 48000,
     currency: 'USD',
-    stageId: 'stg-3', // Sample Sent
+    stageId: 'stg-3',
     stageName: 'Sample Sent',
     expectedCloseDate: '2026-09-15',
     contactId: 'cnt-1',
@@ -173,7 +160,7 @@ export const initialDeals: Deal[] = [
     title: 'GreenGrid Solar Sealants Pilot',
     value: 35000,
     currency: 'USD',
-    stageId: 'stg-1', // New Lead
+    stageId: 'stg-1',
     stageName: 'New Lead',
     expectedCloseDate: '2026-09-01',
     contactId: 'cnt-6',
@@ -194,7 +181,7 @@ export const initialDeals: Deal[] = [
     title: 'Quantum Precision Coating Supply',
     value: 84000,
     currency: 'USD',
-    stageId: 'stg-4', // Proposal Sent
+    stageId: 'stg-4',
     stageName: 'Proposal Sent',
     expectedCloseDate: '2026-08-28',
     contactId: 'cnt-5',
@@ -216,7 +203,7 @@ export const initialDeals: Deal[] = [
     title: 'Vanguard Silicone Liners Supply',
     value: 120000,
     currency: 'USD',
-    stageId: 'stg-5', // Negotiation
+    stageId: 'stg-5',
     stageName: 'Negotiation',
     expectedCloseDate: '2026-08-20',
     contactId: 'cnt-8',
@@ -234,7 +221,7 @@ export const initialDeals: Deal[] = [
   },
 ];
 
-export const initialTasks: Task[] = [
+export const initialTasks = [
   {
     id: 'tsk-1',
     title: 'Follow up on BioPharma sample testing feedback',
@@ -302,7 +289,7 @@ export const initialTasks: Task[] = [
   },
 ];
 
-export const initialNotes: Note[] = [
+export const initialNotes = [
   {
     id: 'nt-1',
     text: 'Client requested high temperature resistance specs for thermal pads before approving bulk PO.',
@@ -323,7 +310,7 @@ export const initialNotes: Note[] = [
   },
 ];
 
-export const initialActivities: ActivityLog[] = [
+export const initialActivities = [
   {
     id: 'act-1',
     type: 'Outbound Call',

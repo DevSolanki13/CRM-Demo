@@ -1,18 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  CRMState,
-  User,
-  Lead,
-  Deal,
-  Contact,
-  Company,
-  Task,
-  Note,
-  ActivityLog,
-  PipelineStage,
-  CRMBrandingSettings
-} from './types/crm';
-import {
   fetchCRMState,
   resetCRMState,
   updateBranding,
@@ -39,26 +26,26 @@ import {
   createUser,
   updateUser,
   importContacts
-} from './api/crmClient';
-import { Header } from './components/Header';
-import { Sidebar, ActiveTab } from './components/Sidebar';
-import { DashboardView } from './components/DashboardView';
-import { LeadsView } from './components/LeadsView';
-import { PipelineView } from './components/PipelineView';
-import { ContactsView } from './components/ContactsView';
-import { CompaniesView } from './components/CompaniesView';
-import { TasksView } from './components/TasksView';
-import { EmployeesView } from './components/EmployeesView';
-import { ReportsView } from './components/ReportsView';
-import { SettingsView } from './components/SettingsView';
-import { ImportExportModal } from './components/ImportExportModal';
-import { GlobalSearchModal } from './components/GlobalSearchModal';
+} from './api/crmClient.js';
+import { Header } from './components/Header.jsx';
+import { Sidebar } from './components/Sidebar.jsx';
+import { DashboardView } from './components/DashboardView.jsx';
+import { LeadsView } from './components/LeadsView.jsx';
+import { PipelineView } from './components/PipelineView.jsx';
+import { ContactsView } from './components/ContactsView.jsx';
+import { CompaniesView } from './components/CompaniesView.jsx';
+import { TasksView } from './components/TasksView.jsx';
+import { EmployeesView } from './components/EmployeesView.jsx';
+import { ReportsView } from './components/ReportsView.jsx';
+import { SettingsView } from './components/SettingsView.jsx';
+import { ImportExportModal } from './components/ImportExportModal.jsx';
+import { GlobalSearchModal } from './components/GlobalSearchModal.jsx';
 import { Loader2 } from 'lucide-react';
 
 export default function App() {
-  const [state, setState] = useState<CRMState | null>(null);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [state, setState] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -111,132 +98,132 @@ export default function App() {
     setState(res);
   };
 
-  const handleUpdateBranding = async (branding: Partial<CRMBrandingSettings>) => {
+  const handleUpdateBranding = async (branding) => {
     const updated = await updateBranding(branding);
     setState(prev => prev ? { ...prev, branding: updated } : prev);
   };
 
   // Companies CRUD
-  const handleCreateCompany = async (comp: Partial<Company>) => {
+  const handleCreateCompany = async (comp) => {
     await createCompany(comp);
     await reloadState();
   };
 
-  const handleUpdateCompany = async (id: string, comp: Partial<Company>) => {
+  const handleUpdateCompany = async (id, comp) => {
     await updateCompany(id, comp);
     await reloadState();
   };
 
-  const handleDeleteCompany = async (id: string) => {
+  const handleDeleteCompany = async (id) => {
     await deleteCompany(id);
     await reloadState();
   };
 
   // Contacts CRUD
-  const handleCreateContact = async (cnt: Partial<Contact>) => {
+  const handleCreateContact = async (cnt) => {
     await createContact(cnt);
     await reloadState();
   };
 
-  const handleUpdateContact = async (id: string, cnt: Partial<Contact>) => {
+  const handleUpdateContact = async (id, cnt) => {
     await updateContact(id, cnt);
     await reloadState();
   };
 
-  const handleDeleteContact = async (id: string) => {
+  const handleDeleteContact = async (id) => {
     await deleteContact(id);
     await reloadState();
   };
 
   // Leads CRUD
-  const handleCreateLead = async (lead: Partial<Lead>) => {
+  const handleCreateLead = async (lead) => {
     await createLead(lead);
     await reloadState();
   };
 
-  const handleUpdateLead = async (id: string, lead: Partial<Lead>) => {
+  const handleUpdateLead = async (id, lead) => {
     await updateLead(id, lead);
     await reloadState();
   };
 
-  const handleDeleteLead = async (id: string) => {
+  const handleDeleteLead = async (id) => {
     await deleteLead(id);
     await reloadState();
   };
 
   // Deals CRUD
-  const handleCreateDeal = async (deal: Partial<Deal>) => {
+  const handleCreateDeal = async (deal) => {
     await createDeal(deal);
     await reloadState();
   };
 
-  const handleUpdateDeal = async (id: string, deal: Partial<Deal>) => {
+  const handleUpdateDeal = async (id, deal) => {
     await updateDeal(id, deal);
     await reloadState();
   };
 
-  const handleDeleteDeal = async (id: string) => {
+  const handleDeleteDeal = async (id) => {
     await deleteDeal(id);
     await reloadState();
   };
 
   // Stages CRUD
-  const handleCreateStage = async (stage: Partial<PipelineStage>) => {
+  const handleCreateStage = async (stage) => {
     await createStage(stage);
     await reloadState();
   };
 
-  const handleUpdateStage = async (id: string, stage: Partial<PipelineStage>) => {
+  const handleUpdateStage = async (id, stage) => {
     await updateStage(id, stage);
     await reloadState();
   };
 
   // Tasks CRUD
-  const handleCreateTask = async (task: Partial<Task>) => {
+  const handleCreateTask = async (task) => {
     await createTask(task);
     await reloadState();
   };
 
-  const handleUpdateTask = async (id: string, task: Partial<Task>) => {
+  const handleUpdateTask = async (id, task) => {
     await updateTask(id, task);
     await reloadState();
   };
 
-  const handleDeleteTask = async (id: string) => {
+  const handleDeleteTask = async (id) => {
     await deleteTask(id);
     await reloadState();
   };
 
   // Notes & Activities
-  const handleCreateNote = async (note: Partial<Note>) => {
+  const handleCreateNote = async (note) => {
     await createNote(note);
     await reloadState();
   };
 
-  const handleCreateActivity = async (act: Partial<ActivityLog>) => {
+  const handleCreateActivity = async (act) => {
     await createActivity(act);
     await reloadState();
   };
 
   // Users
-  const handleCreateUser = async (u: Partial<User>) => {
+  const handleCreateUser = async (u) => {
     await createUser(u);
     await reloadState();
   };
 
-  const handleUpdateUser = async (id: string, u: Partial<User>) => {
+  const handleUpdateUser = async (id, u) => {
     await updateUser(id, u);
     await reloadState();
   };
 
   // CSV Import
-  const handleImportContacts = async (items: any[]) => {
+  const handleImportContacts = async (items) => {
     await importContacts(items);
     await reloadState();
   };
 
   // Quick Action Handler from Header
-  const handleQuickAction = (type: 'lead' | 'deal' | 'contact' | 'activity') => {
+  const handleQuickAction = (type) => {
     if (type === 'lead') setActiveTab('leads');
     else if (type === 'deal') setActiveTab('pipeline');
     else if (type === 'contact') setActiveTab('contacts');
@@ -244,7 +231,7 @@ export default function App() {
   };
 
   // Global search result selection
-  const handleSelectSearchResult = (type: 'lead' | 'contact' | 'deal' | 'company', item: any) => {
+  const handleSelectSearchResult = (type, _item) => {
     if (type === 'lead') setActiveTab('leads');
     else if (type === 'deal') setActiveTab('pipeline');
     else if (type === 'contact') setActiveTab('contacts');

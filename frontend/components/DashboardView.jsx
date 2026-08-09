@@ -1,7 +1,6 @@
 import React from 'react';
 import { 
   Users, 
-  Briefcase, 
   Trophy, 
   DollarSign, 
   Calendar, 
@@ -9,34 +8,14 @@ import {
   Mail, 
   Send, 
   RefreshCw, 
-  ArrowUpRight, 
-  Clock, 
-  CheckCircle2, 
   ChevronRight,
   TrendingUp,
   Layers,
   Sparkles
 } from 'lucide-react';
-import { 
-  CRMState, 
-  User, 
-  Deal, 
-  Lead, 
-  Task, 
-  ActivityLog 
-} from '../types/crm';
-import { formatCurrency, formatDate, filterByRole } from '../utils/crmHelpers';
+import { formatCurrency, formatDate, filterByRole } from '../utils/crmHelpers.js';
 
-interface DashboardViewProps {
-  state: CRMState;
-  currentUser: User;
-  onNavigateTab: (tab: any) => void;
-  onTriggerRenewalCheck: () => void;
-  onOpenLeadModal: (lead?: Lead) => void;
-  onOpenDealModal: (deal?: Deal) => void;
-}
-
-export const DashboardView: React.FC<DashboardViewProps> = ({
+export const DashboardView = ({
   state,
   currentUser,
   onNavigateTab,
@@ -44,12 +23,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenLeadModal,
   onOpenDealModal
 }) => {
-  const { leads, deals, tasks, activities, stages, users } = state;
+  const { leads, deals, tasks, activities, stages } = state;
 
   // Filter items based on current RBAC
-  const userLeads = filterByRole<Lead>(leads, currentUser);
-  const userDeals = filterByRole<Deal>(deals, currentUser);
-  const userTasks = filterByRole<Task>(tasks, currentUser);
+  const userLeads = filterByRole(leads, currentUser);
+  const userDeals = filterByRole(deals, currentUser);
+  const userTasks = filterByRole(tasks, currentUser);
 
   // Metrics Calculations
   const totalLeads = userLeads.length;

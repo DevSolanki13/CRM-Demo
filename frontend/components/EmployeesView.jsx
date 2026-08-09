@@ -2,28 +2,12 @@ import React, { useState } from 'react';
 import { 
   Users2, 
   Plus, 
-  ShieldCheck, 
-  Briefcase, 
-  DollarSign, 
-  Mail, 
-  CheckCircle2, 
   Edit3, 
-  X, 
-  BarChart2 
+  X 
 } from 'lucide-react';
-import { User, UserRole, Lead, Deal } from '../types/crm';
-import { formatCurrency } from '../utils/crmHelpers';
+import { formatCurrency } from '../utils/crmHelpers.js';
 
-interface EmployeesViewProps {
-  users: User[];
-  leads: Lead[];
-  deals: Deal[];
-  currentUser: User;
-  onCreateUser: (user: Partial<User>) => Promise<void>;
-  onUpdateUser: (id: string, user: Partial<User>) => Promise<void>;
-}
-
-export const EmployeesView: React.FC<EmployeesViewProps> = ({
+export const EmployeesView = ({
   users,
   leads,
   deals,
@@ -32,9 +16,9 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
   onUpdateUser
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState(null);
 
-  const [formData, setFormData] = useState<Partial<User>>({
+  const [formData, setFormData] = useState({
     name: '',
     email: '',
     role: 'Sales Rep',
@@ -47,13 +31,13 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (user: User) => {
+  const handleOpenEdit = (user) => {
     setEditingUser(user);
     setFormData({ ...user });
     setIsModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.email) return;
 
@@ -200,7 +184,7 @@ export const EmployeesView: React.FC<EmployeesViewProps> = ({
                 <label className="block text-[#6b6b60] font-semibold mb-1">Role</label>
                 <select
                   value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   className="w-full bg-[#fcfcf9] border border-[#e0e0d5] rounded-xl p-2.5 text-[#2d2d2a] focus:outline-none focus:border-[#5A5A40]"
                 >
                   <option value="Sales Rep">Sales Rep</option>

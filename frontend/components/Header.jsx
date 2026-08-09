@@ -4,29 +4,14 @@ import {
   Search, 
   Plus, 
   UserCheck, 
-  Bell, 
   RefreshCw, 
-  Sparkles, 
   ChevronDown,
-  Layers,
   PhoneCall,
   UserPlus,
   Briefcase
 } from 'lucide-react';
-import { User, CRMBrandingSettings } from '../types/crm';
 
-interface HeaderProps {
-  branding: CRMBrandingSettings;
-  users: User[];
-  currentUser: User;
-  onSelectUser: (user: User) => void;
-  onOpenSearch: () => void;
-  onOpenQuickAction: (actionType: 'lead' | 'deal' | 'contact' | 'activity') => void;
-  onTriggerRenewalCheck: () => void;
-  renewalsDueCount: number;
-}
-
-export const Header: React.FC<HeaderProps> = ({
+export const Header = ({
   branding,
   users,
   currentUser,

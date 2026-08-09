@@ -3,36 +3,16 @@ import {
   Users,
   Search,
   Plus,
-  Filter,
   Phone,
   Mail,
   Building2,
-  UserCheck,
   Edit3,
   Trash2,
-  Send,
-  CheckCircle2,
-  ChevronDown,
-  X,
-  ExternalLink
+  X
 } from 'lucide-react';
-import { Lead, LeadSource, LeadStatus, User, CRMBrandingSettings, PipelineStage, Deal } from '../types/crm';
-import { formatDate, filterByRole } from '../utils/crmHelpers';
+import { formatDate, filterByRole } from '../utils/crmHelpers.js';
 
-interface LeadsViewProps {
-  leads: Lead[];
-  stages?: PipelineStage[];
-  deals?: Deal[];
-  users: User[];
-  currentUser: User;
-  branding: CRMBrandingSettings;
-  onCreateLead: (lead: Partial<Lead>) => Promise<void>;
-  onUpdateLead: (id: string, lead: Partial<Lead>) => Promise<void>;
-  onDeleteLead: (id: string) => Promise<void>;
-  onConvertToDeal?: (lead: Lead) => void;
-}
-
-export const LeadsView: React.FC<LeadsViewProps> = ({
+export const LeadsView = ({
   leads,
   stages = [],
   deals = [],
@@ -45,20 +25,20 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
   onConvertToDeal
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSource, setSelectedSource] = useState<string>('All');
-  const [selectedStatus, setSelectedStatus] = useState<string>('All');
-  const [selectedOwner, setSelectedOwner] = useState<string>('All');
-  const [selectedStage, setSelectedStage] = useState<string>('All');
+  const [selectedSource, setSelectedSource] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState('All');
+  const [selectedOwner, setSelectedOwner] = useState('All');
+  const [selectedStage, setSelectedStage] = useState('All');
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [editingLead, setEditingLead] = useState(null);
 
   // Selection state for multi-delete
-  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [selectedLeadIds, setSelectedLeadIds] = useState([]);
 
   // Form State
-  const [formData, setFormData] = useState<Partial<Lead>>({
+  const [formData, setFormData] = useState({
     title: '',
     contactName: '',
     contactEmail: '',
@@ -71,7 +51,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
   });
 
   // Filter RBAC
-  const userLeads = filterByRole<Lead>(leads, currentUser);
+  const userLeads = filterByRole(leads, currentUser);
 
   // Filtered Leads
   const filteredLeads = userLeads.filter(l => {
@@ -103,7 +83,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
     }
   };
 
-  const handleToggleSelectLead = (id: string) => {
+  const handleToggleSelectLead = (id) => {
     setSelectedLeadIds(prev =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
@@ -135,13 +115,13 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (lead: Lead) => {
+  const handleOpenEditModal = (lead) => {
     setEditingLead(lead);
     setFormData({ ...lead });
     setIsModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.title || !formData.contactName) return;
 
@@ -581,7 +561,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
                   <label className="block text-[#6b6b60] font-semibold mb-1">Source</label>
                   <select
                     value={formData.source}
-                    onChange={(e) => setFormData({ ...formData, source: e.target.value as LeadSource })}
+                    onChange={(e) => setFormData({ ...formData, source: e.target.value })}
                     className="w-full bg-[#fcfcf9] border border-[#e0e0d5] rounded-xl p-2.5 text-[#2d2d2a] focus:outline-none focus:border-[#5A5A40]"
                   >
                     <option value="Website">Website</option>
@@ -597,7 +577,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
                   <label className="block text-[#6b6b60] font-semibold mb-1">Status</label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as LeadStatus })}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full bg-[#fcfcf9] border border-[#e0e0d5] rounded-xl p-2.5 text-[#2d2d2a] focus:outline-none focus:border-[#5A5A40]"
                   >
                     <option value="New">New</option>
