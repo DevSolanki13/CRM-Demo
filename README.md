@@ -2,28 +2,27 @@
 
 ## Overview
 
-**Customizable CRM Demo** is a lightweight, feature‑rich Customer Relationship Management (CRM) web application. It provides a modern, responsive UI with dark‑mode glassmorphism design, built with **React**, **TypeScript**, and **Vite**. The app showcases a modular architecture that can be easily extended or customized for real‑world projects.
+**Customizable CRM Demo** is a lightweight, feature‑rich Customer Relationship Management (CRM) web application. It provides a modern, responsive UI with dark‑mode glassmorphism design, built with **React 18**, **JavaScript (JSX)**, **Node.js**, **Express**, and **Vite**. The app showcases a modular full‑stack architecture with clean Separation of Concerns between frontend and backend layers.
 
 ## Features
 
-- **Dashboard & Pipeline Sync**: Real-time sales pipeline Kanban board with 1-to-1 synchronization with Leads.
-- **Lead Management**: Responsive table & mobile card views with multi-select checkboxes and bulk deletion (`Delete Selected`).
+- **Dashboard & Pipeline Sync**: Real-time sales pipeline Kanban board with 1-to-1 live synchronization with Leads.
+- **Lead Management**: Responsive table & mobile card views with multi-select checkboxes, bulk deletion (`Delete Selected`), and Pipeline Stage filtering.
 - **Entity Management**: Comprehensive tools for Companies, Contacts, Leads, Employees, and Tasks.
 - **CSV Data Export Center**: Download formatted CSV file exports for Contacts, Leads, and Deals.
 - **Global Search**: Instant modal search across all CRM entities for fast navigation.
 - **Modern Typography & UI**: Designed with **Inter** & **Poppins** Google Fonts for a sleek, tech-focused, professional aesthetic.
-- **API Abstraction**: Clean client abstraction (`src/api/crmClient.ts`) ready for backend REST/GraphQL integration.
+- **Full-Stack API Architecture**: Clean Express REST API backend coupled with an abstracted frontend API client (`frontend/api/crmClient.js`).
 
 ## Tech Stack
 
-- **React 18** with **TypeScript**
-- **Vite** for fast bundling and HMR
-- **tsx** runtime for running the development server (`npm run dev`)
-- **Git** for version control
+- **Frontend**: React 18, JavaScript (JSX), Tailwind CSS, Lucide Icons, Vite
+- **Backend**: Node.js, Express.js
+- **Tooling**: Esbuild, Git
 
 ## Screenshots
 
-![Project Screenshot](images/1st%20UI.png)
+![Project Screenshot](images/1st%20UI%20(Updated%20).png)
 
 ## Getting Started
 
@@ -48,42 +47,46 @@ npm install
 ```bash
 npm run dev
 ```
-Visit `http://localhost:5173` (or the port shown in the console) to view the app.
+Starts the Node.js Express backend server (`backend/server.js`) and Vite development environment.
 
 ### Build for Production
 
 ```bash
 npm run build
-# Preview the production build
-npm run preview
+# Start production server
+npm run start
 ```
 
 ## Project Structure
 
 ```text
-├─ src/
-│  ├─ api/                # API client layer
-│  ├─ components/         # Reusable UI components (Views, Modals, etc.)
-│  ├─ data/               # Initial mock data
-│  ├─ types/              # TypeScript type definitions
-│  ├─ utils/              # Helper functions
-│  ├─ index.css           # Global styles
-│  ├─ main.tsx            # Application entry point
-│  └─ App.tsx             # Root component with routing
-├─ public/                # Static assets (favicon, images)
-├─ .env.example           # Example environment variables
-├─ package.json           # Scripts and dependencies
-└─ vite.config.ts         # Vite configuration
+├─ backend/               # Node.js & Express REST API Server
+│  ├─ controllers/        # CRM business logic and route handlers
+│  ├─ data/               # Seed mock data
+│  ├─ routes/             # REST API endpoint definitions
+│  ├─ store/              # In-memory CRM state store
+│  └─ server.js           # Express server entry point
+├─ frontend/              # React JSX Single Page Application
+│  ├─ api/                # Frontend API client layer (`crmClient.js`)
+│  ├─ components/         # Modular UI components (Views & Modals)
+│  ├─ utils/              # Helper utilities (`crmHelpers.js`)
+│  ├─ index.css           # Global Tailwind & typography styles
+│  ├─ main.jsx            # React root mount point
+│  └─ App.jsx             # Main layout, state routing & modals
+├─ images/                # Application UI screenshots & assets
+├─ index.html             # HTML entry template
+├─ package.json           # Project scripts & dependencies
+└─ vite.config.ts         # Vite bundler configuration
 ```
 
 ## Scripts
 
 | Script | Description |
 |--------|-------------|
-| `npm install` | Install all dependencies |
-| `npm run dev` | Start the development server using `tsx` |
-| `npm run build` | Create an optimized production build |
-| `npm run preview` | Preview the production build locally |
+| `npm install` | Install all backend and frontend dependencies |
+| `npm run dev` | Start the development server (`node backend/server.js`) |
+| `npm run build` | Create an optimized production build via Vite & Esbuild |
+| `npm run start` | Run the production build server (`node dist/server.cjs`) |
 
 ## Contributing
 
