@@ -34,7 +34,7 @@ Built with **React 18**, **TypeScript**, and **Vite** for fast development. Stat
 
 The UI follows a modern dark‑mode glassmorphism aesthetic, with a sidebar navigation and responsive dashboard cards. Below is a mockup of the main dashboard view:
 
-![How it looked](file:///c:/Users/DEV/Documents/Coding/CRM/customizable-crm-demo/images/1st%20UI.png)
+![How it looked](images/1st%20UI.png)
 
 ## Getting Started
 
