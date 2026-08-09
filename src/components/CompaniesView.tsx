@@ -105,7 +105,7 @@ export const CompaniesView: React.FC<CompaniesViewProps> = ({
 
       {/* Search */}
       <div className="bg-white border border-[#e0e0d5] p-4 rounded-2xl shadow-xs">
-        <div className="relative max-w-md">
+        <div className="relative w-full sm:w-64">
           <Search className="w-4 h-4 text-[#5A5A40] absolute left-3.5 top-2.5" />
           <input
             type="text"

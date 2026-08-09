@@ -1,44 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  CRMState, 
-  User, 
-  Lead, 
-  Deal, 
-  Contact, 
-  Company, 
-  Task, 
-  Note, 
-  ActivityLog, 
-  PipelineStage, 
-  CRMBrandingSettings 
+import {
+  CRMState,
+  User,
+  Lead,
+  Deal,
+  Contact,
+  Company,
+  Task,
+  Note,
+  ActivityLog,
+  PipelineStage,
+  CRMBrandingSettings
 } from './types/crm';
-import { 
-  fetchCRMState, 
-  resetCRMState, 
-  updateBranding, 
-  createCompany, 
-  updateCompany, 
-  deleteCompany, 
-  createContact, 
-  updateContact, 
-  deleteContact, 
-  createLead, 
-  updateLead, 
-  deleteLead, 
-  createStage, 
-  updateStage, 
-  createDeal, 
-  updateDeal, 
-  deleteDeal, 
-  triggerRenewalAutomation, 
-  createTask, 
-  updateTask, 
-  deleteTask, 
-  createNote, 
-  createActivity, 
-  createUser, 
-  updateUser, 
-  importContacts 
+import {
+  fetchCRMState,
+  resetCRMState,
+  updateBranding,
+  createCompany,
+  updateCompany,
+  deleteCompany,
+  createContact,
+  updateContact,
+  deleteContact,
+  createLead,
+  updateLead,
+  deleteLead,
+  createStage,
+  updateStage,
+  createDeal,
+  updateDeal,
+  deleteDeal,
+  triggerRenewalAutomation,
+  createTask,
+  updateTask,
+  deleteTask,
+  createNote,
+  createActivity,
+  createUser,
+  updateUser,
+  importContacts
 } from './api/crmClient';
 import { Header } from './components/Header';
 import { Sidebar, ActiveTab } from './components/Sidebar';
@@ -257,7 +257,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f0] text-[#2d2d2a] flex flex-col font-sans antialiased selection:bg-[#5A5A40] selection:text-white">
-      
+
       {/* Top Header */}
       <Header
         branding={state.branding}
@@ -272,7 +272,7 @@ export default function App() {
 
       {/* Main Body: Sidebar + Content */}
       <div className="flex-1 flex overflow-hidden">
-        
+
         {/* Navigation Sidebar */}
         <Sidebar
           activeTab={activeTab}
@@ -299,6 +299,8 @@ export default function App() {
           {activeTab === 'leads' && (
             <LeadsView
               leads={state.leads}
+              stages={state.stages}
+              deals={state.deals}
               users={state.users}
               currentUser={currentUser}
               branding={state.branding}

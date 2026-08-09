@@ -1,26 +1,28 @@
 import React, { useState } from 'react';
-import { 
-  Users, 
-  Search, 
-  Plus, 
-  Filter, 
-  Phone, 
-  Mail, 
-  Building2, 
-  UserCheck, 
-  Edit3, 
-  Trash2, 
-  Send, 
-  CheckCircle2, 
+import {
+  Users,
+  Search,
+  Plus,
+  Filter,
+  Phone,
+  Mail,
+  Building2,
+  UserCheck,
+  Edit3,
+  Trash2,
+  Send,
+  CheckCircle2,
   ChevronDown,
   X,
   ExternalLink
 } from 'lucide-react';
-import { Lead, LeadSource, LeadStatus, User, CRMBrandingSettings } from '../types/crm';
+import { Lead, LeadSource, LeadStatus, User, CRMBrandingSettings, PipelineStage, Deal } from '../types/crm';
 import { formatDate, filterByRole } from '../utils/crmHelpers';
 
 interface LeadsViewProps {
   leads: Lead[];
+  stages?: PipelineStage[];
+  deals?: Deal[];
   users: User[];
   currentUser: User;
   branding: CRMBrandingSettings;
@@ -32,6 +34,8 @@ interface LeadsViewProps {
 
 export const LeadsView: React.FC<LeadsViewProps> = ({
   leads,
+  stages = [],
+  deals = [],
   users,
   currentUser,
   branding,
@@ -44,7 +48,8 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
   const [selectedSource, setSelectedSource] = useState<string>('All');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [selectedOwner, setSelectedOwner] = useState<string>('All');
-  
+  const [selectedStage, setSelectedStage] = useState<string>('All');
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -70,21 +75,24 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
 
   // Filtered Leads
   const filteredLeads = userLeads.filter(l => {
-    const matchesSearch = 
+    const matchesSearch =
       l.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       l.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       l.companyName.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesSource = selectedSource === 'All' 
-      ? true 
-      : selectedSource === 'Outbound' ? l.isOutbound 
-      : selectedSource === 'Inbound' ? !l.isOutbound 
-      : l.source === selectedSource;
+    const matchesSource = selectedSource === 'All'
+      ? true
+      : selectedSource === 'Outbound' ? l.isOutbound
+        : selectedSource === 'Inbound' ? !l.isOutbound
+          : l.source === selectedSource;
 
     const matchesStatus = selectedStatus === 'All' || l.status === selectedStatus;
     const matchesOwner = selectedOwner === 'All' || l.ownerId === selectedOwner;
 
-    return matchesSearch && matchesSource && matchesStatus && matchesOwner;
+    const leadDeal = deals.find(d => d.leadId === l.id || d.title === l.title);
+    const matchesStage = selectedStage === 'All' || (leadDeal && leadDeal.stageId === selectedStage);
+
+    return matchesSearch && matchesSource && matchesStatus && matchesOwner && matchesStage;
   });
 
   const handleToggleSelectAll = () => {
@@ -147,7 +155,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
 
   return (
     <div className="p-6 space-y-6 bg-[#f5f5f0] text-[#2d2d2a] min-h-full">
-      
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#e0e0d5] p-6 rounded-2xl shadow-xs">
         <div>
@@ -183,9 +191,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
 
       {/* Filter Bar */}
       <div className="bg-white border border-[#e0e0d5] p-4 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center gap-3 shadow-xs">
-        
+
         {/* Search */}
-        <div className="flex-1 relative">
+        <div className="w-full sm:w-64 relative shrink-0">
           <Search className="w-4 h-4 text-[#5A5A40] absolute left-3.5 top-2.5" />
           <input
             type="text"
@@ -244,6 +252,21 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
           </select>
         </div>
 
+        {/* Pipeline Stage Filter */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[#6b6b60] font-medium">Pipeline Stage:</span>
+          <select
+            value={selectedStage}
+            onChange={(e) => setSelectedStage(e.target.value)}
+            className="bg-[#fcfcf9] border border-[#e0e0d5] rounded-full px-3 py-2 text-xs text-[#2d2d2a] focus:outline-none focus:border-[#5A5A40]"
+          >
+            <option value="All">All Stages</option>
+            {stages.map(stg => (
+              <option key={stg.id} value={stg.id}>{stg.name}</option>
+            ))}
+          </select>
+        </div>
+
       </div>
 
       {/* Responsive Mobile Cards View (< md) */}
@@ -255,12 +278,15 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
         ) : (
           filteredLeads.map(lead => {
             const isSelected = selectedLeadIds.includes(lead.id);
+            const leadDeal = deals.find(d => d.leadId === lead.id || d.title === lead.title);
+            const currentStageName = leadDeal ? leadDeal.stageName : 'New Lead';
+            const currentStageObj = stages.find(s => s.id === leadDeal?.stageId);
+
             return (
-              <div 
+              <div
                 key={lead.id}
-                className={`bg-white border rounded-2xl p-4 space-y-3 shadow-xs transition-colors ${
-                  isSelected ? 'border-[#5A5A40] bg-[#5A5A40]/5' : 'border-[#e0e0d5]'
-                }`}
+                className={`bg-white border rounded-2xl p-4 space-y-3 shadow-xs transition-colors ${isSelected ? 'border-[#5A5A40] bg-[#5A5A40]/5' : 'border-[#e0e0d5]'
+                  }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3">
@@ -278,7 +304,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
                       </div>
                     </div>
                   </div>
-                  
+
                   <button
                     onClick={() => handleOpenEditModal(lead)}
                     className="p-1.5 text-[#5A5A40] hover:bg-[#f5f5f0] rounded-lg transition-colors"
@@ -288,27 +314,24 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-[#6b6b60] pt-2 border-t border-[#e0e0d5]">
+                <div className="flex flex-wrap items-center justify-between text-[11px] text-[#6b6b60] pt-2 border-t border-[#e0e0d5] gap-2">
                   <div>
                     <span className="font-semibold text-[#2d2d2a]">{lead.contactName}</span>
                     {lead.contactEmail && <span className="block text-[10px] text-[#6b6b60]">{lead.contactEmail}</span>}
                   </div>
-                  
-                  <div className="flex items-center gap-1.5">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                      lead.isOutbound 
-                        ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20' 
-                        : 'bg-purple-100 text-purple-800 border-purple-200'
-                    }`}>
-                      {lead.isOutbound ? 'Outbound' : 'Inbound'}
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span 
+                      className="px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-2xs"
+                      style={{ backgroundColor: currentStageObj?.color || '#5A5A40' }}
+                    >
+                      {currentStageName}
                     </span>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                      lead.status === 'Qualified' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-                      lead.status === 'Contacted' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                      lead.status === 'New' ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20' :
-                      'bg-stone-100 text-stone-600 border-stone-200'
-                    }`}>
-                      {lead.status}
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${lead.isOutbound
+                        ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20'
+                        : 'bg-purple-100 text-purple-800 border-purple-200'
+                      }`}>
+                      {lead.isOutbound ? 'Outbound' : 'Inbound'}
                     </span>
                   </div>
                 </div>
@@ -338,6 +361,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
                   />
                 </th>
                 <th className="px-4 py-3.5">Lead / Company</th>
+                <th className="px-4 py-3.5">Pipeline Stage</th>
                 <th className="px-4 py-3.5">Contact</th>
                 <th className="px-4 py-3.5">Source & Effort</th>
                 <th className="px-4 py-3.5">Status</th>
@@ -349,16 +373,20 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
             <tbody className="divide-y divide-[#e0e0d5]">
               {filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-[#6b6b60]">
+                  <td colSpan={9} className="px-4 py-8 text-center text-[#6b6b60]">
                     No leads found matching criteria.
                   </td>
                 </tr>
               ) : (
                 filteredLeads.map(lead => {
                   const isSelected = selectedLeadIds.includes(lead.id);
+                  const leadDeal = deals.find(d => d.leadId === lead.id || d.title === lead.title);
+                  const currentStageName = leadDeal ? leadDeal.stageName : 'New Lead';
+                  const currentStageObj = stages.find(s => s.id === leadDeal?.stageId);
+
                   return (
-                    <tr 
-                      key={lead.id} 
+                    <tr
+                      key={lead.id}
                       className={`transition-colors ${isSelected ? 'bg-[#5A5A40]/10' : 'hover:bg-[#f5f5f0]/60'}`}
                     >
                       {/* Select Checkbox */}
@@ -378,6 +406,16 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
                           <Building2 className="w-3 h-3 text-[#5A5A40]" />
                           <span>{lead.companyName || 'Unlinked Company'}</span>
                         </div>
+                      </td>
+
+                      {/* Pipeline Stage Badge */}
+                      <td className="px-4 py-3.5">
+                        <span 
+                          className="px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-2xs inline-block"
+                          style={{ backgroundColor: currentStageObj?.color || '#5A5A40' }}
+                        >
+                          {currentStageName}
+                        </span>
                       </td>
 
                       {/* Contact */}
@@ -402,11 +440,10 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
                       {/* Source & Outbound Badge */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                            lead.isOutbound 
-                              ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20' 
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${lead.isOutbound
+                              ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20'
                               : 'bg-purple-100 text-purple-800 border-purple-200'
-                          }`}>
+                            }`}>
                             {lead.isOutbound ? 'Cold Outbound' : 'Inbound'}
                           </span>
                           <span className="text-[10px] text-[#6b6b60] font-mono">({lead.source})</span>
@@ -415,12 +452,11 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
 
                       {/* Status */}
                       <td className="px-4 py-3.5">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          lead.status === 'Qualified' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-                          lead.status === 'Contacted' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                          lead.status === 'New' ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20' :
-                          'bg-stone-100 text-stone-600 border-stone-200'
-                        }`}>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${lead.status === 'Qualified' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                            lead.status === 'Contacted' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                              lead.status === 'New' ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20' :
+                                'bg-stone-100 text-stone-600 border-stone-200'
+                          }`}>
                           {lead.status}
                         </span>
                       </td>
@@ -466,12 +502,12 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
       {isModalOpen && (
         <div className="fixed inset-0 bg-[#2d2d2a]/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-[#e0e0d5] rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-[#2d2d2a]">
-            
+
             <div className="flex items-center justify-between border-b border-[#e0e0d5] pb-3">
               <h2 className="text-sm font-bold text-[#2d2d2a]">
                 {editingLead ? 'Edit Lead' : 'Create New Lead'}
               </h2>
-              <button 
+              <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-[#6b6b60] hover:text-[#2d2d2a] p-1 rounded-lg"
               >
@@ -480,7 +516,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
             </div>
 
             <form onSubmit={handleSave} className="space-y-3.5 text-xs">
-              
+
               <div>
                 <label className="block text-[#6b6b60] font-semibold mb-1">Lead Opportunity Title *</label>
                 <input

@@ -170,7 +170,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
 
       {/* Filter Bar */}
       <div className="bg-white border border-[#e0e0d5] p-4 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center gap-3 shadow-xs">
-        <div className="flex-1 relative">
+        <div className="w-full sm:w-64 relative shrink-0">
           <Search className="w-4 h-4 text-[#5A5A40] absolute left-3.5 top-2.5" />
           <input
             type="text"
