@@ -145,7 +145,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#e0e0d5] p-6 rounded-2xl shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-[#2d2d2a] font-serif italic flex items-center gap-2">
+          <h1 className="text-xl font-bold text-[#2d2d2a] flex items-center gap-2">
             <Kanban className="w-5 h-5 text-[#5A5A40]" />
             <span>Sales Pipeline Kanban Board</span>
           </h1>
@@ -196,7 +196,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
               <div className="flex items-center justify-between border-b border-[#e0e0d5] pb-2 px-1">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stage.color }} />
-                  <span className="font-bold text-xs text-[#2d2d2a] font-serif">{stage.name}</span>
+                  <span className="font-bold text-xs text-[#2d2d2a]">{stage.name}</span>
                   <span className="bg-[#f5f5f0] text-[#5A5A40] font-bold text-[10px] px-2 py-0.5 rounded-full border border-[#e0e0d5]">
                     {stageDeals.length}
                   </span>
@@ -317,7 +317,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
           <div className="bg-white border border-[#e0e0d5] rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-[#2d2d2a]">
             
             <div className="flex items-center justify-between border-b border-[#e0e0d5] pb-3">
-              <h2 className="text-sm font-bold text-[#2d2d2a] font-serif">
+              <h2 className="text-sm font-bold text-[#2d2d2a]">
                 {editingDeal ? 'Edit Deal Opportunity' : 'Create New Deal Opportunity'}
               </h2>
               <button 

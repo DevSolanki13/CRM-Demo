@@ -1,28 +1,28 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Kanban, 
-  Building2, 
-  Contact, 
-  CheckSquare, 
-  Users2, 
-  BarChart3, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Users,
+  Kanban,
+  Building2,
+  Contact,
+  CheckSquare,
+  Users2,
+  BarChart3,
+  Settings,
   FileSpreadsheet,
   RefreshCw
 } from 'lucide-react';
 import { UserRole } from '../types/crm';
 
-export type ActiveTab = 
-  | 'dashboard' 
-  | 'leads' 
-  | 'pipeline' 
-  | 'contacts' 
-  | 'companies' 
-  | 'tasks' 
-  | 'employees' 
-  | 'reports' 
+export type ActiveTab =
+  | 'dashboard'
+  | 'leads'
+  | 'pipeline'
+  | 'contacts'
+  | 'companies'
+  | 'tasks'
+  | 'employees'
+  | 'reports'
   | 'settings';
 
 interface SidebarProps {
@@ -45,27 +45,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'leads', label: 'Leads', icon: Users },
-    { 
-      id: 'pipeline', 
-      label: 'Pipeline (Kanban)', 
+    {
+      id: 'pipeline',
+      label: 'Pipeline',
       icon: Kanban,
       badge: renewalsDueCount > 0 ? `${renewalsDueCount} Renewals` : undefined,
       badgeColor: 'bg-amber-100 text-amber-900 border-amber-200'
     },
     { id: 'contacts', label: 'Contacts', icon: Contact },
     { id: 'companies', label: 'Companies', icon: Building2 },
-    { 
-      id: 'tasks', 
-      label: 'Follow-ups / Tasks', 
+    {
+      id: 'tasks',
+      label: 'Follow-ups / Tasks',
       icon: CheckSquare,
       badge: pendingTasksCount > 0 ? pendingTasksCount.toString() : undefined,
       badgeColor: 'bg-white/20 text-white border-white/30'
     },
-    { 
-      id: 'employees', 
-      label: 'Team & Workload', 
-      icon: Users2, 
-      roles: ['Admin', 'Manager'] as UserRole[] 
+    {
+      id: 'employees',
+      label: 'Team & Workload',
+      icon: Users2,
+      roles: ['Admin', 'Manager'] as UserRole[]
     },
     { id: 'reports', label: 'Reports & Renewal Tracker', icon: BarChart3 },
     { id: 'settings', label: 'Customization Hub', icon: Settings, roles: ['Admin'] as UserRole[] },
@@ -91,11 +91,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as ActiveTab)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                isActive 
-                  ? 'bg-white/20 text-white font-semibold shadow-xs border border-white/20' 
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive
+                  ? 'bg-white/20 text-white font-semibold shadow-xs border border-white/20'
                   : 'hover:bg-white/10 text-white/80 hover:text-white'
-              }`}
+                }`}
             >
               <div className="flex items-center gap-3">
                 <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-white/70'}`} />
@@ -118,7 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/15"
         >
           <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
-          <span>Import / Export CSV</span>
+          <span>Export CSV Data</span>
         </button>
 
         <div className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] text-white/80">

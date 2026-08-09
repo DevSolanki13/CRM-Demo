@@ -69,7 +69,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#e0e0d5] p-6 rounded-2xl shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-[#2d2d2a] font-serif italic flex items-center gap-2">
+          <h1 className="text-xl font-bold text-[#2d2d2a] flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-[#5A5A40]" />
             <span>Sales Performance & Recurring Customer Reports</span>
           </h1>
@@ -139,7 +139,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       <div className="bg-white border border-[#e0e0d5] p-6 rounded-2xl space-y-4 shadow-xs">
         <div className="flex items-center justify-between border-b border-[#e0e0d5] pb-3">
           <div>
-            <h2 className="text-sm font-bold text-[#2d2d2a] font-serif flex items-center gap-2">
+            <h2 className="text-sm font-bold text-[#2d2d2a] flex items-center gap-2">
               <RefreshCw className="w-4 h-4 text-[#5A5A40]" />
               <span>Recurring Customer Renewal Tracking</span>
             </h2>

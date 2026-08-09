@@ -13,12 +13,12 @@
 The application enables teams to manage their customer relationships efficiently. Users can create and organize companies, contacts, leads, employees, and tasks, view a visual sales pipeline, perform global search, and export or import data.
 
 ### Key Features
-- Dashboard with pipeline visualization and reports
-- Manage Companies, Contacts, Leads, Employees, and Tasks
-- Global search modal for quick navigation
-- Export/Import data via JSON
-- Responsive UI with modern design (dark mode ready)
-- API client abstraction (`src/api/crmClient.ts`) for future backend integration
+- **Dashboard & Pipeline Sync**: Real-time sales pipeline Kanban board with 1-to-1 live sync with Leads
+- **Lead Management**: Mobile-responsive table/card views, multi-select checkboxes, and bulk deletion (`Delete Selected`)
+- **CSV Data Export Center**: Instant formatted CSV exports for Contacts, Leads, and Deals
+- **Global Search**: Modal search across all CRM entities for fast navigation
+- **Modern Design & Typography**: Styled with **Inter** & **Poppins** Google Fonts for a techy, professional look
+- **API Client Abstraction**: (`src/api/crmClient.ts`) for future backend integration
 
 ### How It Was Built
 

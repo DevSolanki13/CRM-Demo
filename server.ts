@@ -1,29 +1,29 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { 
-  initialUsers, 
-  initialCompanies, 
-  initialContacts, 
-  initialLeads, 
-  initialStages, 
-  initialDeals, 
-  initialTasks, 
-  initialNotes, 
-  initialActivities, 
-  initialBranding 
+import {
+  initialUsers,
+  initialCompanies,
+  initialContacts,
+  initialLeads,
+  initialStages,
+  initialDeals,
+  initialTasks,
+  initialNotes,
+  initialActivities,
+  initialBranding
 } from "./src/data/initialData.js";
-import { 
-  User, 
-  Company, 
-  Contact, 
-  Lead, 
-  PipelineStage, 
-  Deal, 
-  Task, 
-  Note, 
-  ActivityLog, 
-  CRMBrandingSettings 
+import {
+  User,
+  Company,
+  Contact,
+  Lead,
+  PipelineStage,
+  Deal,
+  Task,
+  Note,
+  ActivityLog,
+  CRMBrandingSettings
 } from "./src/types/crm.js";
 
 interface CRMState {
@@ -42,20 +42,20 @@ interface CRMState {
 // In-Memory CRM Store (persisted during container lifetime)
 let crmState: CRMState = {
   branding: { ...initialBranding },
-  users: [ ...initialUsers ],
-  companies: [ ...initialCompanies ],
-  contacts: [ ...initialContacts ],
-  leads: [ ...initialLeads ],
-  stages: [ ...initialStages ],
-  deals: [ ...initialDeals ],
-  tasks: [ ...initialTasks ],
-  notes: [ ...initialNotes ],
-  activities: [ ...initialActivities ]
+  users: [...initialUsers],
+  companies: [...initialCompanies],
+  contacts: [...initialContacts],
+  leads: [...initialLeads],
+  stages: [...initialStages],
+  deals: [...initialDeals],
+  tasks: [...initialTasks],
+  notes: [...initialNotes],
+  activities: [...initialActivities]
 };
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 5000;
 
   app.use(express.json({ limit: '10mb' }));
 
@@ -162,8 +162,8 @@ async function startServer() {
       const comp = crmState.companies.find(c => c.id === req.body.companyId);
       const owner = crmState.users.find(u => u.id === req.body.ownerId);
 
-      crmState.contacts[index] = { 
-        ...crmState.contacts[index], 
+      crmState.contacts[index] = {
+        ...crmState.contacts[index],
         ...req.body,
         companyName: comp ? comp.name : crmState.contacts[index].companyName,
         ownerName: owner ? owner.name : crmState.contacts[index].ownerName
@@ -205,21 +205,33 @@ async function startServer() {
       createdAt: new Date().toISOString().split('T')[0],
       lastActivityDate: new Date().toISOString().split('T')[0]
     };
-    crmState.leads.unshift(newLead);
+    // Auto-create a corresponding Pipeline Deal in the "New Lead" stage
+    const newStage = crmState.stages.find(s => s.category === 'New') || crmState.stages[0];
+    const nowStr = new Date().toISOString().split('T')[0];
 
-    // Log Activity
-    crmState.activities.unshift({
-      id: `act-${Date.now()}`,
-      type: newLead.isOutbound ? 'Outbound Call' : 'Inbound Email',
-      description: `New ${newLead.isOutbound ? 'Outbound' : 'Inbound'} lead created: ${newLead.title}`,
-      timestamp: new Date().toISOString(),
-      linkedType: 'Lead',
-      linkedId: newLead.id,
-      linkedTitle: newLead.title,
-      authorId: newLead.ownerId,
-      authorName: newLead.ownerName || 'User',
-      isOutbound: newLead.isOutbound
-    });
+    const autoDeal: Deal = {
+      id: `dl-auto-${Date.now()}`,
+      leadId: newLead.id,
+      title: newLead.title,
+      value: Number(req.body.value) || 10000,
+      currency: 'USD',
+      stageId: newStage ? newStage.id : 'stg-1',
+      stageName: newStage ? newStage.name : 'New Lead',
+      expectedCloseDate: nowStr,
+      contactId: '',
+      contactName: newLead.contactName,
+      companyId: '',
+      companyName: newLead.companyName,
+      ownerId: newLead.ownerId,
+      ownerName: newLead.ownerName,
+      isRecurring: false,
+      recurrenceDays: 60,
+      status: 'Active',
+      createdAt: nowStr,
+      updatedAt: nowStr,
+      daysInStage: 0
+    };
+    crmState.deals.unshift(autoDeal);
 
     res.status(201).json(newLead);
   });
@@ -228,14 +240,33 @@ async function startServer() {
     const { id } = req.params;
     const index = crmState.leads.findIndex(l => l.id === id);
     if (index !== -1) {
+      const oldLead = crmState.leads[index];
       const owner = crmState.users.find(u => u.id === req.body.ownerId);
-      crmState.leads[index] = { 
-        ...crmState.leads[index], 
+      const updatedLead = {
+        ...oldLead,
         ...req.body,
-        ownerName: owner ? owner.name : crmState.leads[index].ownerName,
+        ownerName: owner ? owner.name : oldLead.ownerName,
         lastActivityDate: new Date().toISOString().split('T')[0]
       };
-      res.json(crmState.leads[index]);
+      crmState.leads[index] = updatedLead;
+
+      // Also update corresponding deal in pipeline
+      crmState.deals = crmState.deals.map(d => {
+        if (d.leadId === id || d.id === `dl-${id.replace('ld-', '')}` || d.title === oldLead.title) {
+          return {
+            ...d,
+            title: updatedLead.title,
+            contactName: updatedLead.contactName,
+            companyName: updatedLead.companyName,
+            ownerId: updatedLead.ownerId,
+            ownerName: updatedLead.ownerName,
+            updatedAt: new Date().toISOString().split('T')[0]
+          };
+        }
+        return d;
+      });
+
+      res.json(updatedLead);
     } else {
       res.status(404).json({ error: "Lead not found" });
     }
@@ -243,7 +274,16 @@ async function startServer() {
 
   app.delete("/api/leads/:id", (req, res) => {
     const { id } = req.params;
+    const targetLead = crmState.leads.find(l => l.id === id);
     crmState.leads = crmState.leads.filter(l => l.id !== id);
+    
+    // Also remove corresponding deal from pipeline
+    crmState.deals = crmState.deals.filter(d => 
+      d.leadId !== id && 
+      d.id !== `dl-${id.replace('ld-', '')}` && 
+      (targetLead ? d.title !== targetLead.title : true)
+    );
+
     res.json({ success: true });
   });
 
@@ -337,7 +377,7 @@ async function startServer() {
       const owner = req.body.ownerId ? crmState.users.find(u => u.id === req.body.ownerId) : undefined;
 
       const nowStr = new Date().toISOString().split('T')[0];
-      
+
       let newStatus = oldDeal.status;
       let actualCloseDate = oldDeal.actualCloseDate;
       let nextRenewalDate = oldDeal.nextRenewalDate;

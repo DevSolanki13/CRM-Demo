@@ -85,7 +85,7 @@ export const CompaniesView: React.FC<CompaniesViewProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#e0e0d5] p-6 rounded-2xl shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-[#2d2d2a] font-serif italic flex items-center gap-2">
+          <h1 className="text-xl font-bold text-[#2d2d2a] flex items-center gap-2">
             <Building2 className="w-5 h-5 text-[#5A5A40]" />
             <span>Companies Directory</span>
           </h1>
@@ -210,7 +210,7 @@ export const CompaniesView: React.FC<CompaniesViewProps> = ({
           <div className="bg-white border border-[#e0e0d5] rounded-2xl p-5 space-y-4 shadow-xl text-[#2d2d2a]">
             <div className="flex items-start justify-between border-b border-[#e0e0d5] pb-3">
               <div>
-                <h3 className="font-bold text-sm text-[#2d2d2a] font-serif">{selectedCompany.name}</h3>
+                <h3 className="font-bold text-sm text-[#2d2d2a]">{selectedCompany.name}</h3>
                 <p className="text-xs text-[#6b6b60] font-medium">{selectedCompany.industry}</p>
               </div>
               <button onClick={() => setSelectedCompany(null)} className="text-[#6b6b60] hover:text-[#2d2d2a] p-1">
@@ -226,7 +226,7 @@ export const CompaniesView: React.FC<CompaniesViewProps> = ({
 
             {/* Linked Contacts */}
             <div className="space-y-2">
-              <h4 className="text-xs font-bold text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5 font-serif">
+              <h4 className="text-xs font-bold text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-[#5A5A40]" />
                 <span>Contacts ({linkedContacts.length})</span>
               </h4>
@@ -245,7 +245,7 @@ export const CompaniesView: React.FC<CompaniesViewProps> = ({
 
             {/* Linked Deals */}
             <div className="space-y-2 pt-2 border-t border-[#e0e0d5]">
-              <h4 className="text-xs font-bold text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5 font-serif">
+              <h4 className="text-xs font-bold text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5">
                 <Briefcase className="w-3.5 h-3.5 text-[#5A5A40]" />
                 <span>Deals ({linkedDeals.length})</span>
               </h4>
@@ -272,7 +272,7 @@ export const CompaniesView: React.FC<CompaniesViewProps> = ({
         <div className="fixed inset-0 bg-[#2d2d2a]/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-[#e0e0d5] rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-[#2d2d2a]">
             <div className="flex items-center justify-between border-b border-[#e0e0d5] pb-3">
-              <h2 className="text-sm font-bold text-[#2d2d2a] font-serif">
+              <h2 className="text-sm font-bold text-[#2d2d2a]">
                 {editingCompany ? 'Edit Company' : 'Add Company'}
               </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-[#6b6b60] hover:text-[#2d2d2a] p-1">

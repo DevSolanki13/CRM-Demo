@@ -49,6 +49,9 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
 
+  // Selection state for multi-delete
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+
   // Form State
   const [formData, setFormData] = useState<Partial<Lead>>({
     title: '',
@@ -83,6 +86,30 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
 
     return matchesSearch && matchesSource && matchesStatus && matchesOwner;
   });
+
+  const handleToggleSelectAll = () => {
+    if (selectedLeadIds.length === filteredLeads.length && filteredLeads.length > 0) {
+      setSelectedLeadIds([]);
+    } else {
+      setSelectedLeadIds(filteredLeads.map(l => l.id));
+    }
+  };
+
+  const handleToggleSelectLead = (id: string) => {
+    setSelectedLeadIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLeadIds.length === 0) return;
+    if (window.confirm(`Are you sure you want to delete ${selectedLeadIds.length} selected lead(s)?`)) {
+      for (const id of selectedLeadIds) {
+        await onDeleteLead(id);
+      }
+      setSelectedLeadIds([]);
+    }
+  };
 
   const handleOpenAddModal = () => {
     setEditingLead(null);
@@ -124,7 +151,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#e0e0d5] p-6 rounded-2xl shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-[#2d2d2a] font-serif italic flex items-center gap-2">
+          <h1 className="text-xl font-bold text-[#2d2d2a] flex items-center gap-2">
             <Users className="w-5 h-5 text-[#5A5A40]" />
             <span>Lead Management</span>
           </h1>
@@ -133,13 +160,25 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAddModal}
-          className="px-4 py-2 bg-[#5A5A40] hover:bg-[#4a4a35] text-white rounded-full text-xs font-semibold flex items-center gap-2 transition-colors shadow-xs"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add New Lead</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {selectedLeadIds.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-full text-xs font-semibold flex items-center gap-2 transition-colors shadow-xs"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete Selected ({selectedLeadIds.length})</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleOpenAddModal}
+            className="px-4 py-2 bg-[#5A5A40] hover:bg-[#4a4a35] text-white rounded-full text-xs font-semibold flex items-center gap-2 transition-colors shadow-xs"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add New Lead</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -207,12 +246,97 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
 
       </div>
 
-      {/* Leads Table */}
-      <div className="bg-white border border-[#e0e0d5] rounded-2xl overflow-hidden shadow-xs">
+      {/* Responsive Mobile Cards View (< md) */}
+      <div className="block md:hidden space-y-3">
+        {filteredLeads.length === 0 ? (
+          <div className="bg-white border border-[#e0e0d5] rounded-2xl p-6 text-center text-xs text-[#6b6b60]">
+            No leads found matching criteria.
+          </div>
+        ) : (
+          filteredLeads.map(lead => {
+            const isSelected = selectedLeadIds.includes(lead.id);
+            return (
+              <div 
+                key={lead.id}
+                className={`bg-white border rounded-2xl p-4 space-y-3 shadow-xs transition-colors ${
+                  isSelected ? 'border-[#5A5A40] bg-[#5A5A40]/5' : 'border-[#e0e0d5]'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleSelectLead(lead.id)}
+                      className="w-4 h-4 rounded border-[#e0e0d5] text-[#5A5A40] focus:ring-[#5A5A40] cursor-pointer"
+                    />
+                    <div>
+                      <h3 className="font-bold text-xs text-[#2d2d2a]">{lead.title}</h3>
+                      <div className="text-[11px] text-[#6b6b60] flex items-center gap-1 mt-0.5">
+                        <Building2 className="w-3 h-3 text-[#5A5A40]" />
+                        <span>{lead.companyName || 'Unlinked Company'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => handleOpenEditModal(lead)}
+                    className="p-1.5 text-[#5A5A40] hover:bg-[#f5f5f0] rounded-lg transition-colors"
+                    title="Edit Lead"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-[#6b6b60] pt-2 border-t border-[#e0e0d5]">
+                  <div>
+                    <span className="font-semibold text-[#2d2d2a]">{lead.contactName}</span>
+                    {lead.contactEmail && <span className="block text-[10px] text-[#6b6b60]">{lead.contactEmail}</span>}
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                      lead.isOutbound 
+                        ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20' 
+                        : 'bg-purple-100 text-purple-800 border-purple-200'
+                    }`}>
+                      {lead.isOutbound ? 'Outbound' : 'Inbound'}
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                      lead.status === 'Qualified' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                      lead.status === 'Contacted' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                      lead.status === 'New' ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20' :
+                      'bg-stone-100 text-stone-600 border-stone-200'
+                    }`}>
+                      {lead.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-[#6b6b60] pt-1">
+                  <span>Assigned: {lead.ownerName || 'Unassigned'}</span>
+                  <span>{formatDate(lead.lastActivityDate)}</span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Leads Table (>= md) */}
+      <div className="hidden md:block bg-white border border-[#e0e0d5] rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-[#2d2d2a]">
             <thead className="bg-[#f5f5f0] text-[#5A5A40] uppercase font-bold text-[10px] tracking-wider border-b border-[#e0e0d5]">
               <tr>
+                <th className="px-4 py-3.5 w-10">
+                  <input
+                    type="checkbox"
+                    checked={filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length}
+                    onChange={handleToggleSelectAll}
+                    className="w-4 h-4 rounded border-[#e0e0d5] text-[#5A5A40] focus:ring-[#5A5A40] cursor-pointer"
+                  />
+                </th>
                 <th className="px-4 py-3.5">Lead / Company</th>
                 <th className="px-4 py-3.5">Contact</th>
                 <th className="px-4 py-3.5">Source & Effort</th>
@@ -225,105 +349,113 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
             <tbody className="divide-y divide-[#e0e0d5]">
               {filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-[#6b6b60]">
+                  <td colSpan={8} className="px-4 py-8 text-center text-[#6b6b60]">
                     No leads found matching criteria.
                   </td>
                 </tr>
               ) : (
-                filteredLeads.map(lead => (
-                  <tr key={lead.id} className="hover:bg-[#f5f5f0]/60 transition-colors">
-                    
-                    {/* Title & Company */}
-                    <td className="px-4 py-3.5">
-                      <div className="font-semibold text-[#2d2d2a]">{lead.title}</div>
-                      <div className="text-[11px] text-[#6b6b60] flex items-center gap-1 mt-0.5">
-                        <Building2 className="w-3 h-3 text-[#5A5A40]" />
-                        <span>{lead.companyName || 'Unlinked Company'}</span>
-                      </div>
-                    </td>
+                filteredLeads.map(lead => {
+                  const isSelected = selectedLeadIds.includes(lead.id);
+                  return (
+                    <tr 
+                      key={lead.id} 
+                      className={`transition-colors ${isSelected ? 'bg-[#5A5A40]/10' : 'hover:bg-[#f5f5f0]/60'}`}
+                    >
+                      {/* Select Checkbox */}
+                      <td className="px-4 py-3.5">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelectLead(lead.id)}
+                          className="w-4 h-4 rounded border-[#e0e0d5] text-[#5A5A40] focus:ring-[#5A5A40] cursor-pointer"
+                        />
+                      </td>
 
-                    {/* Contact */}
-                    <td className="px-4 py-3.5">
-                      <div className="text-[#2d2d2a] font-semibold">{lead.contactName}</div>
-                      <div className="text-[10px] text-[#6b6b60] flex items-center gap-2 mt-0.5">
-                        {lead.contactEmail && (
-                          <span className="flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-[#5A5A40]" />
-                            {lead.contactEmail}
-                          </span>
-                        )}
-                        {lead.contactPhone && (
-                          <span className="flex items-center gap-1">
-                            <Phone className="w-3 h-3 text-[#5A5A40]" />
-                            {lead.contactPhone}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Source & Outbound Badge */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                          lead.isOutbound 
-                            ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20' 
-                            : 'bg-purple-100 text-purple-800 border-purple-200'
-                        }`}>
-                          {lead.isOutbound ? 'Cold Outbound' : 'Inbound'}
-                        </span>
-                        <span className="text-[10px] text-[#6b6b60] font-mono">({lead.source})</span>
-                      </div>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-4 py-3.5">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                        lead.status === 'Qualified' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-                        lead.status === 'Contacted' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                        lead.status === 'New' ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20' :
-                        'bg-stone-100 text-stone-600 border-stone-200'
-                      }`}>
-                        {lead.status}
-                      </span>
-                    </td>
-
-                    {/* Assigned Owner */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-full bg-[#5A5A40] text-white text-[10px] font-bold flex items-center justify-center">
-                          {lead.ownerName ? lead.ownerName.charAt(0) : 'U'}
+                      {/* Title & Company */}
+                      <td className="px-4 py-3.5">
+                        <div className="font-semibold text-[#2d2d2a]">{lead.title}</div>
+                        <div className="text-[11px] text-[#6b6b60] flex items-center gap-1 mt-0.5">
+                          <Building2 className="w-3 h-3 text-[#5A5A40]" />
+                          <span>{lead.companyName || 'Unlinked Company'}</span>
                         </div>
-                        <span className="text-[#2d2d2a] font-medium">{lead.ownerName || 'Unassigned'}</span>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Last Activity */}
-                    <td className="px-4 py-3.5 text-[#6b6b60] text-[11px] font-medium">
-                      {formatDate(lead.lastActivityDate)}
-                    </td>
+                      {/* Contact */}
+                      <td className="px-4 py-3.5">
+                        <div className="text-[#2d2d2a] font-semibold">{lead.contactName}</div>
+                        <div className="text-[10px] text-[#6b6b60] flex items-center gap-2 mt-0.5">
+                          {lead.contactEmail && (
+                            <span className="flex items-center gap-1">
+                              <Mail className="w-3 h-3 text-[#5A5A40]" />
+                              {lead.contactEmail}
+                            </span>
+                          )}
+                          {lead.contactPhone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-[#5A5A40]" />
+                              {lead.contactPhone}
+                            </span>
+                          )}
+                        </div>
+                      </td>
 
-                    {/* Actions */}
-                    <td className="px-4 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => handleOpenEditModal(lead)}
-                          className="p-1.5 text-[#5A5A40] hover:bg-[#f5f5f0] rounded-lg"
-                          title="Edit Lead"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => onDeleteLead(lead.id)}
-                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg"
-                          title="Delete Lead"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
+                      {/* Source & Outbound Badge */}
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                            lead.isOutbound 
+                              ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20' 
+                              : 'bg-purple-100 text-purple-800 border-purple-200'
+                          }`}>
+                            {lead.isOutbound ? 'Cold Outbound' : 'Inbound'}
+                          </span>
+                          <span className="text-[10px] text-[#6b6b60] font-mono">({lead.source})</span>
+                        </div>
+                      </td>
 
-                  </tr>
-                ))
+                      {/* Status */}
+                      <td className="px-4 py-3.5">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          lead.status === 'Qualified' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                          lead.status === 'Contacted' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                          lead.status === 'New' ? 'bg-[#5A5A40]/10 text-[#5A5A40] border-[#5A5A40]/20' :
+                          'bg-stone-100 text-stone-600 border-stone-200'
+                        }`}>
+                          {lead.status}
+                        </span>
+                      </td>
+
+                      {/* Assigned Owner */}
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-full bg-[#5A5A40] text-white text-[10px] font-bold flex items-center justify-center">
+                            {lead.ownerName ? lead.ownerName.charAt(0) : 'U'}
+                          </div>
+                          <span className="text-[#2d2d2a] font-medium">{lead.ownerName || 'Unassigned'}</span>
+                        </div>
+                      </td>
+
+                      {/* Last Activity */}
+                      <td className="px-4 py-3.5 text-[#6b6b60] text-[11px] font-medium">
+                        {formatDate(lead.lastActivityDate)}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleOpenEditModal(lead)}
+                            className="p-1.5 text-[#5A5A40] hover:bg-[#f5f5f0] rounded-lg transition-colors"
+                            title="Edit Lead"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -336,7 +468,7 @@ export const LeadsView: React.FC<LeadsViewProps> = ({
           <div className="bg-white border border-[#e0e0d5] rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-[#2d2d2a]">
             
             <div className="flex items-center justify-between border-b border-[#e0e0d5] pb-3">
-              <h2 className="text-sm font-bold text-[#2d2d2a] font-serif">
+              <h2 className="text-sm font-bold text-[#2d2d2a]">
                 {editingLead ? 'Edit Lead' : 'Create New Lead'}
               </h2>
               <button 

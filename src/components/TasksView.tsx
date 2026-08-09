@@ -92,7 +92,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#e0e0d5] p-6 rounded-2xl shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-[#2d2d2a] font-serif italic flex items-center gap-2">
+          <h1 className="text-xl font-bold text-[#2d2d2a] flex items-center gap-2">
             <CheckSquare className="w-5 h-5 text-[#5A5A40]" />
             <span>Tasks & Follow-up Agenda</span>
           </h1>
@@ -249,7 +249,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
         <div className="fixed inset-0 bg-[#2d2d2a]/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-[#e0e0d5] rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-[#2d2d2a]">
             <div className="flex items-center justify-between border-b border-[#e0e0d5] pb-3">
-              <h2 className="text-sm font-bold text-[#2d2d2a] font-serif">Create Follow-up Task</h2>
+              <h2 className="text-sm font-bold text-[#2d2d2a]">Create Follow-up Task</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-[#6b6b60] hover:text-[#2d2d2a] p-1">
                 <X className="w-4 h-4" />
               </button>

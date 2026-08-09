@@ -68,6 +68,7 @@ export interface PipelineStage {
 
 export interface Deal {
   id: string;
+  leadId?: string;
   title: string;
   value: number;
   currency: string;

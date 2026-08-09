@@ -60,7 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-bold text-base tracking-tight text-[#2d2d2a] font-serif italic">{branding.appName}</span>
+              <span className="font-bold text-lg tracking-tight text-[#2d2d2a]">{branding.appName}</span>
               <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold bg-[#5A5A40]/10 text-[#5A5A40] border border-[#5A5A40]/20">
                 Customizable CRM
               </span>

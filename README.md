@@ -6,12 +6,13 @@
 
 ## Features
 
-- Dashboard with pipeline visualization and reports
-- Manage Companies, Contacts, Leads, Employees, and Tasks
-- Global search modal for quick navigation
-- Export/Import data via JSON
-- Responsive UI with modern design (dark mode ready)
-- API client abstraction (`src/api/crmClient.ts`) ready for backend integration
+- **Dashboard & Pipeline Sync**: Real-time sales pipeline Kanban board with 1-to-1 synchronization with Leads.
+- **Lead Management**: Responsive table & mobile card views with multi-select checkboxes and bulk deletion (`Delete Selected`).
+- **Entity Management**: Comprehensive tools for Companies, Contacts, Leads, Employees, and Tasks.
+- **CSV Data Export Center**: Download formatted CSV file exports for Contacts, Leads, and Deals.
+- **Global Search**: Instant modal search across all CRM entities for fast navigation.
+- **Modern Typography & UI**: Designed with **Inter** & **Poppins** Google Fonts for a sleek, tech-focused, professional aesthetic.
+- **API Abstraction**: Clean client abstraction (`src/api/crmClient.ts`) ready for backend REST/GraphQL integration.
 
 ## Tech Stack
 

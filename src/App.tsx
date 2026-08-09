@@ -408,7 +408,6 @@ export default function App() {
         isOpen={isImportExportOpen}
         onClose={() => setIsImportExportOpen(false)}
         state={state}
-        onImportContacts={handleImportContacts}
       />
 
     </div>

@@ -90,7 +90,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-[#e0e0d5] p-6 rounded-2xl shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-[#2d2d2a] font-serif italic tracking-tight">Welcome back, {currentUser.name}</h1>
+            <h1 className="text-2xl font-bold text-[#2d2d2a] tracking-tight">Welcome back, {currentUser.name}</h1>
             <span className="bg-[#5A5A40]/10 text-[#5A5A40] border border-[#5A5A40]/20 text-xs px-2.5 py-0.5 rounded-full font-semibold">
               {currentUser.role}
             </span>
@@ -147,7 +147,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Users className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-3xl font-extrabold text-[#2d2d2a] mt-2 font-serif">{totalLeads}</div>
+          <div className="text-3xl font-extrabold text-[#2d2d2a] mt-2">{totalLeads}</div>
           <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 mt-1 font-medium">
             <TrendingUp className="w-3.5 h-3.5" />
             <span>Active lead pipeline</span>
@@ -162,7 +162,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-3xl font-extrabold text-[#2d2d2a] mt-2 font-serif">{formatCurrency(totalPipelineValue)}</div>
+          <div className="text-3xl font-extrabold text-[#2d2d2a] mt-2">{formatCurrency(totalPipelineValue)}</div>
           <div className="text-[11px] text-[#6b6b60] mt-1 font-medium">{activeDeals.length} active opportunities</div>
         </div>
 
@@ -174,7 +174,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Trophy className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-3xl font-extrabold text-emerald-800 mt-2 font-serif">{formatCurrency(wonRevenue)}</div>
+          <div className="text-3xl font-extrabold text-emerald-800 mt-2">{formatCurrency(wonRevenue)}</div>
           <div className="text-[11px] text-[#6b6b60] mt-1 font-medium">{wonDeals.length} deals closed won</div>
         </div>
 
@@ -186,7 +186,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Calendar className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-3xl font-extrabold text-[#2d2d2a] mt-2 font-serif">{pendingTasksToday.length}</div>
+          <div className="text-3xl font-extrabold text-[#2d2d2a] mt-2">{pendingTasksToday.length}</div>
           <div className="text-[11px] text-amber-800 mt-1 font-medium">
             {pendingTasksToday.length > 0 ? 'Requires follow-up today' : 'All clear for today'}
           </div>

@@ -67,7 +67,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#e0e0d5] p-6 rounded-2xl shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-[#2d2d2a] font-serif italic flex items-center gap-2">
+          <h1 className="text-xl font-bold text-[#2d2d2a] flex items-center gap-2">
             <Settings className="w-5 h-5 text-[#5A5A40]" />
             <span>Customization Hub (Re-branding & Settings)</span>
           </h1>
@@ -109,7 +109,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {activeTab === 'branding' && (
         <form onSubmit={handleSaveBranding} className="bg-white border border-[#e0e0d5] p-6 rounded-2xl max-w-2xl space-y-4 shadow-xs text-xs text-[#2d2d2a]">
           <div className="flex items-center justify-between border-b border-[#e0e0d5] pb-3">
-            <h3 className="font-bold text-sm text-[#2d2d2a] font-serif flex items-center gap-2">
+            <h3 className="font-bold text-sm text-[#2d2d2a] flex items-center gap-2">
               <Palette className="w-4 h-4 text-[#5A5A40]" />
               <span>White-Label Branding Config</span>
             </h3>
@@ -190,7 +190,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {activeTab === 'stages' && (
         <div className="bg-white border border-[#e0e0d5] p-6 rounded-2xl max-w-2xl space-y-4 shadow-xs text-xs text-[#2d2d2a]">
           <div className="border-b border-[#e0e0d5] pb-3">
-            <h3 className="font-bold text-sm text-[#2d2d2a] font-serif flex items-center gap-2">
+            <h3 className="font-bold text-sm text-[#2d2d2a] flex items-center gap-2">
               <Kanban className="w-4 h-4 text-[#5A5A40]" />
               <span>Customize Pipeline Stages</span>
             </h3>
@@ -250,7 +250,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {activeTab === 'reset' && (
         <div className="bg-white border border-[#e0e0d5] p-6 rounded-2xl max-w-2xl space-y-4 shadow-xs text-xs text-[#2d2d2a]">
           <div className="border-b border-[#e0e0d5] pb-3">
-            <h3 className="font-bold text-sm text-rose-800 font-serif flex items-center gap-2">
+            <h3 className="font-bold text-sm text-rose-800 flex items-center gap-2">
               <RotateCcw className="w-4 h-4 text-rose-700" />
               <span>Reset Application State to Seed Demo Data</span>
             </h3>

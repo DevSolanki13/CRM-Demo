@@ -150,7 +150,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#e0e0d5] p-6 rounded-2xl shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-[#2d2d2a] font-serif italic flex items-center gap-2">
+          <h1 className="text-xl font-bold text-[#2d2d2a] flex items-center gap-2">
             <ContactIcon className="w-5 h-5 text-[#5A5A40]" />
             <span>Contacts & Client Directory</span>
           </h1>
@@ -281,7 +281,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
           <div className="bg-white border border-[#e0e0d5] rounded-2xl p-5 space-y-4 shadow-xl text-[#2d2d2a]">
             <div className="flex items-start justify-between border-b border-[#e0e0d5] pb-3">
               <div>
-                <h3 className="font-bold text-sm text-[#2d2d2a] font-serif">{selectedContact.name}</h3>
+                <h3 className="font-bold text-sm text-[#2d2d2a]">{selectedContact.name}</h3>
                 <p className="text-xs text-[#6b6b60] font-medium">{selectedContact.jobTitle} &bull; {selectedContact.companyName}</p>
               </div>
               <button 
@@ -312,7 +312,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
 
             {/* Linked Deals */}
             <div className="space-y-2">
-              <h4 className="text-xs font-bold text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5 font-serif">
+              <h4 className="text-xs font-bold text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5">
                 <Briefcase className="w-3.5 h-3.5 text-[#5A5A40]" />
                 <span>Linked Opportunities ({contactDeals.length})</span>
               </h4>
@@ -335,7 +335,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
 
             {/* Notes Section */}
             <div className="space-y-2 pt-2 border-t border-[#e0e0d5]">
-              <h4 className="text-xs font-bold text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5 font-serif">
+              <h4 className="text-xs font-bold text-[#5A5A40] uppercase tracking-wider flex items-center gap-1.5">
                 <MessageSquare className="w-3.5 h-3.5 text-[#5A5A40]" />
                 <span>Notes ({contactNotes.length})</span>
               </h4>
@@ -379,7 +379,7 @@ export const ContactsView: React.FC<ContactsViewProps> = ({
         <div className="fixed inset-0 bg-[#2d2d2a]/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-[#e0e0d5] rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-[#2d2d2a]">
             <div className="flex items-center justify-between border-b border-[#e0e0d5] pb-3">
-              <h2 className="text-sm font-bold text-[#2d2d2a] font-serif">
+              <h2 className="text-sm font-bold text-[#2d2d2a]">
                 {editingContact ? 'Edit Contact' : 'Create Contact'}
               </h2>
               <button onClick={() => setIsModalOpen(false)} className="text-[#6b6b60] hover:text-[#2d2d2a] p-1">

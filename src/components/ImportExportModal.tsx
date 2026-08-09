@@ -1,48 +1,33 @@
 import React, { useState } from 'react';
 import { 
   FileSpreadsheet, 
-  Upload, 
   Download, 
   X, 
-  CheckCircle2, 
-  FileText 
+  CheckCircle2
 } from 'lucide-react';
-import { exportToCSV, parseCSVText } from '../utils/crmHelpers';
-import { Contact, Lead, Deal, CRMState } from '../types/crm';
+import { exportToCSV } from '../utils/crmHelpers';
+import { CRMState } from '../types/crm';
 
-interface ImportExportModalProps {
+interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   state: CRMState;
-  onImportContacts: (items: any[]) => Promise<void>;
 }
 
-export const ImportExportModal: React.FC<ImportExportModalProps> = ({
+export const ImportExportModal: React.FC<ExportModalProps> = ({
   isOpen,
   onClose,
-  state,
-  onImportContacts
+  state
 }) => {
-  const [activeTab, setActiveTab] = useState<'import' | 'export'>('export');
-  const [csvText, setCsvText] = useState('');
-  const [parsedRows, setParsedRows] = useState<Record<string, string>[]>([]);
-  const [importedSuccess, setImportedSuccess] = useState(false);
+  const [exportedStatus, setExportedStatus] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleParse = () => {
-    const rows = parseCSVText(csvText);
-    setParsedRows(rows);
-  };
-
-  const handleRunImport = async () => {
-    if (parsedRows.length === 0) return;
-    await onImportContacts(parsedRows);
-    setImportedSuccess(true);
+  const triggerExportStatus = (filename: string) => {
+    setExportedStatus(`Successfully exported ${filename}!`);
     setTimeout(() => {
-      setImportedSuccess(false);
-      onClose();
-    }, 1500);
+      setExportedStatus(null);
+    }, 3000);
   };
 
   const handleExportContacts = () => {
@@ -56,6 +41,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
       CreatedAt: c.createdAt
     }));
     exportToCSV('crm_contacts_export.csv', rows);
+    triggerExportStatus('crm_contacts_export.csv');
   };
 
   const handleExportLeads = () => {
@@ -71,6 +57,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
       CreatedAt: l.createdAt
     }));
     exportToCSV('crm_leads_export.csv', rows);
+    triggerExportStatus('crm_leads_export.csv');
   };
 
   const handleExportDeals = () => {
@@ -86,6 +73,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
       CreatedAt: d.createdAt
     }));
     exportToCSV('crm_deals_export.csv', rows);
+    triggerExportStatus('crm_deals_export.csv');
   };
 
   return (
@@ -93,105 +81,71 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
       <div className="bg-white border border-[#e0e0d5] rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs text-[#2d2d2a]">
         
         <div className="flex items-center justify-between border-b border-[#e0e0d5] pb-3">
-          <h2 className="text-sm font-bold text-[#2d2d2a] font-serif flex items-center gap-2">
+          <h2 className="text-sm font-bold text-[#2d2d2a] flex items-center gap-2">
             <FileSpreadsheet className="w-4 h-4 text-[#5A5A40]" />
-            <span>CSV Import & Export Center</span>
+            <span>CSV Data Export Center</span>
           </h2>
-          <button onClick={onClose} className="text-[#6b6b60] hover:text-[#2d2d2a] p-1">
+          <button onClick={onClose} className="text-[#6b6b60] hover:text-[#2d2d2a] p-1 rounded-lg">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Tab switcher */}
-        <div className="flex items-center gap-2 border-b border-[#e0e0d5] pb-2">
-          <button
-            onClick={() => setActiveTab('export')}
-            className={`px-4 py-1.5 rounded-full font-semibold transition-colors ${
-              activeTab === 'export' ? 'bg-[#5A5A40] text-white shadow-xs' : 'text-[#6b6b60] hover:text-[#2d2d2a]'
-            }`}
-          >
-            Export Data to CSV
-          </button>
-          <button
-            onClick={() => setActiveTab('import')}
-            className={`px-4 py-1.5 rounded-full font-semibold transition-colors ${
-              activeTab === 'import' ? 'bg-[#5A5A40] text-white shadow-xs' : 'text-[#6b6b60] hover:text-[#2d2d2a]'
-            }`}
-          >
-            Import Contacts CSV
-          </button>
+        <div className="space-y-4 py-2">
+          <p className="text-[#6b6b60] font-medium">
+            Download formatted CSV file exports of your Contacts, Leads, and Pipeline Deals for reporting, backup, or accounting:
+          </p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button
+              onClick={handleExportContacts}
+              className="p-5 bg-[#fcfcf9] hover:bg-[#5A5A40]/10 border border-[#e0e0d5] hover:border-[#5A5A40]/40 rounded-2xl font-bold text-[#2d2d2a] flex flex-col items-center gap-2 transition-all shadow-xs group cursor-pointer"
+            >
+              <div className="p-2.5 rounded-xl bg-[#5A5A40]/10 group-hover:bg-[#5A5A40] text-[#5A5A40] group-hover:text-white transition-colors">
+                <Download className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-bold text-[#2d2d2a]">Export Contacts</span>
+              <span className="text-[10px] text-[#6b6b60] font-normal">({state.contacts.length} records)</span>
+            </button>
+
+            <button
+              onClick={handleExportLeads}
+              className="p-5 bg-[#fcfcf9] hover:bg-[#5A5A40]/10 border border-[#e0e0d5] hover:border-[#5A5A40]/40 rounded-2xl font-bold text-[#2d2d2a] flex flex-col items-center gap-2 transition-all shadow-xs group cursor-pointer"
+            >
+              <div className="p-2.5 rounded-xl bg-[#5A5A40]/10 group-hover:bg-[#5A5A40] text-[#5A5A40] group-hover:text-white transition-colors">
+                <Download className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-bold text-[#2d2d2a]">Export Leads</span>
+              <span className="text-[10px] text-[#6b6b60] font-normal">({state.leads.length} records)</span>
+            </button>
+
+            <button
+              onClick={handleExportDeals}
+              className="p-5 bg-[#fcfcf9] hover:bg-[#5A5A40]/10 border border-[#e0e0d5] hover:border-[#5A5A40]/40 rounded-2xl font-bold text-[#2d2d2a] flex flex-col items-center gap-2 transition-all shadow-xs group cursor-pointer"
+            >
+              <div className="p-2.5 rounded-xl bg-[#5A5A40]/10 group-hover:bg-[#5A5A40] text-[#5A5A40] group-hover:text-white transition-colors">
+                <Download className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-bold text-[#2d2d2a]">Export Deals</span>
+              <span className="text-[10px] text-[#6b6b60] font-normal">({state.deals.length} records)</span>
+            </button>
+          </div>
+
+          {exportedStatus && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-bold flex items-center gap-2 text-xs animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{exportedStatus}</span>
+            </div>
+          )}
         </div>
 
-        {activeTab === 'export' && (
-          <div className="space-y-3 py-2">
-            <p className="text-[#6b6b60] font-medium">Download formatted CSV exports for your reports or accounting:</p>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <button
-                onClick={handleExportContacts}
-                className="p-4 bg-[#fcfcf9] hover:bg-[#f5f5f0] border border-[#e0e0d5] rounded-xl font-bold text-[#2d2d2a] flex flex-col items-center gap-2 transition-colors shadow-xs"
-              >
-                <Download className="w-5 h-5 text-[#5A5A40]" />
-                <span>Export Contacts</span>
-              </button>
-
-              <button
-                onClick={handleExportLeads}
-                className="p-4 bg-[#fcfcf9] hover:bg-[#f5f5f0] border border-[#e0e0d5] rounded-xl font-bold text-[#2d2d2a] flex flex-col items-center gap-2 transition-colors shadow-xs"
-              >
-                <Download className="w-5 h-5 text-[#5A5A40]" />
-                <span>Export Leads</span>
-              </button>
-
-              <button
-                onClick={handleExportDeals}
-                className="p-4 bg-[#fcfcf9] hover:bg-[#f5f5f0] border border-[#e0e0d5] rounded-xl font-bold text-[#2d2d2a] flex flex-col items-center gap-2 transition-colors shadow-xs"
-              >
-                <Download className="w-5 h-5 text-[#5A5A40]" />
-                <span>Export Deals</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'import' && (
-          <div className="space-y-3 py-1">
-            <p className="text-[#6b6b60] font-medium">Paste CSV text below with columns: <code className="bg-[#f5f5f0] px-1.5 py-0.5 rounded border border-[#e0e0d5] text-[#2d2d2a]">name, email, phone, jobTitle, companyName</code></p>
-
-            <textarea
-              rows={4}
-              value={csvText}
-              onChange={(e) => setCsvText(e.target.value)}
-              placeholder="name, email, phone, jobTitle, companyName&#10;John Doe, john@example.com, +1 555-0100, VP Sales, Acme Corp"
-              className="w-full bg-[#fcfcf9] border border-[#e0e0d5] rounded-xl p-2.5 text-[#2d2d2a] font-mono focus:outline-none focus:border-[#5A5A40] resize-none"
-            />
-
-            <div className="flex items-center justify-between">
-              <button
-                onClick={handleParse}
-                className="px-4 py-1.5 bg-[#f5f5f0] hover:bg-[#eaeae2] text-[#2d2d2a] font-semibold rounded-full border border-[#e0e0d5]"
-              >
-                Preview CSV ({parsedRows.length} rows)
-              </button>
-
-              {parsedRows.length > 0 && (
-                <button
-                  onClick={handleRunImport}
-                  className="px-5 py-1.5 bg-[#5A5A40] hover:bg-[#4a4a35] text-white font-bold rounded-full shadow-xs transition-colors"
-                >
-                  Confirm Import {parsedRows.length} Items
-                </button>
-              )}
-            </div>
-
-            {importedSuccess && (
-              <p className="text-[#5A5A40] font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" />
-                Successfully imported contacts!
-              </p>
-            )}
-          </div>
-        )}
+        <div className="flex justify-end pt-2 border-t border-[#e0e0d5]">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 bg-[#f5f5f0] hover:bg-[#eaeae2] text-[#2d2d2a] font-semibold rounded-full border border-[#e0e0d5] cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
 
       </div>
     </div>
