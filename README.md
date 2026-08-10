@@ -24,11 +24,8 @@
 
 ## Screenshots
 
-### Main Dashboard & Pipeline Board Interface
-![Dashboard & Pipeline Interface](images/WebSite/2nd%20UI.png)
-
-### Lead Management & Sales Operations
-![Lead Management Interface](images/1st%20UI%20(Updated%20).png)
+### Main Dashboard Interface
+![Dashboard Interface](images/WebSite/2nd%20UI.png)
 
 ---
 
