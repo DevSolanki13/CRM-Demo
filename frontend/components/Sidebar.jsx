@@ -9,7 +9,9 @@ import {
   Users2,
   BarChart3,
   Settings,
-  FileSpreadsheet
+  FileSpreadsheet,
+  LogOut,
+  Sparkles
 } from 'lucide-react';
 
 export const Sidebar = ({
@@ -28,7 +30,7 @@ export const Sidebar = ({
       label: 'Pipeline',
       icon: Kanban,
       badge: renewalsDueCount > 0 ? `${renewalsDueCount} Renewals` : undefined,
-      badgeColor: 'bg-amber-100 text-amber-900 border-amber-200'
+      badgeColor: 'bg-amber-950 text-amber-300 border-amber-800'
     },
     { id: 'contacts', label: 'Contacts', icon: Contact },
     { id: 'companies', label: 'Companies', icon: Building2 },
@@ -37,7 +39,7 @@ export const Sidebar = ({
       label: 'Follow-ups / Tasks',
       icon: CheckSquare,
       badge: pendingTasksCount > 0 ? pendingTasksCount.toString() : undefined,
-      badgeColor: 'bg-white/20 text-white border-white/30'
+      badgeColor: 'bg-zinc-800 text-white border-zinc-700'
     },
     {
       id: 'employees',
@@ -50,14 +52,13 @@ export const Sidebar = ({
   ];
 
   return (
-    <aside className="w-64 bg-[#5A5A40] border-r border-[#4a4a35] text-white flex flex-col justify-between shrink-0 h-[calc(100vh-61px)] sticky top-[61px]">
-      <div className="p-4 space-y-1.5 overflow-y-auto">
-        <div className="px-3 py-2 text-[11px] font-bold text-white/60 uppercase tracking-wider">
+    <aside className="w-64 bg-[#101013] border-r border-[#26262b] text-white flex flex-col justify-between shrink-0 h-full select-none overflow-hidden">
+      <div className="p-3 space-y-1 overflow-y-auto scrollbar-thin">
+        <div className="px-3 pt-1 pb-1.5 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
           Main Modules
         </div>
 
         {navItems.map(item => {
-          // Check role restrictions
           if (item.roles && !item.roles.includes(userRole)) {
             return null;
           }
@@ -69,14 +70,14 @@ export const Sidebar = ({
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs transition-all ${
                 isActive
-                  ? 'bg-white/20 text-white font-semibold shadow-xs border border-white/20'
-                  : 'hover:bg-white/10 text-white/80 hover:text-white'
+                  ? 'bg-white text-black font-bold shadow-md'
+                  : 'hover:bg-[#18181c] text-zinc-400 hover:text-white font-medium'
               }`}
             >
               <div className="flex items-center gap-3">
-                <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-white/70'}`} />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-black' : 'text-zinc-400'}`} />
                 <span>{item.label}</span>
               </div>
               {item.badge && (
@@ -89,25 +90,37 @@ export const Sidebar = ({
         })}
       </div>
 
-      {/* Footer Tools */}
-      <div className="p-4 border-t border-white/10 bg-black/10 space-y-2.5">
+      {/* Footer Tools - Seamless Bottom Layout */}
+      <div className="p-3.5 border-t border-[#26262b] bg-[#101013] space-y-2">
         <button
           onClick={onOpenImportExport}
-          className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-medium bg-white/10 hover:bg-white/20 text-white transition-colors border border-white/15"
+          className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-medium bg-[#1c1c21] hover:bg-[#24242b] text-zinc-300 hover:text-white transition-colors border border-[#2c2c34]"
         >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
-          <span>Export CSV Data</span>
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <span>Export CSV Data</span>
+          </div>
+          <span className="text-[10px] text-zinc-500 font-mono">.csv</span>
         </button>
 
-        <div className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] text-white/80">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-white/90">Active Role:</span>
-            <span className="px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30 text-[10px] font-bold">
-              {userRole}
-            </span>
+        <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-[#1c1c21] border border-[#2c2c34]">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-xs text-zinc-400">Active Role: <strong className="text-white">{userRole}</strong></span>
           </div>
         </div>
+
+        <button 
+          onClick={() => alert("Sign out triggered (Demo)")}
+          className="w-full flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-950/20 transition-colors"
+        >
+          <LogOut className="w-4 h-4 text-rose-400" />
+          <span>Sign Out</span>
+        </button>
       </div>
     </aside>
   );
 };
+
+
+

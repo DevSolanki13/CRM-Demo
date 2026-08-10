@@ -213,6 +213,39 @@ export async function updateUser(id, user) {
   return res.json();
 }
 
+// Stage Gate Checks
+export async function fetchStageGateChecks() {
+  const res = await fetch(`${BASE_URL}/stage-gate-checks`);
+  return res.json();
+}
+
+export async function createStageGateCheck(check) {
+  const res = await fetch(`${BASE_URL}/stage-gate-checks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(check)
+  });
+  return res.json();
+}
+
+export async function approveStageGateCheck(id, reviewer) {
+  const res = await fetch(`${BASE_URL}/stage-gate-checks/${id}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewer })
+  });
+  return res.json();
+}
+
+export async function rejectStageGateCheck(id, reviewer, reason) {
+  const res = await fetch(`${BASE_URL}/stage-gate-checks/${id}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewer, reason })
+  });
+  return res.json();
+}
+
 // CSV Bulk Import
 export async function importContacts(items) {
   const res = await fetch(`${BASE_URL}/import/contacts`, {

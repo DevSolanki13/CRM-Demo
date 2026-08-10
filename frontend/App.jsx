@@ -25,7 +25,10 @@ import {
   createActivity,
   createUser,
   updateUser,
-  importContacts
+  importContacts,
+  createStageGateCheck,
+  approveStageGateCheck,
+  rejectStageGateCheck
 } from './api/crmClient.js';
 import { Header } from './components/Header.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
@@ -72,10 +75,10 @@ export default function App() {
 
   if (loading || !state || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#f5f5f0] text-[#2d2d2a] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#000000] text-white flex items-center justify-center p-4">
         <div className="text-center space-y-3">
-          <Loader2 className="w-8 h-8 text-[#5A5A40] animate-spin mx-auto" />
-          <p className="text-sm font-semibold text-[#5A5A40]">Loading Customizable CRM Demo...</p>
+          <Loader2 className="w-8 h-8 text-white animate-spin mx-auto" />
+          <p className="text-sm font-semibold text-zinc-400">Loading V ADMIN CRM...</p>
         </div>
       </div>
     );
@@ -222,6 +225,27 @@ export default function App() {
     await reloadState();
   };
 
+  // Stage Gate Check Handlers
+  const handleCreateStageGateCheck = async (check) => {
+    await createStageGateCheck(check);
+    await reloadState();
+  };
+
+  const handleApproveStageGateCheck = async (id, reviewer) => {
+    await approveStageGateCheck(id, reviewer);
+    await reloadState();
+  };
+
+  const handleRejectStageGateCheck = async (id, reviewer, reason) => {
+    await rejectStageGateCheck(id, reviewer, reason);
+    await reloadState();
+  };
+
+  const handleSavePartialGateCheck = async (dealId, partialState) => {
+    await updateDeal(dealId, { partialGateState: partialState });
+    await reloadState();
+  };
+
   // Quick Action Handler from Header
   const handleQuickAction = (type) => {
     if (type === 'lead') setActiveTab('leads');
@@ -243,7 +267,7 @@ export default function App() {
   const renewalsDueCount = state.deals.filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again')).length;
 
   return (
-    <div className="min-h-screen bg-[#f5f5f0] text-[#2d2d2a] flex flex-col font-sans antialiased selection:bg-[#5A5A40] selection:text-white">
+    <div className="h-screen w-screen bg-[#131316] text-white flex flex-col font-sans antialiased selection:bg-white selection:text-black overflow-hidden">
 
       {/* Top Header */}
       <Header
@@ -271,7 +295,7 @@ export default function App() {
         />
 
         {/* Dynamic Tab Content View */}
-        <main className="flex-1 overflow-y-auto bg-[#f5f5f0]">
+        <main className="flex-1 overflow-y-auto bg-[#131316]">
           {activeTab === 'dashboard' && (
             <DashboardView
               state={state}
@@ -294,6 +318,9 @@ export default function App() {
               onCreateLead={handleCreateLead}
               onUpdateLead={handleUpdateLead}
               onDeleteLead={handleDeleteLead}
+              onUpdateDeal={handleUpdateDeal}
+              onCreateActivity={handleCreateActivity}
+              onSubmitStageGateCheck={handleCreateStageGateCheck}
             />
           )}
 
@@ -309,6 +336,10 @@ export default function App() {
               onCreateDeal={handleCreateDeal}
               onUpdateDeal={handleUpdateDeal}
               onDeleteDeal={handleDeleteDeal}
+              onSubmitStageGateCheck={handleCreateStageGateCheck}
+              onApproveStageGateCheck={handleApproveStageGateCheck}
+              onRejectStageGateCheck={handleRejectStageGateCheck}
+              onSavePartialGateCheck={handleSavePartialGateCheck}
               onOpenSettings={() => setActiveTab('settings')}
             />
           )}

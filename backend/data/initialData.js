@@ -372,3 +372,30 @@ export const initialActivities = [
     isOutbound: false,
   },
 ];
+
+export const initialStageGateChecks = [
+  {
+    id: 'sgc-1',
+    dealId: 'dl-1',
+    dealTitle: 'AeroTech Thermal Conductive Sample Kit',
+    fromStageId: 'stg-1',
+    fromStageName: 'New Lead',
+    targetStageId: 'stg-2',
+    targetStageName: 'Contacted',
+    submittedBy: 'u-3',
+    submittedByName: 'Marcus Vance',
+    reviewedBy: 'u-1',
+    reviewedByName: 'Alex Vance',
+    status: 'approved_and_executed', // 'draft', 'pending_review', 'approved_and_executed', 'rejected'
+    answers: {
+      'Reached decision-maker or identified who they are': true,
+      'Confirmed genuine need/use-case': true,
+      'Rough budget range known': true,
+      'Realistic timeline known': true,
+    },
+    outcome: 'advanced', // 'advanced' or 'lost'
+    lostReason: null,
+    note: 'Decision maker verified with budget allocated for Q3 sample trial.',
+    timestamp: '2026-08-02T11:00:00Z',
+  }
+];

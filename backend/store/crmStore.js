@@ -9,6 +9,7 @@ import {
   initialTasks,
   initialNotes,
   initialActivities,
+  initialStageGateChecks,
 } from '../data/initialData.js';
 
 class CRMStore {
@@ -27,6 +28,7 @@ class CRMStore {
     this.tasks = JSON.parse(JSON.stringify(initialTasks));
     this.notes = JSON.parse(JSON.stringify(initialNotes));
     this.activities = JSON.parse(JSON.stringify(initialActivities));
+    this.stageGateChecks = JSON.parse(JSON.stringify(initialStageGateChecks));
     return this.getState();
   }
 
@@ -42,6 +44,7 @@ class CRMStore {
       tasks: this.tasks,
       notes: this.notes,
       activities: this.activities,
+      stageGateChecks: this.stageGateChecks,
     };
   }
 
@@ -379,6 +382,134 @@ class CRMStore {
       return this.users[idx];
     }
     return null;
+  }
+
+  // Stage Gate Checks
+  getStageGateChecks() {
+    return this.stageGateChecks;
+  }
+
+  createStageGateCheck(check) {
+    const newCheck = {
+      id: `sgc-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      status: check.status || 'pending_review', // 'draft', 'pending_review', 'approved_and_executed', 'rejected'
+      ...check,
+    };
+    this.stageGateChecks.unshift(newCheck);
+
+    // If check status is approved_and_executed directly (e.g. submitted by Admin or auto-approved)
+    if (newCheck.status === 'approved_and_executed') {
+      this.executeGateCheckTransition(newCheck);
+    } else if (newCheck.dealId) {
+      // Save partial check or pending review state on deal
+      const dealIdx = this.deals.findIndex(d => d.id === newCheck.dealId);
+      if (dealIdx !== -1) {
+        this.deals[dealIdx].pendingGateCheck = newCheck;
+        if (newCheck.partialState) {
+          this.deals[dealIdx].partialGateState = newCheck.partialState;
+        }
+      }
+    }
+
+    return newCheck;
+  }
+
+  approveStageGateCheck(id, reviewer) {
+    const checkIdx = this.stageGateChecks.findIndex(c => c.id === id);
+    if (checkIdx !== -1) {
+      const check = this.stageGateChecks[checkIdx];
+      check.status = 'approved_and_executed';
+      check.reviewedBy = reviewer?.id || 'u-1';
+      check.reviewedByName = reviewer?.name || 'Alex Vance';
+      check.reviewedAt = new Date().toISOString();
+
+      this.executeGateCheckTransition(check);
+      return check;
+    }
+    return null;
+  }
+
+  rejectStageGateCheck(id, reviewer, reason) {
+    const checkIdx = this.stageGateChecks.findIndex(c => c.id === id);
+    if (checkIdx !== -1) {
+      const check = this.stageGateChecks[checkIdx];
+      check.status = 'rejected';
+      check.reviewedBy = reviewer?.id || 'u-1';
+      check.reviewedByName = reviewer?.name || 'Alex Vance';
+      check.rejectionReason = reason || 'Requirements not met';
+
+      // Clear pending status on deal
+      const dealIdx = this.deals.findIndex(d => d.id === check.dealId);
+      if (dealIdx !== -1) {
+        delete this.deals[dealIdx].pendingGateCheck;
+      }
+      return check;
+    }
+    return null;
+  }
+
+  executeGateCheckTransition(check) {
+    const dealIdx = this.deals.findIndex(d => d.id === check.dealId);
+    if (dealIdx === -1) return;
+
+    const deal = this.deals[dealIdx];
+    delete deal.pendingGateCheck;
+
+    if (check.outcome === 'advanced') {
+      // Move to target stage
+      deal.stageId = check.targetStageId;
+      deal.stageName = check.targetStageName;
+      if (check.targetStageName === 'Closed Won') {
+        deal.status = 'Won';
+      }
+      this.createActivity({
+        type: 'Stage Advanced',
+        description: `Stage Gate Check passed: Deal advanced to "${check.targetStageName}".`,
+        linkedType: 'Deal',
+        linkedId: deal.id,
+        linkedTitle: deal.title,
+        authorId: check.submittedBy || 'u-1',
+        authorName: check.submittedByName || 'System',
+        isOutbound: false,
+      });
+    } else if (check.outcome === 'lost') {
+      // Move directly to Closed Lost
+      const lostStage = this.stages.find(s => s.name === 'Closed Lost') || { id: 'stg-8', name: 'Closed Lost' };
+      deal.stageId = lostStage.id;
+      deal.stageName = lostStage.name;
+      deal.status = 'Lost';
+      deal.lostReason = check.lostReason || 'Unspecified';
+      deal.lostNote = check.note || '';
+
+      this.createActivity({
+        type: 'Deal Lost',
+        description: `Stage Gate Check failed: Deal moved to Closed Lost. Reason: ${check.lostReason}. Note: ${check.note || 'N/A'}`,
+        linkedType: 'Deal',
+        linkedId: deal.id,
+        linkedTitle: deal.title,
+        authorId: check.submittedBy || 'u-1',
+        authorName: check.submittedByName || 'System',
+        isOutbound: false,
+      });
+    } else if (check.outcome === 'demoted') {
+      // Move backwards to target stage
+      deal.stageId = check.targetStageId;
+      deal.stageName = check.targetStageName;
+      deal.backwardReason = check.backwardReason || 'Unspecified';
+      deal.backwardNote = check.note || '';
+
+      this.createActivity({
+        type: 'Stage Demoted',
+        description: `Deal moved backwards to "${check.targetStageName}". Reason: ${check.backwardReason}. Note: ${check.note || 'N/A'}`,
+        linkedType: 'Deal',
+        linkedId: deal.id,
+        linkedTitle: deal.title,
+        authorId: check.submittedBy || 'u-1',
+        authorName: check.submittedByName || 'System',
+        isOutbound: false,
+      });
+    }
   }
 
   // Import

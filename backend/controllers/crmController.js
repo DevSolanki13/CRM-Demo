@@ -200,6 +200,34 @@ export const updateUser = (req, res) => {
   }
 };
 
+// Stage Gate Checks
+export const getStageGateChecks = (_req, res) => {
+  res.json(crmStore.getStageGateChecks());
+};
+
+export const createStageGateCheck = (req, res) => {
+  const newCheck = crmStore.createStageGateCheck(req.body);
+  res.status(201).json(newCheck);
+};
+
+export const approveStageGateCheck = (req, res) => {
+  const updated = crmStore.approveStageGateCheck(req.params.id, req.body.reviewer);
+  if (updated) {
+    res.json(updated);
+  } else {
+    res.status(404).json({ error: 'Stage gate check not found' });
+  }
+};
+
+export const rejectStageGateCheck = (req, res) => {
+  const updated = crmStore.rejectStageGateCheck(req.params.id, req.body.reviewer, req.body.reason);
+  if (updated) {
+    res.json(updated);
+  } else {
+    res.status(404).json({ error: 'Stage gate check not found' });
+  }
+};
+
 // Bulk Import
 export const importContacts = (req, res) => {
   const items = req.body.items || [];

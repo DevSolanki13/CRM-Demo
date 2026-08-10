@@ -58,5 +58,11 @@ crmRouter.get('/users', crmController.getUsers);
 crmRouter.post('/users', crmController.createUser);
 crmRouter.put('/users/:id', crmController.updateUser);
 
+// Stage Gate Checks
+crmRouter.get('/stage-gate-checks', crmController.getStageGateChecks);
+crmRouter.post('/stage-gate-checks', crmController.createStageGateCheck);
+crmRouter.post('/stage-gate-checks/:id/approve', crmController.approveStageGateCheck);
+crmRouter.post('/stage-gate-checks/:id/reject', crmController.rejectStageGateCheck);
+
 // Bulk Import
 crmRouter.post('/import/contacts', crmController.importContacts);

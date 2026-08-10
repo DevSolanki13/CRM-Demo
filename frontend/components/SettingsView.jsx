@@ -47,43 +47,43 @@ export const SettingsView = ({
   };
 
   return (
-    <div className="p-6 space-y-6 bg-[#f5f5f0] text-[#2d2d2a] min-h-full">
+    <div className="p-8 space-y-6 bg-[#131316] text-white min-h-screen">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-[#e0e0d5] p-6 rounded-2xl shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#1c1c21] border border-[#2c2c34] p-6 rounded-2xl">
         <div>
-          <h1 className="text-xl font-bold text-[#2d2d2a] flex items-center gap-2">
-            <Settings className="w-5 h-5 text-[#5A5A40]" />
-            <span>Customization Hub (Re-branding & Settings)</span>
+          <h1 className="text-2xl font-extrabold text-white flex items-center gap-2">
+            <Settings className="w-5 h-5 text-zinc-400" />
+            <span>Settings & System Customization</span>
           </h1>
-          <p className="text-xs text-[#6b6b60] mt-1 font-medium">
+          <p className="text-xs text-zinc-400 mt-1 font-medium">
             Easily re-brand this CRM per client (Logo, colors, terminology, custom pipeline stages, repeat cycle)
           </p>
         </div>
       </div>
 
       {/* Settings Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-[#e0e0d5] pb-2">
+      <div className="flex items-center gap-2 border-b border-[#2c2c34] pb-2">
         <button
           onClick={() => setActiveTab('branding')}
-          className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors ${
-            activeTab === 'branding' ? 'bg-[#5A5A40] text-white shadow-xs' : 'text-[#6b6b60] hover:text-[#2d2d2a]'
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+            activeTab === 'branding' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-white'
           }`}
         >
           Company Branding & Colors
         </button>
         <button
           onClick={() => setActiveTab('stages')}
-          className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors ${
-            activeTab === 'stages' ? 'bg-[#5A5A40] text-white shadow-xs' : 'text-[#6b6b60] hover:text-[#2d2d2a]'
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+            activeTab === 'stages' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-white'
           }`}
         >
           Pipeline Stage Customizer
         </button>
         <button
           onClick={() => setActiveTab('reset')}
-          className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors ${
-            activeTab === 'reset' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'text-[#6b6b60] hover:text-[#2d2d2a]'
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+            activeTab === 'reset' ? 'bg-rose-950/80 text-rose-300 border border-rose-800/80' : 'text-zinc-400 hover:text-white'
           }`}
         >
           Demo Data Reset
@@ -92,14 +92,14 @@ export const SettingsView = ({
 
       {/* Branding Settings Form */}
       {activeTab === 'branding' && (
-        <form onSubmit={handleSaveBranding} className="bg-white border border-[#e0e0d5] p-6 rounded-2xl max-w-2xl space-y-4 shadow-xs text-xs text-[#2d2d2a]">
-          <div className="flex items-center justify-between border-b border-[#e0e0d5] pb-3">
-            <h3 className="font-bold text-sm text-[#2d2d2a] flex items-center gap-2">
-              <Palette className="w-4 h-4 text-[#5A5A40]" />
+        <form onSubmit={handleSaveBranding} className="bg-[#1c1c21] border border-[#2c2c34] p-6 rounded-2xl max-w-2xl space-y-4 text-xs text-white">
+          <div className="flex items-center justify-between border-b border-[#2c2c34] pb-3">
+            <h3 className="font-bold text-sm text-white flex items-center gap-2">
+              <Palette className="w-4 h-4 text-zinc-400" />
               <span>White-Label Branding Config</span>
             </h3>
             {savedSuccess && (
-              <span className="text-[#5A5A40] font-bold text-xs flex items-center gap-1">
+              <span className="text-emerald-400 font-bold text-xs flex items-center gap-1">
                 <Check className="w-4 h-4" />
                 Saved successfully!
               </span>
@@ -107,29 +107,29 @@ export const SettingsView = ({
           </div>
 
           <div>
-            <label className="block text-[#6b6b60] font-semibold mb-1">CRM App Name *</label>
+            <label className="block text-zinc-400 font-semibold mb-1">CRM App Name *</label>
             <input
               type="text"
               required
               value={brandingForm.appName}
               onChange={(e) => setBrandingForm({ ...brandingForm, appName: e.target.value })}
-              className="w-full bg-[#fcfcf9] border border-[#e0e0d5] rounded-xl p-2.5 text-[#2d2d2a] focus:outline-none focus:border-[#5A5A40]"
+              className="w-full bg-[#18181c] border border-[#2e2e38] rounded-xl p-2.5 text-white focus:outline-none focus:border-zinc-500"
             />
           </div>
 
           <div>
-            <label className="block text-[#6b6b60] font-semibold mb-1">Tagline / Subtitle</label>
+            <label className="block text-zinc-400 font-semibold mb-1">Tagline / Subtitle</label>
             <input
               type="text"
               value={brandingForm.tagline}
               onChange={(e) => setBrandingForm({ ...brandingForm, tagline: e.target.value })}
-              className="w-full bg-[#fcfcf9] border border-[#e0e0d5] rounded-xl p-2.5 text-[#2d2d2a] focus:outline-none focus:border-[#5A5A40]"
+              className="w-full bg-[#18181c] border border-[#2e2e38] rounded-xl p-2.5 text-white focus:outline-none focus:border-zinc-500"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[#6b6b60] font-semibold mb-1">Primary Brand Color</label>
+              <label className="block text-zinc-400 font-semibold mb-1">Primary Brand Color</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -141,28 +141,28 @@ export const SettingsView = ({
                   type="text"
                   value={brandingForm.primaryColor}
                   onChange={(e) => setBrandingForm({ ...brandingForm, primaryColor: e.target.value })}
-                  className="w-full bg-[#fcfcf9] border border-[#e0e0d5] rounded-xl p-2.5 text-[#2d2d2a] font-mono focus:outline-none focus:border-[#5A5A40]"
+                  className="w-full bg-[#18181c] border border-[#2e2e38] rounded-xl p-2.5 text-white font-mono focus:outline-none focus:border-zinc-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[#6b6b60] font-semibold mb-1">
+              <label className="block text-zinc-400 font-semibold mb-1">
                 Default Repeat Order Cycle (Days)
               </label>
               <input
                 type="number"
                 value={brandingForm.defaultRecurrenceDays}
                 onChange={(e) => setBrandingForm({ ...brandingForm, defaultRecurrenceDays: Number(e.target.value) })}
-                className="w-full bg-[#fcfcf9] border border-[#e0e0d5] rounded-xl p-2.5 text-[#2d2d2a] focus:outline-none focus:border-[#5A5A40]"
+                className="w-full bg-[#18181c] border border-[#2e2e38] rounded-xl p-2.5 text-white focus:outline-none focus:border-zinc-500"
               />
             </div>
           </div>
 
-          <div className="pt-3 border-t border-[#e0e0d5] flex justify-end">
+          <div className="pt-3 border-t border-[#2c2c34] flex justify-end">
             <button
               type="submit"
-              className="px-5 py-2.5 bg-[#5A5A40] hover:bg-[#4a4a35] text-white font-bold rounded-full text-xs shadow-xs flex items-center gap-2 transition-colors"
+              className="px-5 py-2.5 bg-white hover:bg-zinc-200 text-black font-bold rounded-full text-xs shadow-xs flex items-center gap-2 transition-colors"
             >
               <Save className="w-4 h-4" />
               <span>Save Branding Settings</span>
@@ -173,20 +173,20 @@ export const SettingsView = ({
 
       {/* Stages Customizer Tab */}
       {activeTab === 'stages' && (
-        <div className="bg-white border border-[#e0e0d5] p-6 rounded-2xl max-w-2xl space-y-4 shadow-xs text-xs text-[#2d2d2a]">
-          <div className="border-b border-[#e0e0d5] pb-3">
-            <h3 className="font-bold text-sm text-[#2d2d2a] flex items-center gap-2">
-              <Kanban className="w-4 h-4 text-[#5A5A40]" />
+        <div className="bg-[#1c1c21] border border-[#2c2c34] p-6 rounded-2xl max-w-2xl space-y-4 text-xs text-white">
+          <div className="border-b border-[#2c2c34] pb-3">
+            <h3 className="font-bold text-sm text-white flex items-center gap-2">
+              <Kanban className="w-4 h-4 text-zinc-400" />
               <span>Customize Pipeline Stages</span>
             </h3>
-            <p className="text-[#6b6b60] mt-1 font-medium">
+            <p className="text-zinc-400 mt-1 font-medium">
               Rename, change stage colors, or append customized pipeline stages for client industry needs.
             </p>
           </div>
 
           <div className="space-y-2">
             {stages.map(stg => (
-              <div key={stg.id} className="flex items-center gap-3 p-2 bg-[#fcfcf9] border border-[#e0e0d5] rounded-xl">
+              <div key={stg.id} className="flex items-center gap-3 p-2 bg-[#24242b] border border-[#2f2f3a] rounded-xl">
                 <input
                   type="color"
                   value={stg.color}
@@ -197,9 +197,9 @@ export const SettingsView = ({
                   type="text"
                   value={stg.name}
                   onChange={(e) => handleUpdateStageName(stg.id, e.target.value)}
-                  className="flex-1 bg-white border border-[#e0e0d5] rounded-lg p-2 text-[#2d2d2a] focus:outline-none focus:border-[#5A5A40] font-semibold"
+                  className="flex-1 bg-[#18181c] border border-[#2e2e38] rounded-lg p-2 text-white focus:outline-none focus:border-zinc-500 font-semibold"
                 />
-                <span className="text-[10px] text-[#6b6b60] uppercase font-mono px-2 py-1 bg-[#f5f5f0] rounded border border-[#e0e0d5]">
+                <span className="text-[10px] text-zinc-400 uppercase font-mono px-2 py-1 bg-[#18181c] rounded border border-[#2e2e38]">
                   {stg.category}
                 </span>
               </div>
@@ -207,7 +207,7 @@ export const SettingsView = ({
           </div>
 
           {/* Add New Stage */}
-          <div className="pt-3 border-t border-[#e0e0d5] flex items-center gap-2">
+          <div className="pt-3 border-t border-[#2c2c34] flex items-center gap-2">
             <input
               type="color"
               value={newStageColor}
@@ -219,11 +219,11 @@ export const SettingsView = ({
               value={newStageName}
               onChange={(e) => setNewStageName(e.target.value)}
               placeholder="e.g. Technical Audit / Lab Testing"
-              className="flex-1 bg-[#fcfcf9] border border-[#e0e0d5] rounded-xl p-2 text-[#2d2d2a] focus:outline-none focus:border-[#5A5A40]"
+              className="flex-1 bg-[#18181c] border border-[#2e2e38] rounded-xl p-2 text-white focus:outline-none focus:border-zinc-500"
             />
             <button
               onClick={handleAddStage}
-              className="px-4 py-2 bg-[#5A5A40] hover:bg-[#4a4a35] text-white font-bold rounded-full shrink-0 shadow-xs transition-colors"
+              className="px-4 py-2 bg-white hover:bg-zinc-200 text-black font-bold rounded-full shrink-0 shadow-xs transition-colors"
             >
               Add Stage
             </button>
@@ -233,21 +233,22 @@ export const SettingsView = ({
 
       {/* Reset Demo Data Tab */}
       {activeTab === 'reset' && (
-        <div className="bg-white border border-[#e0e0d5] p-6 rounded-2xl max-w-2xl space-y-4 shadow-xs text-xs text-[#2d2d2a]">
-          <div className="border-b border-[#e0e0d5] pb-3">
-            <h3 className="font-bold text-sm text-rose-800 flex items-center gap-2">
-              <RotateCcw className="w-4 h-4 text-rose-700" />
+        <div className="bg-[#1c1c21] border border-[#2c2c34] p-6 rounded-2xl max-w-2xl space-y-4 text-xs text-white">
+          <div className="border-b border-[#2c2c34] pb-3">
+            <h3 className="font-bold text-sm text-rose-400 flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-rose-400" />
               <span>Reset Application State to Seed Demo Data</span>
             </h3>
-            <p className="text-[#6b6b60] mt-1 font-medium">
+            <p className="text-zinc-400 mt-1 font-medium">
               Restores default demo employees, companies, contacts, leads, deals, and activity logs.
             </p>
           </div>
 
           <button
             onClick={onResetDemoData}
-            className="px-5 py-2.5 bg-rose-700 hover:bg-rose-800 text-white font-bold rounded-full text-xs flex items-center gap-2 shadow-xs transition-colors"
+            className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-full text-xs flex items-center gap-2 shadow-xs transition-colors"
           >
+
             <RotateCcw className="w-4 h-4" />
             <span>Reset Demo Data</span>
           </button>
