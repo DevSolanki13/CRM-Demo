@@ -1,38 +1,59 @@
-# Customizable CRM Demo
+# NexusCRM — Customizable B2B Sales & Recurring Order CRM
 
 ## Overview
 
-**Customizable CRM Demo** is a lightweight, feature‑rich Customer Relationship Management (CRM) web application. It provides a modern, responsive UI with dark‑mode glassmorphism design, built with **React 18**, **JavaScript (JSX)**, **Node.js**, **Express**, and **Vite**. The app showcases a modular full‑stack architecture with clean Separation of Concerns between frontend and backend layers.
+**NexusCRM** is a production-grade, highly customizable B2B Sales & Recurring Order Management CRM web application built with **React 19**, **JavaScript (JSX)**, **Node.js**, **Express**, and **Vite**. 
+
+It features an **elevation-based design system** (60-30-10 color distribution, WCAG AA-compliant contrast ratios, 3-level elevation tokens), full **Indian Rupee (INR ₹)** financial localization, **Stage-Gate Governance Qualification**, automated **Recurring Order Renewals**, **Role-Based Access Control (RBAC)**, and a **System Architecture Hardware Manifest Strip**.
 
 ---
 
 ## Key Features
 
-- **Stage Gate Qualification System**: Mandatory stage-specific 4-question Yes/No qualification checklists (`New Lead → Contacted`, `Contacted → Sample Sent`, `Sample Sent → Proposal Sent`, `Proposal Sent → Negotiation`, `Negotiation → Closed Won`) before moving deals forward.
-- **Closed Lost Routing & Lost Reason Analytics**: Automated routing to Closed Lost when qualification criteria fail, requiring mandatory **Lost Reason** selection (`Budget mismatch`, `No decision-maker access`, `Losing to competitor`, `Slow internal process`, `Technical fit issue`, `Went silent`) and rep observations.
-- **Backward Stage Demotion Tracking**: Mandatory demotion reason tracking (`Requirements changed`, `Sample re-testing needed`, `Decision-maker changed`, `Budget delay`, etc.) when demoting deals to previous pipeline stages.
-- **Manager / Admin Review Workflow**: Rep submissions place stage moves into `Pending Review` state with amber card badges for Manager/Admin review and one-click execution.
-- **3-Dots Quick Action Menu per Lead**: Instant modal access on every lead row for **Add Activity** (log calls/meetings), **Change Stage** (qualification check), and **Send Email** (mailto & CRM log).
-- **Role-Based Access Control (RBAC)**: Restricted Kanban drag-and-drop to Admin users, with **Direct Stage Updates (No Questions)** for Admin users.
-- **Reports & Governance Audit Log**: Visual Lost Deals by Pipeline Stage chart, Lost Deals by Reason monetary breakdown, and permanent Stage Gate Governance Audit Log table.
-- **Dashboard Vertical Bar Stepper**: Financial vertical bar chart comparing monetary values across consecutive pipeline stages.
-- **Lead & Entity Management**: Comprehensive management tools for Companies, Contacts, Leads, Employees, and Tasks with multi-select bulk operations.
-- **CSV Data Export Center**: Download formatted CSV file exports for Contacts, Leads, and Deals.
-- **Global Search**: Modal search across all CRM entities with keyboard shortcuts.
+### 🎨 Design System & Color Theory
+- **60-30-10 Distribution**: 60% neutral surfaces (`#F6F7F8` canvas, `#FFFFFF` cards, `#E3E6EA` borders), 30% primary teal scale (`#1D4E63` / `#EFF6F9`), 10% semantic status accents.
+- **3-Level Elevation System**: Level 0 flat canvas, Level 1 card/table containers (`0 1px 2px rgba(...)`), Level 2 elevated modals, dropdowns & manifest strip (`#FAFCFD` surface tint + `0 8px 24px rgba(...)`).
+- **WCAG AA Compliance**: High-contrast text pairings for Amber (`#965700`), Green (`#255B40`), Red (`#922D27`), and Primary Neutral (`#1D4E63`).
+- **Indian Rupee (INR ₹) Localization**: Currency formatting (`₹` / `en-IN`) across metrics, deal values, reports, export CSVs, and initial datasets.
+
+### 📈 8-Stage Sequential & Semantic Pipeline
+- **Sequential Stepping (In Progress)**: `New Lead` (`#B9D4DE`) &rarr; `Contacted` (`#93BECC`) &rarr; `Sample Sent` (`#3E7C93`) &rarr; `Proposal Sent` (`#2A6580`) &rarr; `Negotiation` (`#1D4E63`).
+- **Semantic Outcome Fill**: `Closed Won` (`#3F7A5C`), `Buy Again (Renewal)` (`#C6790A`), `Closed Lost` (`#B5423A`).
+- **Empty-Value (₹0) Handling**: Stages with ₹0 total value render pale neutral tracks (`#E3E6EA`) to prevent empty columns from reading as error states.
+
+### 🛡️ Stage-Gate Governance & Qualification
+- **Mandatory 4-Question Checklists**: Reps must answer 4 Yes/No qualification criteria to advance deals through pipeline stages.
+- **Automated Closed Lost Routing**: Failing any qualification check automatically routes deals to Closed Lost with mandatory **Lost Reason** selection (`Budget mismatch`, `Losing to competitor`, `Went silent`, etc.).
+- **Backward Move Demotion Tracking**: Mandatory demotion reason tracking when moving deals backward in the pipeline.
+- **Manager / Admin Review Workflow**: Submissions enter `Pending Review` state for manager authorization and one-click execution.
+
+### 🔄 Recurring Order & Renewal Automation
+- **Repeat Cycle Tracking**: Configurable renewal cycles (e.g. 60 days) that flag accounts as "Buy Again Due".
+- **One-Click Re-Order**: Instant renewal deal creation directly from the Renewal Tracking table.
+
+### ⚡ System Architecture & Hardware Manifest Strip
+- **Manifest Strip (`ManifestStrip.jsx`)**: Real-time diagnostic bar rendering hardware specs, active port bindings, memory utilization, API latencies, and RBAC status.
+
+### 👥 Team Workload & Entity Management
+- **Entity Directories**: Comprehensive views for Companies, Contacts, Leads, Employees, Tasks, and Settings.
+- **3-Dots Quick Action Lead Menu**: Instant modal triggers on every lead row (`Add Activity`, `Change Stage`, `Send Email`).
+- **Tasks Ledger**: Follow-up activity tracking, due-today amber warnings, and overdue red alerts.
+- **CSV Export Center**: One-click formatted CSV file exports for Contacts, Leads, and Deals.
+- **Global Search**: Modal search across all entities with keyboard shortcuts (`Esc`).
 
 ---
 
 ## Screenshots
 
-### Main Dashboard Interface
+### Main Sales Console Interface
 ![Final UI](images/WebSite/Final%20Ui.png)
 
 ---
 
 ## Tech Stack
 
-- **Frontend**: React 18, JavaScript (JSX), Vanilla CSS / Tailwind CSS, Lucide Icons, Vite
-- **Backend**: Node.js, Express.js
+- **Frontend**: React 19, JavaScript (JSX), Vanilla CSS / Tailwind CSS, Lucide Icons, Vite
+- **Backend**: Node.js, Express.js (REST API Server)
 - **Tooling**: Esbuild, Git, Vite Bundler
 
 ---
@@ -60,7 +81,7 @@ npm install
 ```bash
 npm run dev
 ```
-Starts the Node.js Express backend server (`backend/server.js`) and Vite development environment.
+Starts the Node.js Express backend server (`backend/server.js`) and Vite development server concurrently.
 
 ### Build for Production
 
@@ -75,28 +96,44 @@ npm run start
 ## Project Structure
 
 ```text
-├─ backend/               # Node.js & Express REST API Server
-│  ├─ controllers/        # CRM business logic, stage gate controllers
-│  ├─ data/               # Mock seed data & governance logs
-│  ├─ routes/             # REST API endpoint definitions
-│  ├─ store/              # In-memory CRM state store & transition logic
-│  └─ server.js           # Express server entry point
-├─ frontend/              # React JSX Single Page Application
-│  ├─ api/                # Frontend API client layer (`crmClient.js`)
-│  ├─ components/         # Modular UI components
-│  │  ├─ DashboardView.jsx        # Vertical bar chart & key metrics
-│  │  ├─ PipelineView.jsx         # Kanban board, RBAC drag & drop, card badges
-│  │  ├─ LeadsView.jsx            # Leads table, 3-dots action menus, roomier modals
-│  │  ├─ ReportsView.jsx          # Governance audit log table, lost deal analytics
-│  │  └─ StageGateCheckModal.jsx  # Qualification checklist, lost reason & demotion form
-│  ├─ utils/              # Helper utilities (`crmHelpers.js`)
-│  ├─ index.css           # Global styles & scrollbars
-│  ├─ main.jsx            # React root mount point
-│  └─ App.jsx             # Main layout, routing & state
-├─ images/                # Application UI screenshots & assets
-├─ index.html             # HTML entry template
-├─ package.json           # Project scripts & dependencies
-└─ vite.config.ts         # Vite bundler configuration
+customizable-crm-demo/
+├── backend/
+│   ├── controllers/        # CRM business logic, stage gate & deal controllers
+│   ├── data/               # Seed datasets for companies, contacts, leads, deals, tasks
+│   ├── routes/             # Express REST API endpoint definitions (/api/crm/*)
+│   ├── store/              # In-memory CRM store & state normalization
+│   └── server.js           # Express API server entry point
+├── frontend/
+│   ├── api/
+│   │   └── crmClient.js    # REST API client layer
+│   ├── components/
+│   │   ├── CompaniesView.jsx       # Corporate accounts table & detail drawer
+│   │   ├── ContactsView.jsx        # Client directory, call logs & detail drawer
+│   │   ├── DashboardView.jsx       # Key metrics, 8-stage pipeline chart, activity feed
+│   │   ├── EmployeesView.jsx       # Team workload cards & role management modal
+│   │   ├── GlobalSearchModal.jsx   # Keyboard-navigable global search modal
+│   │   ├── Header.jsx              # Top header, notification drawer, search trigger
+│   │   ├── ImportExportModal.jsx   # CSV data export modal
+│   │   ├── LeadsView.jsx           # Leads table, 3-dots action menu, filter bar
+│   │   ├── ManifestStrip.jsx       # System architecture & hardware status strip
+│   │   ├── PipelineView.jsx        # Kanban board, deal cards, stage gate check triggers
+│   │   ├── ReportsView.jsx         # Governance audit log, lost deal charts, renewal tracker
+│   │   ├── SettingsView.jsx        # Customization hub, white-label branding, stage customizer
+│   │   ├── Sidebar.jsx             # Collapsible navigation sidebar & user info
+│   │   └── StageGateCheckModal.jsx # Qualification checklist, lost reason & demotion modal
+│   ├── utils/
+│   │   └── crmHelpers.js   # INR currency formatters, date utilities, RBAC filters
+│   ├── App.jsx             # Single-page application root, routing & state normalization
+│   ├── index.css           # 60-30-10 design system, elevation tokens & CSS variables
+│   └── main.jsx            # React DOM entry point
+├── images/
+│   └── WebSite/
+│       ├── 1st UI.png
+│       ├── 2nd UI.png
+│       └── Final Ui.png    # Sales console screenshot
+├── index.html              # HTML entry template
+├── package.json            # Project scripts & dependencies
+└── vite.config.ts          # Vite bundler configuration
 ```
 
 ---
@@ -106,19 +143,9 @@ npm run start
 | Script | Description |
 |--------|-------------|
 | `npm install` | Install all backend and frontend dependencies |
-| `npm run dev` | Start the development server (`node backend/server.js`) |
-| `npm run build` | Create an optimized production build via Vite & Esbuild |
-| `npm run start` | Run the production build server (`node dist/server.cjs`) |
-
----
-
-## Contributing
-
-Contributions are welcome! Feel free to open issues or submit pull requests. Please follow these steps:
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes
-4. Push to your fork and open a PR
+| `npm run dev` | Start development environment (`node backend/server.js`) |
+| `npm run build` | Build optimized production bundle via Vite & Esbuild |
+| `npm run start` | Run production build server (`node dist/server.cjs`) |
 
 ---
 
