@@ -70,71 +70,71 @@ export const ImportExportModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-      <div className="bg-[#1c1c21] border border-[#2c2c34] rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl text-xs text-white">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+      <div className="bg-[#FAFCFD] border border-[#E3E6EA] rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-[0_8px_24px_rgba(18,22,28,0.12)] text-xs text-[#12161C]">
         
-        <div className="flex items-center justify-between border-b border-[#2c2c34] pb-3">
-          <h2 className="text-sm font-bold text-white flex items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4 text-zinc-400" />
+        <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-3">
+          <h2 className="font-display text-sm font-bold text-[#12161C] flex items-center gap-2">
+            <FileSpreadsheet className="w-4 h-4 text-[#1D4E63]" />
             <span>CSV Data Export Center</span>
           </h2>
-          <button onClick={onClose} className="text-zinc-400 hover:text-white p-1 rounded-lg">
+          <button onClick={onClose} className="text-[#5B6472] hover:text-[#12161C] p-1 rounded-lg">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="space-y-4 py-2">
-          <p className="text-zinc-400 font-medium">
+          <p className="text-[#5B6472] font-medium">
             Download formatted CSV file exports of your Contacts, Leads, and Pipeline Deals for reporting, backup, or accounting:
           </p>
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
               onClick={handleExportContacts}
-              className="p-5 bg-[#24242b] hover:bg-[#2c2c36] border border-[#2f2f3a] rounded-2xl font-bold text-white flex flex-col items-center gap-2 transition-all shadow-xs group cursor-pointer"
+              className="p-5 bg-[#FFFFFF] hover:bg-[#EFF6F9] border border-[#E3E6EA] rounded-2xl font-bold text-[#12161C] flex flex-col items-center gap-2 transition-all shadow-2xs group cursor-pointer"
             >
-              <div className="p-2.5 rounded-xl bg-white text-black transition-colors">
+              <div className="p-2.5 rounded-xl bg-[#1D4E63] text-white transition-colors">
                 <Download className="w-5 h-5" />
               </div>
-              <span className="text-xs font-bold text-white">Export Contacts</span>
-              <span className="text-[10px] text-zinc-400 font-normal">({state.contacts.length} records)</span>
+              <span className="text-xs font-bold text-[#12161C]">Export Contacts</span>
+              <span className="text-[10px] text-[#5B6472] font-mono">({state.contacts.length} records)</span>
             </button>
 
             <button
               onClick={handleExportLeads}
-              className="p-5 bg-[#24242b] hover:bg-[#2c2c36] border border-[#2f2f3a] rounded-2xl font-bold text-white flex flex-col items-center gap-2 transition-all shadow-xs group cursor-pointer"
+              className="p-5 bg-[#FFFFFF] hover:bg-[#EFF6F9] border border-[#E3E6EA] rounded-2xl font-bold text-[#12161C] flex flex-col items-center gap-2 transition-all shadow-2xs group cursor-pointer"
             >
-              <div className="p-2.5 rounded-xl bg-white text-black transition-colors">
+              <div className="p-2.5 rounded-xl bg-[#1D4E63] text-white transition-colors">
                 <Download className="w-5 h-5" />
               </div>
-              <span className="text-xs font-bold text-white">Export Leads</span>
-              <span className="text-[10px] text-zinc-400 font-normal">({state.leads.length} records)</span>
+              <span className="text-xs font-bold text-[#12161C]">Export Leads</span>
+              <span className="text-[10px] text-[#5B6472] font-mono">({state.leads.length} records)</span>
             </button>
 
             <button
               onClick={handleExportDeals}
-              className="p-5 bg-[#24242b] hover:bg-[#2c2c36] border border-[#2f2f3a] rounded-2xl font-bold text-white flex flex-col items-center gap-2 transition-all shadow-xs group cursor-pointer"
+              className="p-5 bg-[#FFFFFF] hover:bg-[#EFF6F9] border border-[#E3E6EA] rounded-2xl font-bold text-[#12161C] flex flex-col items-center gap-2 transition-all shadow-2xs group cursor-pointer"
             >
-              <div className="p-2.5 rounded-xl bg-white text-black transition-colors">
+              <div className="p-2.5 rounded-xl bg-[#1D4E63] text-white transition-colors">
                 <Download className="w-5 h-5" />
               </div>
-              <span className="text-xs font-bold text-white">Export Deals</span>
-              <span className="text-[10px] text-zinc-400 font-normal">({state.deals.length} records)</span>
+              <span className="text-xs font-bold text-[#12161C]">Export Deals</span>
+              <span className="text-[10px] text-[#5B6472] font-mono">({state.deals.length} records)</span>
             </button>
           </div>
 
           {exportedStatus && (
-            <div className="p-3 bg-emerald-950/80 border border-emerald-800/80 rounded-xl text-emerald-300 font-bold flex items-center gap-2 text-xs animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="p-3 bg-[#F0F7F3] border border-[#BCDBC9] rounded-xl text-[#255B40] font-bold flex items-center gap-2 text-xs font-mono">
+              <CheckCircle2 className="w-4 h-4 text-[#255B40] shrink-0" />
               <span>{exportedStatus}</span>
             </div>
           )}
         </div>
 
-        <div className="flex justify-end pt-2 border-t border-[#2c2c34]">
+        <div className="flex justify-end pt-2 border-t border-[#E3E6EA]">
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-[#24242b] hover:bg-[#2c2c36] text-zinc-300 font-semibold rounded-full border border-[#2f2f3a] cursor-pointer"
+            className="px-5 py-2 bg-[#F6F7F8] hover:bg-[#EEF0F3] text-[#5B6472] font-semibold rounded-full border border-[#E3E6EA] cursor-pointer"
           >
             Close
           </button>
@@ -144,4 +144,3 @@ export const ImportExportModal = ({
     </div>
   );
 };
-

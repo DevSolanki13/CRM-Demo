@@ -12,6 +12,28 @@ import {
   initialStageGateChecks,
 } from '../data/initialData.js';
 
+const DEFAULT_STAGE_COLORS = {
+  'New Lead': '#B9D4DE',
+  'Contacted': '#93BECC',
+  'Sample Sent': '#3E7C93',
+  'Proposal Sent': '#2A6580',
+  'Negotiation': '#1D4E63',
+  'Closed Won': '#3F7A5C',
+  'Buy Again (Renewal)': '#C6790A',
+  'Closed Lost': '#B5423A',
+};
+
+const OLD_HEX_MAP = {
+  '#64748b': '#B9D4DE',
+  '#0284c7': '#93BECC',
+  '#8b5cf6': '#3E7C93',
+  '#eab308': '#2A6580',
+  '#f97316': '#1D4E63',
+  '#10b981': '#3F7A5C',
+  '#ec4899': '#C6790A',
+  '#ef4444': '#B5423A',
+};
+
 class CRMStore {
   constructor() {
     this.resetState();
@@ -33,6 +55,17 @@ class CRMStore {
   }
 
   getState() {
+    if (this.stages) {
+      this.stages = this.stages.map(stg => {
+        if (OLD_HEX_MAP[stg.color]) {
+          return { ...stg, color: OLD_HEX_MAP[stg.color] };
+        }
+        if (DEFAULT_STAGE_COLORS[stg.name] && OLD_HEX_MAP[stg.color]) {
+          return { ...stg, color: DEFAULT_STAGE_COLORS[stg.name] };
+        }
+        return stg;
+      });
+    }
     return {
       branding: this.branding,
       users: this.users,
@@ -207,7 +240,7 @@ class CRMStore {
       leadId: deal.leadId || '',
       title: deal.title || 'New Sales Deal',
       value: deal.value || 10000,
-      currency: deal.currency || 'USD',
+      currency: deal.currency || 'INR',
       stageId: deal.stageId || 'stg-1',
       stageName: deal.stageName || 'New Lead',
       expectedCloseDate: deal.expectedCloseDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],

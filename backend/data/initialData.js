@@ -6,7 +6,7 @@ export const initialBranding = {
   accentColor: '#10b981', // Emerald
   defaultRecurrenceDays: 60, // 60 days cycle for repeat orders
   customFields: [
-    { id: 'cf1', entity: 'Lead', label: 'Sample Budget ($)', type: 'number' },
+    { id: 'cf1', entity: 'Lead', label: 'Sample Budget (₹)', type: 'number' },
     { id: 'cf2', entity: 'Contact', label: 'Preferred Channel', type: 'select', options: ['Phone', 'Email', 'WhatsApp', 'In-Person'] },
   ]
 };
@@ -47,14 +47,14 @@ export const initialUsers = [
 ];
 
 export const initialStages = [
-  { id: 'stg-1', name: 'New Lead', order: 1, category: 'New', color: '#64748b' },
-  { id: 'stg-2', name: 'Contacted', order: 2, category: 'Contacted', color: '#0284c7' },
-  { id: 'stg-3', name: 'Sample Sent', order: 3, category: 'Sample Sent', color: '#8b5cf6' },
-  { id: 'stg-4', name: 'Proposal Sent', order: 4, category: 'Proposal', color: '#eab308' },
-  { id: 'stg-5', name: 'Negotiation', order: 5, category: 'Negotiation', color: '#f97316' },
-  { id: 'stg-6', name: 'Closed Won', order: 6, category: 'Won', color: '#10b981' },
-  { id: 'stg-7', name: 'Buy Again (Renewal)', order: 7, category: 'Buy Again', color: '#ec4899' },
-  { id: 'stg-8', name: 'Closed Lost', order: 8, category: 'Lost', color: '#ef4444' },
+  { id: 'stg-1', name: 'New Lead', order: 1, category: 'New', color: '#B9D4DE' },
+  { id: 'stg-2', name: 'Contacted', order: 2, category: 'Contacted', color: '#93BECC' },
+  { id: 'stg-3', name: 'Sample Sent', order: 3, category: 'Sample Sent', color: '#3E7C93' },
+  { id: 'stg-4', name: 'Proposal Sent', order: 4, category: 'Proposal', color: '#2A6580' },
+  { id: 'stg-5', name: 'Negotiation', order: 5, category: 'Negotiation', color: '#1D4E63' },
+  { id: 'stg-6', name: 'Closed Won', order: 6, category: 'Won', color: '#3F7A5C' },
+  { id: 'stg-7', name: 'Buy Again (Renewal)', order: 7, category: 'Buy Again', color: '#C6790A' },
+  { id: 'stg-8', name: 'Closed Lost', order: 8, category: 'Lost', color: '#B5423A' },
 ];
 
 export const initialCompanies = [
@@ -66,6 +66,7 @@ export const initialCompanies = [
   { id: 'c-6', name: 'GreenGrid Energy', industry: 'Clean Tech', website: 'https://greengrid.example.com', address: '55 Solar Blvd, Denver CO', notes: 'Solar panel adhesive sealant supplier.', createdAt: '2026-03-01' },
   { id: 'c-7', name: 'Apex Apparel Group', industry: 'Textiles & Retail', website: 'https://apexapparel.example.com', address: '700 Fashion District, New York NY', notes: 'High repeat order potential for bio-based dye samples.', createdAt: '2026-03-12' },
   { id: 'c-8', name: 'Vanguard Medical Systems', industry: 'Healthcare Equipment', website: 'https://vanguardmed.example.com', address: '90 Hospital Plaza, Chicago IL', notes: 'Surgical tray silicone liners.', createdAt: '2026-03-25' },
+  { id: 'c-9', name: 'Titan Industrial Systems', industry: 'Heavy Machinery', website: 'https://titanindustrial.example.com', address: '120 Industrial Pkwy, Detroit MI', notes: 'Heavy duty gasket and seal fittings.', createdAt: '2026-04-05' },
 ];
 
 export const initialContacts = [
@@ -77,6 +78,7 @@ export const initialContacts = [
   { id: 'cnt-6', name: 'Laura Bennett', email: 'lbennett@greengrid.example.com', phone: '+1 (303) 555-0155', jobTitle: 'Supply Chain Manager', companyId: 'c-6', companyName: 'GreenGrid Energy', ownerId: 'u-4', ownerName: 'Elena Rostova', customFields: { 'Preferred Channel': 'WhatsApp' }, createdAt: '2026-03-02' },
   { id: 'cnt-7', name: 'Kevin O\'Connor', email: 'k.oconnor@apexapparel.example.com', phone: '+1 (212) 555-0166', jobTitle: 'Materials Sourcing Specialist', companyId: 'c-7', companyName: 'Apex Apparel Group', ownerId: 'u-3', ownerName: 'Marcus Vance', customFields: { 'Preferred Channel': 'Email' }, createdAt: '2026-03-14' },
   { id: 'cnt-8', name: 'Amanda Sterling', email: 'asterling@vanguardmed.example.com', phone: '+1 (312) 555-0199', jobTitle: 'Surgical Equipment Buyer', companyId: 'c-8', companyName: 'Vanguard Medical Systems', ownerId: 'u-4', ownerName: 'Elena Rostova', customFields: { 'Preferred Channel': 'Phone' }, createdAt: '2026-03-27' },
+  { id: 'cnt-9', name: 'Sarah Jenkins', email: 'sjenkins@titanindustrial.example.com', phone: '+1 (313) 555-0182', jobTitle: 'Procurement Specialist', companyId: 'c-9', companyName: 'Titan Industrial Systems', ownerId: 'u-4', ownerName: 'Elena Rostova', customFields: { 'Preferred Channel': 'Email' }, createdAt: '2026-04-06' },
 ];
 
 export const initialLeads = [
@@ -86,6 +88,9 @@ export const initialLeads = [
   { id: 'ld-4', title: 'GreenGrid Solar Sealants Pilot', contactName: 'Laura Bennett', contactEmail: 'lbennett@greengrid.example.com', contactPhone: '+1 (303) 555-0155', companyName: 'GreenGrid Energy', source: 'Website', isOutbound: false, status: 'New', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-08-02', lastActivityDate: '2026-08-02' },
   { id: 'ld-5', title: 'Quantum Precision Coating Supply', contactName: 'Dr. James Thorne', contactEmail: 'jthorne@quantumoptics.example.com', contactPhone: '+1 (408) 555-0177', companyName: 'Quantum Optics', source: 'Trade Show', isOutbound: true, status: 'Contacted', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-08-03', lastActivityDate: '2026-08-08' },
   { id: 'ld-6', title: 'Vanguard Silicone Liners Supply', contactName: 'Amanda Sterling', contactEmail: 'asterling@vanguardmed.example.com', contactPhone: '+1 (312) 555-0199', companyName: 'Vanguard Medical Systems', source: 'Referral', isOutbound: false, status: 'Qualified', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-08-04', lastActivityDate: '2026-08-08' },
+  { id: 'ld-7', title: 'Apex Apparel Bio-Dye Order', contactName: 'Kevin O\'Connor', contactEmail: 'k.oconnor@apexapparel.example.com', contactPhone: '+1 (212) 555-0166', companyName: 'Apex Apparel Group', source: 'Inbound Inquiry', isOutbound: false, status: 'Qualified', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-06-15', lastActivityDate: '2026-07-25' },
+  { id: 'ld-8', title: 'Nexus Logistics Container Seals (Renewal Due)', contactName: 'Michael Chang', contactEmail: 'mchang@nexuslogistics.example.com', contactPhone: '+1 (206) 555-0188', companyName: 'Nexus Logistics', source: 'Existing Client', isOutbound: false, status: 'Contacted', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-05-10', lastActivityDate: '2026-08-01' },
+  { id: 'ld-9', title: 'Titan Heavy Machinery Gasket Pilot', contactName: 'Sarah Jenkins', contactEmail: 'sjenkins@titanindustrial.example.com', contactPhone: '+1 (313) 555-0182', companyName: 'Titan Industrial Systems', source: 'Cold Outbound', isOutbound: true, status: 'Unqualified', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-07-05', lastActivityDate: '2026-07-30' },
 ];
 
 export const initialDeals = [
@@ -94,7 +99,7 @@ export const initialDeals = [
     leadId: 'ld-1',
     title: 'BioPharma Lab Packaging Contract',
     value: 62000,
-    currency: 'USD',
+    currency: 'INR',
     stageId: 'stg-3',
     stageName: 'Sample Sent',
     expectedCloseDate: '2026-09-20',
@@ -115,7 +120,7 @@ export const initialDeals = [
     leadId: 'ld-2',
     title: 'Artisan Foods Eco-Wrap Campaign',
     value: 28000,
-    currency: 'USD',
+    currency: 'INR',
     stageId: 'stg-2',
     stageName: 'Contacted',
     expectedCloseDate: '2026-08-15',
@@ -137,7 +142,7 @@ export const initialDeals = [
     leadId: 'ld-3',
     title: 'AeroTech Electronics Thermal Pads',
     value: 48000,
-    currency: 'USD',
+    currency: 'INR',
     stageId: 'stg-3',
     stageName: 'Sample Sent',
     expectedCloseDate: '2026-09-15',
@@ -159,7 +164,7 @@ export const initialDeals = [
     leadId: 'ld-4',
     title: 'GreenGrid Solar Sealants Pilot',
     value: 35000,
-    currency: 'USD',
+    currency: 'INR',
     stageId: 'stg-1',
     stageName: 'New Lead',
     expectedCloseDate: '2026-09-01',
@@ -180,7 +185,7 @@ export const initialDeals = [
     leadId: 'ld-5',
     title: 'Quantum Precision Coating Supply',
     value: 84000,
-    currency: 'USD',
+    currency: 'INR',
     stageId: 'stg-4',
     stageName: 'Proposal Sent',
     expectedCloseDate: '2026-08-28',
@@ -202,7 +207,7 @@ export const initialDeals = [
     leadId: 'ld-6',
     title: 'Vanguard Silicone Liners Supply',
     value: 120000,
-    currency: 'USD',
+    currency: 'INR',
     stageId: 'stg-5',
     stageName: 'Negotiation',
     expectedCloseDate: '2026-08-20',
@@ -218,6 +223,75 @@ export const initialDeals = [
     createdAt: '2026-08-04',
     updatedAt: '2026-08-08',
     daysInStage: 3,
+  },
+  {
+    id: 'dl-7',
+    leadId: 'ld-7',
+    title: 'Apex Apparel Bio-Dye Order',
+    value: 95000,
+    currency: 'INR',
+    stageId: 'stg-6',
+    stageName: 'Closed Won',
+    expectedCloseDate: '2026-07-25',
+    actualCloseDate: '2026-07-25',
+    contactId: 'cnt-7',
+    contactName: 'Kevin O\'Connor',
+    companyId: 'c-7',
+    companyName: 'Apex Apparel Group',
+    ownerId: 'u-3',
+    ownerName: 'Marcus Vance',
+    isRecurring: true,
+    recurrenceDays: 60,
+    status: 'Won',
+    createdAt: '2026-06-15',
+    updatedAt: '2026-07-25',
+    daysInStage: 18,
+  },
+  {
+    id: 'dl-8',
+    leadId: 'ld-8',
+    title: 'Nexus Logistics Container Seals',
+    value: 52000,
+    currency: 'INR',
+    stageId: 'stg-7',
+    stageName: 'Buy Again (Renewal)',
+    expectedCloseDate: '2026-08-01',
+    actualCloseDate: '2026-06-01',
+    contactId: 'cnt-3',
+    contactName: 'Michael Chang',
+    companyId: 'c-3',
+    companyName: 'Nexus Logistics',
+    ownerId: 'u-3',
+    ownerName: 'Marcus Vance',
+    isRecurring: true,
+    recurrenceDays: 60,
+    status: 'Renewal Due',
+    createdAt: '2026-05-10',
+    updatedAt: '2026-08-01',
+    daysInStage: 10,
+  },
+  {
+    id: 'dl-9',
+    leadId: 'ld-9',
+    title: 'Titan Heavy Machinery Gasket Pilot',
+    value: 41000,
+    currency: 'INR',
+    stageId: 'stg-8',
+    stageName: 'Closed Lost',
+    expectedCloseDate: '2026-07-30',
+    contactId: 'cnt-9',
+    contactName: 'Sarah Jenkins',
+    companyId: 'c-9',
+    companyName: 'Titan Industrial Systems',
+    ownerId: 'u-4',
+    ownerName: 'Elena Rostova',
+    isRecurring: false,
+    status: 'Lost',
+    lostReason: 'Losing to competitor',
+    lostReasonNote: 'Competitor offered lower pricing on bulk volume.',
+    createdAt: '2026-07-05',
+    updatedAt: '2026-07-30',
+    daysInStage: 12,
   },
 ];
 

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  CheckCircle2, 
-  XCircle, 
-  X, 
-  AlertTriangle, 
-  ShieldCheck, 
+import {
+  CheckCircle2,
+  XCircle,
+  X,
+  AlertTriangle,
+  ShieldCheck,
   ArrowRight,
   Clock,
   UserCheck,
@@ -84,10 +84,8 @@ export const StageGateCheckModal = ({
   const [submitting, setSubmitting] = useState(false);
   const [forceDirectLost, setForceDirectLost] = useState(false);
 
-  // Transition key
   const transitionKey = `${fromStage?.name}->${targetStage?.name}`;
-  
-  // Get criteria list or default
+
   const criteriaList = STAGE_CRITERIA[transitionKey] || [
     'Decision-maker verified and aligned',
     'Commercial requirements confirmed',
@@ -96,7 +94,6 @@ export const StageGateCheckModal = ({
 
   const isBackwardMove = Boolean(fromStage && targetStage && targetStage.order < fromStage.order);
 
-  // Initialize or load existing draft/pending answers
   useEffect(() => {
     setForceDirectLost(false);
     setBackwardReason(BACKWARD_MOVE_REASONS[0]);
@@ -139,7 +136,6 @@ export const StageGateCheckModal = ({
   };
 
   const handleClose = () => {
-    // If not submitted, save draft partial state badge
     if (!isReviewMode && !isBackwardMove && !isDirectLost && answeredCount > 0 && !allAnswered) {
       onSaveDraft && onSaveDraft(deal.id, {
         answers,
@@ -180,8 +176,6 @@ export const StageGateCheckModal = ({
     }
 
     const outcome = allYesAnswers ? 'advanced' : 'lost';
-    
-    // Status is approved directly if submitted by Admin or direct lost, else pending_review
     const checkStatus = (currentUser.role === 'Admin' || isDirectLost) ? 'approved_and_executed' : 'pending_review';
 
     const checkData = {
@@ -226,32 +220,30 @@ export const StageGateCheckModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-      <div className="bg-[#1c1c21] border border-[#2c2c34] rounded-2xl max-w-2xl w-full p-8 space-y-6 shadow-2xl text-sm text-white max-h-[90vh] overflow-y-auto custom-scrollbar">
-        
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+      <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl max-w-2xl w-full p-6 md:p-8 space-y-6 shadow-xl text-xs md:text-sm text-[#12161C] max-h-[90vh] overflow-y-auto no-scrollbar">
+
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#2c2c34] pb-5">
+        <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-4">
           <div>
             <div className="flex items-center gap-2.5">
-              <span className={`p-2 rounded-xl border ${
-                isBackwardMove 
-                  ? 'bg-amber-950/80 text-amber-400 border-amber-800/60'
-                  : 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
-              }`}>
+              <span className={`p-2 rounded-xl border ${isBackwardMove
+                  ? 'bg-[#FEF8EC] text-[#C6790A] border-[#F3D9A2]'
+                  : 'bg-[#F0F7F3] text-[#3F7A5C] border-[#BCDBC9]'
+                }`}>
                 {isBackwardMove ? <RotateCcw className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
               </span>
-              <h2 className="text-base font-extrabold text-white">
+              <h2 className="font-display text-base font-extrabold text-[#12161C]">
                 {isBackwardMove ? 'Stage Demotion & Backward Move' : 'Stage Gate Qualification Check'}
               </h2>
             </div>
-            <div className="flex items-center gap-2 mt-1.5 text-xs text-zinc-400 flex-wrap">
-              <span className="font-semibold text-zinc-200">{fromStage?.name}</span>
-              <ArrowRight className="w-3.5 h-3.5 text-zinc-500" />
-              <span className={`font-bold px-2 py-0.5 border rounded-md ${
-                isBackwardMove 
-                  ? 'bg-amber-950/80 text-amber-300 border-amber-800/80' 
-                  : 'bg-[#24242b] text-white border-[#2f2f3a]'
-              }`}>
+            <div className="flex items-center gap-2 mt-1.5 text-xs text-[#5B6472] flex-wrap font-mono">
+              <span className="font-bold text-[#12161C]">{fromStage?.name}</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[#5B6472]" />
+              <span className={`font-bold px-2 py-0.5 border rounded-md ${isBackwardMove
+                  ? 'bg-[#FEF8EC] text-[#C6790A] border-[#F3D9A2]'
+                  : 'bg-[#F6F7F8] text-[#12161C] border-[#E3E6EA]'
+                }`}>
                 {targetStage?.name}
               </span>
 
@@ -259,70 +251,69 @@ export const StageGateCheckModal = ({
                 <button
                   type="button"
                   onClick={() => setForceDirectLost(!forceDirectLost)}
-                  className={`ml-2 px-2.5 py-0.5 rounded-md font-bold text-[11px] flex items-center gap-1.5 transition-all border ${
-                    forceDirectLost
-                      ? 'bg-rose-600 text-white border-rose-500 shadow-sm'
-                      : 'bg-rose-950/80 text-rose-300 hover:text-white hover:bg-rose-900 border-rose-800/80'
-                  }`}
+                  className={`ml-2 px-2.5 py-0.5 rounded-md font-bold text-[11px] flex items-center gap-1.5 transition-all border ${forceDirectLost
+                      ? 'bg-[#B5423A] text-white border-[#B5423A]'
+                      : 'bg-[#FDF2F1] text-[#B5423A] hover:bg-[#F9E2E0] border-[#F4C4C1]'
+                    }`}
                   title="Flag deal as lost"
                 >
-                  <AlertTriangle className="w-3 h-3 text-rose-400" />
+                  <AlertTriangle className="w-3 h-3" />
                   <span>{forceDirectLost ? '← Back to Stage Check' : 'Move to Deal Lost'}</span>
                 </button>
               )}
             </div>
           </div>
 
-          <button onClick={handleClose} className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-[#24242b]">
+          <button onClick={handleClose} className="p-1.5 text-[#5B6472] hover:text-[#12161C] rounded-lg hover:bg-[#F6F7F8]">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Review Mode Banner for Manager/Admin */}
+        {/* Review Mode Banner */}
         {isReviewMode && (
-          <div className="p-3.5 bg-amber-950/40 border border-amber-800/80 rounded-xl text-amber-200 flex items-start gap-3">
-            <UserCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="p-3.5 bg-[#FEF8EC] border border-[#F5DDA9] rounded-xl text-[#965700] flex items-start gap-3">
+            <UserCheck className="w-4 h-4 text-[#965700] shrink-0 mt-0.5" />
             <div className="space-y-0.5">
-              <div className="font-bold text-xs">Pending Manager / Admin Review</div>
-              <p className="text-[11px] text-amber-300/90 font-medium">
-                Submitted by <strong>{deal.pendingGateCheck.submittedByName}</strong>. Review qualification criteria below before approving transition.
+              <div className="font-display font-bold text-xs">Pending Manager / Admin Review</div>
+              <p className="text-[11px] text-[#5B6472]">
+                Submitted by <strong>{deal.pendingGateCheck.submittedByName}</strong>. Review qualification criteria below.
               </p>
             </div>
           </div>
         )}
 
-        {/* Form Body: Backward Move Mode vs Qualification Checklist Mode */}
+        {/* Form Body */}
         {isBackwardMove ? (
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="p-4 bg-amber-950/30 border border-amber-800/60 rounded-xl space-y-2 text-amber-200">
+            <div className="p-4 bg-[#FEF8EC] border border-[#F5DDA9] rounded-xl space-y-2 text-[#965700]">
               <div className="flex items-center gap-2 font-bold text-xs">
-                <RotateCcw className="w-4 h-4 text-amber-400 shrink-0" />
+                <RotateCcw className="w-4 h-4 shrink-0" />
                 <span>Backward Move Demotion &mdash; Reason Required</span>
               </div>
-              <p className="text-xs text-amber-300/90 font-medium">
-                Moving <strong>{deal.title}</strong> backwards from <strong>{fromStage?.name}</strong> to <strong>{targetStage?.name}</strong>. Please select a demotion reason and enter observations.
+              <p className="text-xs text-[#5B6472]">
+                Moving <strong>{deal.title}</strong> backwards from <strong>{fromStage?.name}</strong> to <strong>{targetStage?.name}</strong>. Please select a demotion reason.
               </p>
             </div>
 
             <div>
-              <label className="block text-zinc-300 font-bold mb-2 text-xs uppercase tracking-wider">
+              <label className="block text-[#12161C] font-bold mb-2 text-xs uppercase tracking-wider">
                 Reason for Backward Move *
               </label>
               <select
                 value={backwardReason}
                 onChange={(e) => setBackwardReason(e.target.value)}
-                className="w-full bg-[#18181c] border border-[#2e2e38] rounded-xl p-3.5 text-sm text-white focus:outline-none focus:border-zinc-400 cursor-pointer"
+                className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3.5 text-xs md:text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
               >
                 {BACKWARD_MOVE_REASONS.map(r => (
-                  <option key={r} value={r} className="bg-[#1c1c21]">{r}</option>
+                  <option key={r} value={r}>{r}</option>
                 ))}
               </select>
             </div>
 
             <div className="space-y-2">
-              <label className="block text-zinc-300 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-zinc-400" />
-                <span>Demotion Explanation / Rep Observations *</span>
+              <label className="block text-[#12161C] font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-[#5B6472]" />
+                <span>Demotion Explanation / Observations *</span>
               </label>
               <textarea
                 required
@@ -330,15 +321,15 @@ export const StageGateCheckModal = ({
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Explain why this deal is being moved backwards..."
-                className="w-full bg-[#18181c] border border-[#2e2e38] rounded-xl p-3.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-400"
+                className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3.5 text-xs text-[#12161C] placeholder-[#5B6472] focus:outline-none focus:border-[#1D4E63]"
               />
             </div>
 
-            <div className="pt-4 border-t border-[#2c2c34] flex items-center justify-end gap-3">
+            <div className="pt-4 border-t border-[#E3E6EA] flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-5 py-2.5 bg-[#24242b] hover:bg-[#2c2c36] text-zinc-300 font-semibold rounded-full text-xs border border-[#2f2f3a]"
+                className="px-5 py-2.5 bg-[#F6F7F8] hover:bg-[#EEF0F3] text-[#5B6472] font-semibold rounded-full text-xs border border-[#E3E6EA]"
               >
                 Cancel
               </button>
@@ -346,11 +337,10 @@ export const StageGateCheckModal = ({
               <button
                 type="submit"
                 disabled={!note.trim() || submitting}
-                className={`px-7 py-2.5 rounded-full font-bold text-xs flex items-center gap-2 shadow-sm transition-all ${
-                  !note.trim()
-                    ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
-                    : 'bg-amber-500 hover:bg-amber-400 text-black font-extrabold'
-                }`}
+                className={`px-7 py-2.5 rounded-full font-bold text-xs flex items-center gap-2 shadow-2xs transition-all ${!note.trim()
+                    ? 'bg-[#E3E6EA] text-[#5B6472] cursor-not-allowed border border-[#E3E6EA]'
+                    : 'bg-[#965700] hover:bg-[#7D4800] text-white'
+                  }`}
               >
                 <RotateCcw className="w-4 h-4" />
                 <span>Confirm Backward Move to {targetStage?.name}</span>
@@ -360,14 +350,14 @@ export const StageGateCheckModal = ({
         ) : (
           <>
             {/* Progress Bar & Criteria Counter */}
-            <div className="space-y-2 bg-[#18181c] p-3.5 rounded-xl border border-[#2e2e38]">
+            <div className="space-y-2 bg-[#F6F7F8] p-3.5 rounded-xl border border-[#E3E6EA]">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-zinc-300">Qualification Criteria Progress</span>
-                <span className="font-mono font-bold text-emerald-400">{answeredCount} of {totalCriteria} answered</span>
+                <span className="font-semibold text-[#12161C]">Qualification Criteria Progress</span>
+                <span className="font-mono font-bold text-[#255B40]">{answeredCount} of {totalCriteria} answered</span>
               </div>
-              <div className="h-2 w-full bg-[#24242b] rounded-full overflow-hidden border border-[#2f2f3a]">
-                <div 
-                  className="h-full bg-emerald-500 transition-all duration-300 rounded-full"
+              <div className="h-2 w-full bg-[#E3E6EA] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#255B40] transition-all duration-300 rounded-full"
                   style={{ width: `${(answeredCount / totalCriteria) * 100}%` }}
                 />
               </div>
@@ -376,7 +366,7 @@ export const StageGateCheckModal = ({
             {/* Criteria Checklist Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2.5">
-                <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+                <span className="text-[11px] font-mono font-bold text-[#5B6472] uppercase tracking-wider block">
                   Required Qualification Checklist
                 </span>
 
@@ -386,30 +376,28 @@ export const StageGateCheckModal = ({
                   const isNo = currentVal === false;
 
                   return (
-                    <div 
+                    <div
                       key={idx}
-                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
-                        isYes 
-                          ? 'bg-emerald-950/20 border-emerald-800/60' 
-                          : isNo 
-                            ? 'bg-rose-950/20 border-rose-800/60' 
-                            : 'bg-[#24242b] border-[#2f2f3a]'
-                      }`}
+                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${isYes
+                          ? 'bg-[#F0F7F3] border-[#BCDBC9]'
+                          : isNo
+                            ? 'bg-[#FDF2F1] border-[#F4C4C1]'
+                            : 'bg-[#F6F7F8] border-[#E3E6EA]'
+                        }`}
                     >
-                      <span className="text-xs font-semibold text-zinc-200 flex-1">
+                      <span className="text-xs font-semibold text-[#12161C] flex-1">
                         {idx + 1}. {criterion}
                       </span>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0 font-mono">
                         <button
                           type="button"
                           disabled={isReviewMode}
                           onClick={() => handleToggleAnswer(criterion, true)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
-                            isYes 
-                              ? 'bg-emerald-500 text-black shadow-sm' 
-                              : 'bg-[#18181c] text-zinc-400 hover:text-white border border-[#2e2e38]'
-                          }`}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${isYes
+                              ? 'bg-[#255B40] text-white shadow-2xs'
+                              : 'bg-[#FFFFFF] text-[#5B6472] hover:text-[#12161C] border border-[#E3E6EA]'
+                            }`}
                         >
                           <ThumbsUp className="w-3.5 h-3.5" />
                           <span>YES</span>
@@ -419,11 +407,10 @@ export const StageGateCheckModal = ({
                           type="button"
                           disabled={isReviewMode}
                           onClick={() => handleToggleAnswer(criterion, false)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
-                            isNo 
-                              ? 'bg-rose-600 text-white shadow-sm' 
-                              : 'bg-[#18181c] text-zinc-400 hover:text-white border border-[#2e2e38]'
-                          }`}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${isNo
+                              ? 'bg-[#922D27] text-white shadow-2xs'
+                              : 'bg-[#FFFFFF] text-[#5B6472] hover:text-[#12161C] border border-[#E3E6EA]'
+                            }`}
                         >
                           <ThumbsDown className="w-3.5 h-3.5" />
                           <span>NO</span>
@@ -436,24 +423,24 @@ export const StageGateCheckModal = ({
 
               {/* Conditional Lost Reason Section if ANY answer is NO */}
               {hasNoAnswer && (
-                <div className="p-4 bg-rose-950/20 border border-rose-800/60 rounded-xl space-y-3 animate-in fade-in">
-                  <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
-                    <AlertTriangle className="w-4 h-4 text-rose-400" />
+                <div className="p-4 bg-[#FDF2F1] border border-[#F4C4C1] rounded-xl space-y-3">
+                  <div className="flex items-center gap-2 text-[#922D27] font-bold text-xs">
+                    <AlertTriangle className="w-4 h-4 text-[#922D27]" />
                     <span>{forceDirectLost ? 'Deal Flagged as Lost \u2014 Mandatory Lost Reason Required' : 'Criterion Failed \u2014 Deal Will Move to Closed Lost'}</span>
                   </div>
-                  
+
                   <div>
-                    <label className="block text-zinc-300 font-semibold mb-1 text-xs">
+                    <label className="block text-[#12161C] font-semibold mb-1 text-xs">
                       Mandatory Lost Reason *
                     </label>
                     <select
                       disabled={isReviewMode}
                       value={lostReason}
                       onChange={(e) => setLostReason(e.target.value)}
-                      className="w-full bg-[#18181c] border border-[#2e2e38] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-zinc-400 cursor-pointer"
+                      className="w-full bg-[#FFFFFF] border border-[#F4C4C1] rounded-xl p-2.5 text-xs text-[#12161C] focus:outline-none focus:border-[#922D27] cursor-pointer"
                     >
                       {LOST_REASONS.map(r => (
-                        <option key={r} value={r} className="bg-[#1c1c21]">{r}</option>
+                        <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
                   </div>
@@ -462,7 +449,7 @@ export const StageGateCheckModal = ({
 
               {/* Optional Notes Field */}
               <div className="space-y-1">
-                <label className="block text-zinc-400 font-semibold text-xs flex items-center gap-1">
+                <label className="block text-[#5B6472] font-semibold text-xs flex items-center gap-1">
                   <FileText className="w-3.5 h-3.5" />
                   <span>Free-text Note / Rep Observations (Optional)</span>
                 </label>
@@ -472,16 +459,16 @@ export const StageGateCheckModal = ({
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Describe in your own words why the lead/deal is progressing or failing criteria..."
-                  className="w-full bg-[#18181c] border border-[#2e2e38] rounded-xl p-3 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-400"
+                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3 text-xs text-[#12161C] placeholder-[#5B6472] focus:outline-none focus:border-[#1D4E63]"
                 />
               </div>
 
               {/* Footer Actions */}
-              <div className="pt-3 border-t border-[#2c2c34] flex items-center justify-end gap-3">
+              <div className="pt-3 border-t border-[#E3E6EA] flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-4 py-2 bg-[#24242b] hover:bg-[#2c2c36] text-zinc-300 font-semibold rounded-xl text-xs border border-[#2f2f3a]"
+                  className="px-4 py-2 bg-[#F6F7F8] hover:bg-[#EEF0F3] text-[#5B6472] font-semibold rounded-xl text-xs border border-[#E3E6EA]"
                 >
                   Cancel
                 </button>
@@ -492,7 +479,7 @@ export const StageGateCheckModal = ({
                       type="button"
                       onClick={handleReject}
                       disabled={submitting}
-                      className="px-4 py-2 bg-rose-950 hover:bg-rose-900 text-rose-300 font-bold rounded-xl text-xs border border-rose-800"
+                      className="px-4 py-2 bg-[#FDF2F1] hover:bg-[#F9E2E0] text-[#922D27] font-bold rounded-xl text-xs border border-[#F4C4C1]"
                     >
                       Reject Submission
                     </button>
@@ -500,7 +487,7 @@ export const StageGateCheckModal = ({
                       type="button"
                       onClick={handleApprove}
                       disabled={submitting}
-                      className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm"
+                      className="px-5 py-2 bg-[#255B40] hover:bg-[#1E4A34] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Approve & Execute Transition</span>
@@ -510,13 +497,12 @@ export const StageGateCheckModal = ({
                   <button
                     type="submit"
                     disabled={!allAnswered || submitting}
-                    className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-sm transition-all ${
-                      !allAnswered
-                        ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
+                    className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow-2xs transition-all ${!allAnswered
+                        ? 'bg-[#E3E6EA] text-[#5B6472] cursor-not-allowed border border-[#E3E6EA]'
                         : hasNoAnswer
-                          ? 'bg-rose-600 hover:bg-rose-500 text-white'
-                          : 'bg-white hover:bg-zinc-200 text-black'
-                    }`}
+                          ? 'bg-[#922D27] hover:bg-[#78231E] text-white'
+                          : 'bg-[#1D4E63] hover:bg-[#153B4B] text-white'
+                      }`}
                   >
                     {hasNoAnswer ? (
                       <>

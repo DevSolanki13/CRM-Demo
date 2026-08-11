@@ -45,6 +45,42 @@ import { ImportExportModal } from './components/ImportExportModal.jsx';
 import { GlobalSearchModal } from './components/GlobalSearchModal.jsx';
 import { Loader2 } from 'lucide-react';
 
+const OLD_HEX_MAP = {
+  '#64748b': '#B9D4DE',
+  '#0284c7': '#93BECC',
+  '#8b5cf6': '#3E7C93',
+  '#eab308': '#2A6580',
+  '#f97316': '#1D4E63',
+  '#10b981': '#3F7A5C',
+  '#ec4899': '#C6790A',
+  '#ef4444': '#B5423A',
+};
+
+const DEFAULT_STAGE_COLORS = {
+  'New Lead': '#B9D4DE',
+  'Contacted': '#93BECC',
+  'Sample Sent': '#3E7C93',
+  'Proposal Sent': '#2A6580',
+  'Negotiation': '#1D4E63',
+  'Closed Won': '#3F7A5C',
+  'Buy Again (Renewal)': '#C6790A',
+  'Closed Lost': '#B5423A',
+};
+
+const normalizeStateStages = (data) => {
+  if (!data || !data.stages) return data;
+  const normalizedStages = data.stages.map(stg => {
+    if (OLD_HEX_MAP[stg.color]) {
+      return { ...stg, color: OLD_HEX_MAP[stg.color] };
+    }
+    if (DEFAULT_STAGE_COLORS[stg.name] && OLD_HEX_MAP[stg.color]) {
+      return { ...stg, color: DEFAULT_STAGE_COLORS[stg.name] };
+    }
+    return stg;
+  });
+  return { ...data, stages: normalizedStages };
+};
+
 export default function App() {
   const [state, setState] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -60,9 +96,10 @@ export default function App() {
     async function loadData() {
       try {
         const data = await fetchCRMState();
-        setState(data);
-        if (data.users && data.users.length > 0) {
-          setCurrentUser(data.users[0]); // Alex Vance (Admin)
+        const normalized = normalizeStateStages(data);
+        setState(normalized);
+        if (normalized.users && normalized.users.length > 0) {
+          setCurrentUser(normalized.users[0]); // Alex Vance (Admin)
         }
       } catch (err) {
         console.error("Error fetching state", err);
@@ -75,10 +112,10 @@ export default function App() {
 
   if (loading || !state || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#000000] text-white flex items-center justify-center p-4">
-        <div className="text-center space-y-3">
-          <Loader2 className="w-8 h-8 text-white animate-spin mx-auto" />
-          <p className="text-sm font-semibold text-zinc-400">Loading V ADMIN CRM...</p>
+      <div className="min-h-screen bg-[#F6F7F8] text-[#12161C] flex items-center justify-center p-4">
+        <div className="text-center space-y-3 bg-[#FFFFFF] border border-[#E3E6EA] p-8 rounded-2xl shadow-xl">
+          <Loader2 className="w-8 h-8 text-[#1D4E63] animate-spin mx-auto" />
+          <p className="text-sm font-bold text-[#12161C] font-display">Loading NexusCRM Sales Console...</p>
         </div>
       </div>
     );
@@ -88,17 +125,17 @@ export default function App() {
 
   const reloadState = async () => {
     const updated = await fetchCRMState();
-    setState(updated);
+    setState(normalizeStateStages(updated));
   };
 
   const handleTriggerRenewalCheck = async () => {
     const res = await triggerRenewalAutomation();
-    setState(res.state);
+    setState(normalizeStateStages(res.state));
   };
 
   const handleResetDemoData = async () => {
     const res = await resetCRMState();
-    setState(res);
+    setState(normalizeStateStages(res));
   };
 
   const handleUpdateBranding = async (branding) => {
@@ -267,7 +304,7 @@ export default function App() {
   const renewalsDueCount = state.deals.filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again')).length;
 
   return (
-    <div className="h-screen w-screen bg-[#131316] text-white flex flex-col font-sans antialiased selection:bg-white selection:text-black overflow-hidden">
+    <div className="h-screen w-screen bg-[#F6F7F8] text-[#12161C] flex flex-col font-sans antialiased selection:bg-[#1D4E63] selection:text-white overflow-hidden">
 
       {/* Top Header */}
       <Header
@@ -295,7 +332,7 @@ export default function App() {
         />
 
         {/* Dynamic Tab Content View */}
-        <main className="flex-1 overflow-y-auto bg-[#131316]">
+        <main className="flex-1 overflow-y-auto bg-[#F6F7F8]">
           {activeTab === 'dashboard' && (
             <DashboardView
               state={state}

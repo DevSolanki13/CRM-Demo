@@ -25,7 +25,7 @@
 ## Screenshots
 
 ### Main Dashboard Interface
-![Dashboard Interface](images/WebSite/2nd%20UI.png)
+![Final UI](images/WebSite/Final%20Ui.png)
 
 ---
 
