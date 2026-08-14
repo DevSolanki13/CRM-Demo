@@ -33,6 +33,7 @@ export const LeadsView = ({
   onConvertToDeal,
   onUpdateDeal,
   onCreateActivity,
+  onCreateTask,
   onSubmitStageGateCheck
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,13 +48,15 @@ export const LeadsView = ({
   // Modals for 3-dots actions
   const [activityModalLead, setActivityModalLead] = useState(null);
   const [changeStageLead, setChangeStageLead] = useState(null);
-  const [sendEmailLead, setSendEmailLead] = useState(null);
 
   // Activity Form State
   const [activityForm, setActivityForm] = useState({
     type: 'Call',
     description: '',
-    timestamp: new Date().toISOString().slice(0, 16)
+    timestamp: new Date().toISOString().slice(0, 16),
+    assignedOwnerId: currentUser.id,
+    createFollowup: true,
+    dueDate: new Date().toISOString().split('T')[0]
   });
 
   // Change Stage Form State
@@ -67,13 +70,6 @@ export const LeadsView = ({
   const [gateCheckFromStage, setGateCheckFromStage] = useState(null);
   const [gateCheckTargetStage, setGateCheckTargetStage] = useState(null);
 
-  // Email Form State
-  const [emailForm, setEmailForm] = useState({
-    toEmail: '',
-    subject: '',
-    body: ''
-  });
-
   // Close 3-dots dropdown when clicking anywhere outside
   React.useEffect(() => {
     const handleGlobalClick = () => setOpenMenuLeadId(null);
@@ -84,6 +80,7 @@ export const LeadsView = ({
   // Modal state for Edit/Add Lead
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLead, setEditingLead] = useState(null);
+  const [formValidationError, setFormValidationError] = useState('');
 
   // Selection state for multi-delete
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
@@ -142,7 +139,7 @@ export const LeadsView = ({
 
   const handleBulkDelete = async () => {
     if (selectedLeadIds.length === 0) return;
-    if (window.confirm(`Are you sure you want to delete ${selectedLeadIds.length} selected lead(s)?`)) {
+    if (window.confirm(`Are you sure you want to delete ${selectedLeadIds.length} selected leads?`)) {
       for (const id of selectedLeadIds) {
         await onDeleteLead(id);
       }
@@ -157,7 +154,10 @@ export const LeadsView = ({
     setActivityForm({
       type: 'Call',
       description: `Logged phone call with ${lead.contactName || 'Lead'}`,
-      timestamp: new Date().toISOString().slice(0, 16)
+      timestamp: new Date().toISOString().slice(0, 16),
+      assignedOwnerId: lead.ownerId || currentUser.id,
+      createFollowup: true,
+      dueDate: new Date().toISOString().split('T')[0]
     });
   };
 
@@ -176,6 +176,28 @@ export const LeadsView = ({
       authorName: currentUser.name,
       isOutbound: activityForm.type === 'Outbound Email' || activityForm.type === 'Call'
     });
+
+    if (activityForm.createFollowup && onCreateTask) {
+      const assignedUser = users.find(u => u.id === activityForm.assignedOwnerId) || currentUser;
+      const taskTypeMap = {
+        'Call': 'Call',
+        'Meeting': 'Meeting',
+        'Outbound Email': 'Email',
+        'Note': 'Call'
+      };
+      await onCreateTask({
+        title: `[Follow-up] ${activityForm.type}: ${activityModalLead.title}`,
+        dueDate: activityForm.dueDate || new Date().toISOString().split('T')[0],
+        type: taskTypeMap[activityForm.type] || 'Call',
+        linkedType: 'Lead',
+        linkedId: activityModalLead.id,
+        linkedTitle: activityModalLead.title,
+        ownerId: assignedUser.id,
+        ownerName: assignedUser.name,
+        status: 'pending',
+        note: activityForm.description
+      });
+    }
 
     setActivityModalLead(null);
   };
@@ -265,44 +287,9 @@ export const LeadsView = ({
     setIsGateModalOpen(true);
   };
 
-  const handleOpenSendEmailModal = (lead) => {
-    setOpenMenuLeadId(null);
-    setSendEmailLead(lead);
-    setEmailForm({
-      toEmail: lead.contactEmail || '',
-      subject: `Inquiry regarding ${lead.title}`,
-      body: `Hi ${lead.contactName || 'there'},\n\nFollowing up regarding ${lead.title}.\n\nBest regards,\n${currentUser.name}`
-    });
-  };
-
-  const handleSendEmailClient = () => {
-    if (!emailForm.toEmail) return;
-    const mailtoUrl = `mailto:${encodeURIComponent(emailForm.toEmail)}?subject=${encodeURIComponent(emailForm.subject)}&body=${encodeURIComponent(emailForm.body)}`;
-    window.open(mailtoUrl, '_blank');
-  };
-
-  const handleSendEmailLogCRM = async (e) => {
-    e.preventDefault();
-    if (!sendEmailLead || !onCreateActivity) return;
-
-    await onCreateActivity({
-      type: 'Outbound Email',
-      description: `Sent Outbound Email to ${emailForm.toEmail}: "${emailForm.subject}" - ${emailForm.body}`,
-      timestamp: new Date().toISOString(),
-      linkedType: 'Lead',
-      linkedId: sendEmailLead.id,
-      linkedTitle: sendEmailLead.title,
-      authorId: currentUser.id,
-      authorName: currentUser.name,
-      isOutbound: true
-    });
-
-    handleSendEmailClient();
-    setSendEmailLead(null);
-  };
-
   const handleOpenAddModal = () => {
     setEditingLead(null);
+    setFormValidationError('');
     setFormData({
       title: '',
       contactName: '',
@@ -319,13 +306,33 @@ export const LeadsView = ({
 
   const handleOpenEditModal = (lead) => {
     setEditingLead(lead);
+    setFormValidationError('');
     setFormData({ ...lead });
     setIsModalOpen(true);
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.title || !formData.contactName) return;
+    setFormValidationError('');
+
+    const titleTrimmed = (formData.title || '').trim();
+    const contactTrimmed = (formData.contactName || '').trim();
+
+    if (!titleTrimmed || !contactTrimmed) {
+      setFormValidationError('Lead Title and Contact Name are required.');
+      return;
+    }
+
+    // Validation: Lead title cannot consist of only numbers (must include text/letters or string with numbers)
+    if (/^\d+$/.test(titleTrimmed) || !/[a-zA-Z]/.test(titleTrimmed)) {
+      setFormValidationError('Lead Title cannot be purely numeric. Please include letters or descriptive text (e.g. "Lead 101" or "AeroTech Inquiry").');
+      return;
+    }
+
+    if (/^\d+$/.test(contactTrimmed) || !/[a-zA-Z]/.test(contactTrimmed)) {
+      setFormValidationError('Contact Name cannot be purely numeric. Please enter a valid name (e.g. "David Miller").');
+      return;
+    }
 
     if (editingLead) {
       await onUpdateLead(editingLead.id, formData);
@@ -754,14 +761,6 @@ export const LeadsView = ({
                                   <ArrowRightLeft className="w-3.5 h-3.5 text-[#1D4E63]" />
                                   <span>Change Stage</span>
                                 </button>
-
-                                <button
-                                  onClick={() => handleOpenSendEmailModal(lead)}
-                                  className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                                >
-                                  <Mail className="w-3.5 h-3.5 text-[#C6790A]" />
-                                  <span>Send Email</span>
-                                </button>
                               </div>
                             )}
                           </div>
@@ -795,6 +794,12 @@ export const LeadsView = ({
             </div>
 
             <form onSubmit={handleSave} className="space-y-3.5 text-xs">
+              {formValidationError && (
+                <div className="p-3 bg-[#FDF2F1] border border-[#F4C4C1] rounded-xl text-[#922D27] text-xs font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-[#922D27] shrink-0" />
+                  <span>{formValidationError}</span>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[#5B6472] font-semibold mb-1">Lead Opportunity Title *</label>
@@ -804,8 +809,18 @@ export const LeadsView = ({
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="e.g. AeroTech Circuit Thermal Pads Supply"
-                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                  className={`w-full bg-[#F6F7F8] border rounded-xl p-2.5 text-[#12161C] focus:outline-none ${
+                    /^\d+$/.test((formData.title || '').trim()) && formData.title.trim().length > 0
+                      ? 'border-[#B5423A] focus:border-[#B5423A]'
+                      : 'border-[#E3E6EA] focus:border-[#1D4E63]'
+                  }`}
                 />
+                {/^\d+$/.test((formData.title || '').trim()) && formData.title.trim().length > 0 && (
+                  <p className="text-[11px] text-[#922D27] font-semibold mt-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-[#922D27]" />
+                    <span>Title cannot be only numbers. Must include letters or text (e.g. "Lead 123").</span>
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -979,13 +994,56 @@ export const LeadsView = ({
               <div>
                 <label className="block text-[#12161C] font-bold mb-2 text-xs uppercase tracking-wider">Activity Description</label>
                 <textarea
-                  rows={4}
+                  rows={3}
                   required
                   value={activityForm.description}
                   onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
                   placeholder="Details of the interaction..."
                   className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3.5 text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
                 />
+              </div>
+
+              {/* Assign Follow-up Task Section */}
+              <div className="p-4 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer font-bold text-xs text-[#12161C]">
+                    <input
+                      type="checkbox"
+                      checked={activityForm.createFollowup}
+                      onChange={(e) => setActivityForm({ ...activityForm, createFollowup: e.target.checked })}
+                      className="w-4 h-4 text-[#1D4E63] rounded border-[#E3E6EA] focus:ring-[#1D4E63]"
+                    />
+                    <span>Assign & Schedule Follow-up Task</span>
+                  </label>
+                  <span className="text-[10px] text-[#5B6472] font-mono font-medium">Visible in Assigned User's Ledger & Team Agenda</span>
+                </div>
+
+                {activityForm.createFollowup && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[#5B6472] font-semibold text-xs mb-1.5">Assign Follow-up To Employee *</label>
+                      <select
+                        value={activityForm.assignedOwnerId}
+                        onChange={(e) => setActivityForm({ ...activityForm, assignedOwnerId: e.target.value })}
+                        className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2.5 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
+                      >
+                        {users.map(u => (
+                          <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[#5B6472] font-semibold text-xs mb-1.5">Follow-up Due Date *</label>
+                      <input
+                        type="date"
+                        value={activityForm.dueDate}
+                        onChange={(e) => setActivityForm({ ...activityForm, dueDate: e.target.value })}
+                        className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2.5 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-5 border-t border-[#E3E6EA]">
@@ -1136,91 +1194,7 @@ export const LeadsView = ({
         );
       })()}
 
-      {/* 3. SEND EMAIL MODAL */}
-      {sendEmailLead && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl max-w-3xl w-full p-8 space-y-6 shadow-xl text-sm text-[#12161C]">
-            <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-5">
-              <div className="flex items-center gap-3">
-                <span className="p-2.5 bg-[#FEF8EC] text-[#C6790A] border border-[#F3D9A2] rounded-xl">
-                  <Mail className="w-6 h-6" />
-                </span>
-                <div>
-                  <h3 className="font-display text-lg font-extrabold text-[#12161C]">Send Email to Lead</h3>
-                  <div className="text-xs text-[#5B6472] font-medium">{sendEmailLead.title}</div>
-                </div>
-              </div>
-              <button onClick={() => setSendEmailLead(null)} className="p-2 text-[#5B6472] hover:text-[#12161C] rounded-lg hover:bg-[#F6F7F8]">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <form onSubmit={handleSendEmailLogCRM} className="space-y-5">
-              <div>
-                <label className="block text-[#12161C] font-bold mb-2 text-xs uppercase tracking-wider">To Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={emailForm.toEmail}
-                  onChange={(e) => setEmailForm({ ...emailForm, toEmail: e.target.value })}
-                  placeholder="contact@company.com"
-                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3.5 text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63] font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[#12161C] font-bold mb-2 text-xs uppercase tracking-wider">Subject</label>
-                <input
-                  type="text"
-                  required
-                  value={emailForm.subject}
-                  onChange={(e) => setEmailForm({ ...emailForm, subject: e.target.value })}
-                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3.5 text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[#12161C] font-bold mb-2 text-xs uppercase tracking-wider">Message Body</label>
-                <textarea
-                  rows={6}
-                  required
-                  value={emailForm.body}
-                  onChange={(e) => setEmailForm({ ...emailForm, body: e.target.value })}
-                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-4 text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63] font-sans"
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-5 border-t border-[#E3E6EA]">
-                <button
-                  type="button"
-                  onClick={handleSendEmailClient}
-                  className="px-5 py-2.5 bg-[#FEF8EC] hover:bg-[#FDF0D5] text-[#C6790A] font-semibold rounded-full border border-[#F3D9A2] text-xs flex items-center gap-2"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>Open Mail App</span>
-                </button>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setSendEmailLead(null)}
-                    className="px-6 py-2.5 bg-[#F6F7F8] hover:bg-[#EEF0F3] text-[#5B6472] rounded-full font-semibold border border-[#E3E6EA]"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-7 py-2.5 bg-[#C6790A] hover:bg-[#A86608] text-white rounded-full font-bold shadow-2xs flex items-center gap-2 text-sm"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Send & Log in CRM</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Stage Gate Qualification Check Modal in LeadsView */}
       <StageGateCheckModal

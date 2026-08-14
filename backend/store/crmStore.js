@@ -167,9 +167,14 @@ class CRMStore {
   }
 
   createLead(lead) {
+    let title = (lead.title || 'New Lead Inquiry').trim();
+    if (/^\d+$/.test(title) || !/[a-zA-Z]/.test(title)) {
+      title = `Lead #${title}`;
+    }
+
     const newLead = {
       id: `ld-${Date.now()}`,
-      title: lead.title || 'New Lead Inquiry',
+      title: title,
       contactName: lead.contactName || 'Unknown Prospect',
       contactEmail: lead.contactEmail || '',
       contactPhone: lead.contactPhone || '',
@@ -182,6 +187,7 @@ class CRMStore {
       createdAt: new Date().toISOString().split('T')[0],
       lastActivityDate: new Date().toISOString().split('T')[0],
       ...lead,
+      title: title
     };
     this.leads.unshift(newLead);
     return newLead;
@@ -190,7 +196,15 @@ class CRMStore {
   updateLead(id, lead) {
     const idx = this.leads.findIndex((l) => l.id === id);
     if (idx !== -1) {
-      this.leads[idx] = { ...this.leads[idx], ...lead, lastActivityDate: new Date().toISOString().split('T')[0] };
+      let updatedLead = { ...this.leads[idx], ...lead, lastActivityDate: new Date().toISOString().split('T')[0] };
+      if (updatedLead.title) {
+        let title = updatedLead.title.trim();
+        if (/^\d+$/.test(title) || !/[a-zA-Z]/.test(title)) {
+          title = `Lead #${title}`;
+        }
+        updatedLead.title = title;
+      }
+      this.leads[idx] = updatedLead;
       return this.leads[idx];
     }
     return null;
@@ -443,6 +457,39 @@ class CRMStore {
           this.deals[dealIdx].partialGateState = newCheck.partialState;
         }
       }
+
+      // If pending review, automatically generate approval task for Manager & Admin users
+      if (newCheck.status === 'pending_review') {
+        const reviewers = this.users.filter(u => u.active && (u.role === 'Manager' || u.role === 'Admin'));
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        reviewers.forEach(rev => {
+          // Check if an approval task already exists for this check and user
+          const existingTask = this.tasks.find(t => t.stageGateCheckId === newCheck.id && t.ownerId === rev.id);
+          if (!existingTask) {
+            this.tasks.unshift({
+              id: `tsk-appr-${Date.now()}-${rev.id}`,
+              title: `[Stage Approval Required] ${newCheck.dealTitle || 'Deal'}: ${newCheck.fromStageName || 'Current Stage'} ➔ ${newCheck.targetStageName || 'Target Stage'}`,
+              dueDate: todayStr,
+              type: 'Approval',
+              linkedType: 'Deal',
+              linkedId: newCheck.dealId,
+              linkedTitle: newCheck.dealTitle || 'Deal Opportunity',
+              ownerId: rev.id,
+              ownerName: rev.name,
+              status: 'pending',
+              stageGateCheckId: newCheck.id,
+              answers: newCheck.answers || {},
+              repObservations: newCheck.note || '',
+              submittedBy: newCheck.submittedBy || 'u-3',
+              submittedByName: newCheck.submittedByName || 'Sales Rep',
+              fromStageName: newCheck.fromStageName || '',
+              targetStageName: newCheck.targetStageName || '',
+              createdAt: todayStr,
+            });
+          }
+        });
+      }
     }
 
     return newCheck;
@@ -456,6 +503,19 @@ class CRMStore {
       check.reviewedBy = reviewer?.id || 'u-1';
       check.reviewedByName = reviewer?.name || 'Alex Vance';
       check.reviewedAt = new Date().toISOString();
+
+      // Update associated approval tasks to completed
+      this.tasks = this.tasks.map(t => {
+        if (t.stageGateCheckId === id) {
+          return {
+            ...t,
+            status: 'done',
+            reviewedByName: reviewer?.name || 'Alex Vance',
+            resolution: 'Approved'
+          };
+        }
+        return t;
+      });
 
       this.executeGateCheckTransition(check);
       return check;
@@ -477,6 +537,21 @@ class CRMStore {
       if (dealIdx !== -1) {
         delete this.deals[dealIdx].pendingGateCheck;
       }
+
+      // Update associated approval tasks
+      this.tasks = this.tasks.map(t => {
+        if (t.stageGateCheckId === id) {
+          return {
+            ...t,
+            status: 'done',
+            reviewedByName: reviewer?.name || 'Alex Vance',
+            resolution: 'Rejected',
+            rejectionReason: reason || 'Requirements not met'
+          };
+        }
+        return t;
+      });
+
       return check;
     }
     return null;

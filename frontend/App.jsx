@@ -357,6 +357,7 @@ export default function App() {
               onDeleteLead={handleDeleteLead}
               onUpdateDeal={handleUpdateDeal}
               onCreateActivity={handleCreateActivity}
+              onCreateTask={handleCreateTask}
               onSubmitStageGateCheck={handleCreateStageGateCheck}
             />
           )}
@@ -417,6 +418,8 @@ export default function App() {
               onCreateTask={handleCreateTask}
               onUpdateTask={handleUpdateTask}
               onDeleteTask={handleDeleteTask}
+              onApproveStageGateCheck={handleApproveStageGateCheck}
+              onRejectStageGateCheck={handleRejectStageGateCheck}
             />
           )}
 

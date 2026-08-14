@@ -136,6 +136,27 @@ export const initialDeals = [
     createdAt: '2026-07-10',
     updatedAt: '2026-08-07',
     daysInStage: 3,
+    pendingGateCheck: {
+      id: 'sgc-2',
+      dealId: 'dl-2',
+      dealTitle: 'Artisan Foods Eco-Wrap Campaign',
+      fromStageId: 'stg-2',
+      fromStageName: 'Contacted',
+      targetStageId: 'stg-3',
+      targetStageName: 'Sample Sent',
+      submittedBy: 'u-4',
+      submittedByName: 'Elena Rostova',
+      status: 'pending_review',
+      answers: {
+        'Exact specs/quantity confirmed': true,
+        'Internal evaluation process/timeline known': true,
+        'Competitor also sampling': false,
+        'Shipping/logistics confirmed': true
+      },
+      outcome: 'advanced',
+      note: 'Client verified 5,000 units initial testing batch. Competitor is not sampling.',
+      timestamp: '2026-08-10T14:30:00Z'
+    }
   },
   {
     id: 'dl-3',
@@ -361,6 +382,56 @@ export const initialTasks = [
     status: 'pending',
     createdAt: '2026-08-06',
   },
+  {
+    id: 'tsk-appr-1',
+    title: '[Stage Approval Required] Artisan Foods Eco-Wrap Campaign: Contacted ➔ Sample Sent',
+    dueDate: '2026-08-14',
+    type: 'Approval',
+    linkedType: 'Deal',
+    linkedId: 'dl-2',
+    linkedTitle: 'Artisan Foods Eco-Wrap Campaign',
+    ownerId: 'u-1',
+    ownerName: 'Alex Vance',
+    status: 'pending',
+    stageGateCheckId: 'sgc-2',
+    answers: {
+      'Exact specs/quantity confirmed': true,
+      'Internal evaluation process/timeline known': true,
+      'Competitor also sampling': false,
+      'Shipping/logistics confirmed': true
+    },
+    repObservations: 'Client verified 5,000 units initial testing batch. Competitor is not sampling.',
+    submittedBy: 'u-4',
+    submittedByName: 'Elena Rostova',
+    fromStageName: 'Contacted',
+    targetStageName: 'Sample Sent',
+    createdAt: '2026-08-10',
+  },
+  {
+    id: 'tsk-appr-2',
+    title: '[Stage Approval Required] Artisan Foods Eco-Wrap Campaign: Contacted ➔ Sample Sent',
+    dueDate: '2026-08-14',
+    type: 'Approval',
+    linkedType: 'Deal',
+    linkedId: 'dl-2',
+    linkedTitle: 'Artisan Foods Eco-Wrap Campaign',
+    ownerId: 'u-2',
+    ownerName: 'Sarah Jenkins',
+    status: 'pending',
+    stageGateCheckId: 'sgc-2',
+    answers: {
+      'Exact specs/quantity confirmed': true,
+      'Internal evaluation process/timeline known': true,
+      'Competitor also sampling': false,
+      'Shipping/logistics confirmed': true
+    },
+    repObservations: 'Client verified 5,000 units initial testing batch. Competitor is not sampling.',
+    submittedBy: 'u-4',
+    submittedByName: 'Elena Rostova',
+    fromStageName: 'Contacted',
+    targetStageName: 'Sample Sent',
+    createdAt: '2026-08-10',
+  },
 ];
 
 export const initialNotes = [
@@ -471,5 +542,27 @@ export const initialStageGateChecks = [
     lostReason: null,
     note: 'Decision maker verified with budget allocated for Q3 sample trial.',
     timestamp: '2026-08-02T11:00:00Z',
+  },
+  {
+    id: 'sgc-2',
+    dealId: 'dl-2',
+    dealTitle: 'Artisan Foods Eco-Wrap Campaign',
+    fromStageId: 'stg-2',
+    fromStageName: 'Contacted',
+    targetStageId: 'stg-3',
+    targetStageName: 'Sample Sent',
+    submittedBy: 'u-4',
+    submittedByName: 'Elena Rostova',
+    status: 'pending_review',
+    answers: {
+      'Exact specs/quantity confirmed': true,
+      'Internal evaluation process/timeline known': true,
+      'Competitor also sampling': false,
+      'Shipping/logistics confirmed': true
+    },
+    outcome: 'advanced',
+    lostReason: null,
+    note: 'Client verified 5,000 units initial testing batch. Competitor is not sampling.',
+    timestamp: '2026-08-10T14:30:00Z'
   }
 ];
