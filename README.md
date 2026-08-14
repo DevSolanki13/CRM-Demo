@@ -23,9 +23,11 @@ It features an **elevation-based design system** (60-30-10 color distribution, W
 
 ### 🛡️ Stage-Gate Governance & Qualification
 - **Mandatory 4-Question Checklists**: Reps must answer 4 Yes/No qualification criteria to advance deals through pipeline stages.
+- **Manager & Admin Approval Ledger**: Submissions requiring review automatically generate approval tasks for Managers and Admins in the **Follow-ups & Tasks Ledger** (`TasksView.jsx`).
+- **Form Responses & Rep Observations**: Approval cards display explicit **YES / NO** qualification criteria badges, free-text **Rep Observations (Note)**, submitter info, and stage transition path.
+- **One-Click Task Approvals**: Managers and Admins can click **`[ Approve & Move Stage ]`** or **`[ Reject ]`** directly on task cards to execute stage transitions.
 - **Automated Closed Lost Routing**: Failing any qualification check automatically routes deals to Closed Lost with mandatory **Lost Reason** selection (`Budget mismatch`, `Losing to competitor`, `Went silent`, etc.).
 - **Backward Move Demotion Tracking**: Mandatory demotion reason tracking when moving deals backward in the pipeline.
-- **Manager / Admin Review Workflow**: Submissions enter `Pending Review` state for manager authorization and one-click execution.
 
 ### 🔄 Recurring Order & Renewal Automation
 - **Repeat Cycle Tracking**: Configurable renewal cycles (e.g. 60 days) that flag accounts as "Buy Again Due".
@@ -36,8 +38,10 @@ It features an **elevation-based design system** (60-30-10 color distribution, W
 
 ### 👥 Team Workload & Entity Management
 - **Entity Directories**: Comprehensive views for Companies, Contacts, Leads, Employees, Tasks, and Settings.
-- **3-Dots Quick Action Lead Menu**: Instant modal triggers on every lead row (`Add Activity`, `Change Stage`, `Send Email`).
-- **Tasks Ledger**: Follow-up activity tracking, due-today amber warnings, and overdue red alerts.
+- **Lead Activity Follow-up Assignment**: Logging a lead activity allows assigning scheduled follow-up tasks to specific team members, automatically populating their **"My Follow-ups"** and the **"Team Agenda"** with full descriptions.
+- **Lead Quality Validation**: Enforces non-numeric lead titles (must contain text or letters like `AeroTech` or `Lead 101`, blocking numeric-only titles like `12345`).
+- **3-Dots Quick Action Lead Menu**: Instant modal triggers on every lead row (`Add Activity`, `Change Stage`).
+- **Tasks Ledger**: Follow-up activity tracking, Stage Approval cards, due-today amber warnings, overdue red alerts, and Team Agenda scope switching.
 - **CSV Export Center**: One-click formatted CSV file exports for Contacts, Leads, and Deals.
 - **Global Search**: Modal search across all entities with keyboard shortcuts (`Esc`).
 
@@ -120,7 +124,8 @@ customizable-crm-demo/
 │   │   ├── ReportsView.jsx         # Governance audit log, lost deal charts, renewal tracker
 │   │   ├── SettingsView.jsx        # Customization hub, white-label branding, stage customizer
 │   │   ├── Sidebar.jsx             # Collapsible navigation sidebar & user info
-│   │   └── StageGateCheckModal.jsx # Qualification checklist, lost reason & demotion modal
+│   │   ├── StageGateCheckModal.jsx # Qualification checklist, lost reason & demotion modal
+│   │   └── TasksView.jsx           # Follow-up ledger, Stage Approval cards, Team Agenda & task controls
 │   ├── utils/
 │   │   └── crmHelpers.js   # INR currency formatters, date utilities, RBAC filters
 │   ├── App.jsx             # Single-page application root, routing & state normalization
