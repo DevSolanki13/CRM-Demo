@@ -174,7 +174,6 @@ class CRMStore {
 
     const newLead = {
       id: `ld-${Date.now()}`,
-      title: title,
       contactName: lead.contactName || 'Unknown Prospect',
       contactEmail: lead.contactEmail || '',
       contactPhone: lead.contactPhone || '',

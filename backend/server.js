@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { crmRouter } from "./routes/crmRoutes.js";
 
 const app = express();
@@ -13,11 +12,15 @@ app.use("/api", crmRouter);
 
 // Vite / Static file serving
 if (process.env.NODE_ENV !== "production") {
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: "spa",
-  });
-  app.use(vite.middlewares);
+  async function setupViteDevServer() {
+    const { createServer: createViteServer } = await import("vite");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  }
+  setupViteDevServer().catch(console.error);
 } else {
   const distPath = path.join(process.cwd(), 'dist');
   app.use(express.static(distPath));
