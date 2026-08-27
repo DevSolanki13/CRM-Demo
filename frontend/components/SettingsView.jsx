@@ -20,7 +20,7 @@ export const SettingsView = ({
   const [activeTab, setActiveTab] = useState('branding');
   
   const [newStageName, setNewStageName] = useState('');
-  const [newStageColor, setNewStageColor] = useState('#1D4E63');
+  const [newStageColor, setNewStageColor] = useState('#FFFFFF');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 

@@ -20,8 +20,11 @@ import {
 import { formatDate, filterByRole } from '../utils/crmHelpers.js';
 
 export const TasksView = ({
-  tasks,
-  users,
+  tasks = [],
+  users = [],
+  leads = [],
+  deals = [],
+  stages = [],
   currentUser,
   onCreateTask,
   onUpdateTask,
@@ -46,9 +49,71 @@ export const TasksView = ({
   });
 
   const todayStr = new Date().toISOString().split('T')[0];
+  const isManagerOrAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Manager';
 
-  const filteredTasks = tasks.filter(t => {
-    const matchesScope = activeScope === 'my' ? t.ownerId === currentUser.id : true;
+  // Dynamically synthesize approval tasks for any lead/deal currently in 'Pending Review'
+  const pendingLeadsAndDealsTasks = [];
+  if (isManagerOrAdmin) {
+    (leads || []).forEach(lead => {
+      const leadDeal = (deals || []).find(d => d.leadId === lead.id || d.title === lead.title);
+      const isPending = lead.status === 'Pending Review' || leadDeal?.status === 'Pending Review' || Boolean(leadDeal?.pendingGateCheck);
+
+      if (isPending) {
+        const hasExistingTask = tasks.some(t => t.linkedId === lead.id || t.linkedId === leadDeal?.id);
+        if (!hasExistingTask) {
+          const targetStageObj = stages.find(s => s.id === leadDeal?.pendingGateCheck?.targetStageId);
+          pendingLeadsAndDealsTasks.push({
+            id: `v-task-${lead.id}`,
+            title: `[Stage Approval Required] ${lead.title}: Advance to ${targetStageObj?.name || 'Next Stage'}`,
+            dueDate: todayStr,
+            type: 'Approval',
+            linkedType: 'Lead',
+            linkedId: leadDeal?.id || lead.id,
+            linkedTitle: lead.title,
+            ownerId: currentUser.id,
+            ownerName: currentUser.name,
+            status: 'pending',
+            submittedByName: leadDeal?.pendingGateCheck?.submittedByName || lead.ownerName || 'Sales Rep',
+            fromStageName: leadDeal?.stageName || 'Current Stage',
+            targetStageName: targetStageObj?.name || 'Next Stage',
+            answers: leadDeal?.pendingGateCheck?.answers || {},
+            note: 'Submitted via Add Activity qualification check.'
+          });
+        }
+      }
+    });
+
+    (deals || []).forEach(deal => {
+      if (deal.pendingGateCheck || deal.status === 'Pending Review') {
+        const hasExistingTask = tasks.some(t => t.linkedId === deal.id) || pendingLeadsAndDealsTasks.some(vt => vt.linkedId === deal.id);
+        if (!hasExistingTask) {
+          const targetStageObj = stages.find(s => s.id === deal.pendingGateCheck?.targetStageId);
+          pendingLeadsAndDealsTasks.push({
+            id: `v-task-${deal.id}`,
+            title: `[Stage Approval Required] ${deal.title}: Advance to ${targetStageObj?.name || 'Next Stage'}`,
+            dueDate: todayStr,
+            type: 'Approval',
+            linkedType: 'Deal',
+            linkedId: deal.id,
+            linkedTitle: deal.title,
+            ownerId: currentUser.id,
+            ownerName: currentUser.name,
+            status: 'pending',
+            submittedByName: deal.pendingGateCheck?.submittedByName || deal.ownerName || 'Sales Rep',
+            fromStageName: deal.stageName || 'Current Stage',
+            targetStageName: targetStageObj?.name || 'Next Stage',
+            answers: deal.pendingGateCheck?.answers || {},
+            note: 'Submitted via Add Activity qualification check.'
+          });
+        }
+      }
+    });
+  }
+
+  const allCombinedTasks = [...pendingLeadsAndDealsTasks, ...tasks];
+
+  const filteredTasks = allCombinedTasks.filter(t => {
+    const matchesScope = activeScope === 'my' ? (t.ownerId === currentUser.id || t.type === 'Approval' || isManagerOrAdmin) : true;
     const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
     const matchesType = typeFilter === 'All' || t.type === typeFilter;
     return matchesScope && matchesStatus && matchesType;
@@ -80,15 +145,23 @@ export const TasksView = ({
   };
 
   const handleApproveCheck = async (task) => {
-    if (!task.stageGateCheckId || !onApproveStageGateCheck) return;
-    await onApproveStageGateCheck(task.stageGateCheckId, currentUser);
+    const targetId = task.stageGateCheckId || task.linkedId;
+    if (!targetId || !onApproveStageGateCheck) return;
+    await onApproveStageGateCheck(targetId, currentUser);
+    if (onUpdateTask && !String(task.id).startsWith('v-task-')) {
+      await onUpdateTask(task.id, { status: 'done', resolution: 'Approved' });
+    }
   };
 
   const handleRejectCheck = async (task) => {
-    if (!task.stageGateCheckId || !onRejectStageGateCheck) return;
+    const targetId = task.stageGateCheckId || task.linkedId;
+    if (!targetId || !onRejectStageGateCheck) return;
     const reason = window.prompt("Enter rejection reason for this stage change request:", "Requirements incomplete");
     if (reason === null) return;
-    await onRejectStageGateCheck(task.stageGateCheckId, currentUser, reason);
+    await onRejectStageGateCheck(targetId, currentUser, reason);
+    if (onUpdateTask && !String(task.id).startsWith('v-task-')) {
+      await onUpdateTask(task.id, { status: 'done', resolution: 'Rejected', rejectionReason: reason });
+    }
   };
 
   return (

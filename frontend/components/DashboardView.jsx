@@ -18,15 +18,14 @@ import { ManifestStrip } from './ManifestStrip.jsx';
 const getStageBarColor = (stageName, category) => {
   const name = stageName || '';
   const cat = category || '';
-  if (name.includes('New Lead') || cat === 'New') return '#B9D4DE';
-  if (name.includes('Contacted') || cat === 'Contacted') return '#93BECC';
-  if (name.includes('Sample Sent') || cat === 'Sample Sent') return '#3E7C93';
-  if (name.includes('Proposal') || cat === 'Proposal') return '#2A6580';
-  if (name.includes('Negotiation') || cat === 'Negotiation') return '#1D4E63';
-  if (name.includes('Closed Won') || cat === 'Won') return '#3F7A5C';
-  if (name.includes('Buy Again') || cat === 'Buy Again') return '#C6790A';
-  if (name.includes('Closed Lost') || cat === 'Lost') return '#B5423A';
-  return '#1D4E63';
+  if (name.includes('Closed Won') || cat === 'Won') return '#16A34A';
+  if (name.includes('Negotiation') || cat === 'Negotiation') return '#10B981';
+  if (name.includes('Proposal') || cat === 'Proposal') return '#34D399';
+  if (name.includes('Sample Sent') || cat === 'Sample Sent') return '#6EE7B7';
+  if (name.includes('Contacted') || cat === 'Contacted') return '#A7F3D0';
+  if (name.includes('Buy Again') || cat === 'Buy Again') return '#EAB308';
+  if (name.includes('Closed Lost') || cat === 'Lost') return '#DC2626';
+  return '#FFFFFF';
 };
 
 export const DashboardView = ({
@@ -321,13 +320,18 @@ export const DashboardView = ({
                           </div>
                         ) : (
                           <div className="w-full flex flex-col items-center justify-end h-full">
-                            <div
-                              className="w-full rounded-lg transition-all duration-500 shadow-2xs"
-                              style={{
-                                height: `${Math.max(heightPct, 10)}%`,
-                                backgroundColor: getStageBarColor(stage.name, stage.category)
-                              }}
-                            />
+                            {(() => {
+                              const barColor = getStageBarColor(stage.name, stage.category);
+                              return (
+                                <div
+                                  className={`w-full rounded-lg transition-all duration-500 shadow-2xs ${barColor === '#FFFFFF' ? 'border border-[#D1D5DB]' : ''}`}
+                                  style={{
+                                    height: `${Math.max(heightPct, 10)}%`,
+                                    backgroundColor: barColor
+                                  }}
+                                />
+                              );
+                            })()}
                           </div>
                         )}
                       </div>

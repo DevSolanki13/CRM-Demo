@@ -15,10 +15,12 @@ import {
   Send,
   CheckCircle2,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  Clock
 } from 'lucide-react';
-import { formatDate, filterByRole } from '../utils/crmHelpers.js';
+import { formatDate, filterByRole, getStageBadgeStyle, getStatusBadgeStyle } from '../utils/crmHelpers.js';
 import { StageGateCheckModal } from './StageGateCheckModal.jsx';
+import { AddActivityModal } from './AddActivityModal.jsx';
 
 export const LeadsView = ({
   leads,
@@ -34,7 +36,9 @@ export const LeadsView = ({
   onUpdateDeal,
   onCreateActivity,
   onCreateTask,
-  onSubmitStageGateCheck
+  onSubmitStageGateCheck,
+  onApproveStageGateCheck,
+  onRejectStageGateCheck
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSource, setSelectedSource] = useState('All');
@@ -44,25 +48,9 @@ export const LeadsView = ({
 
   // 3-Dots Menu & Action Modals State
   const [openMenuLeadId, setOpenMenuLeadId] = useState(null);
-  
+
   // Modals for 3-dots actions
   const [activityModalLead, setActivityModalLead] = useState(null);
-  const [changeStageLead, setChangeStageLead] = useState(null);
-
-  // Activity Form State
-  const [activityForm, setActivityForm] = useState({
-    type: 'Call',
-    description: '',
-    timestamp: new Date().toISOString().slice(0, 16),
-    assignedOwnerId: currentUser.id,
-    createFollowup: true,
-    dueDate: new Date().toISOString().split('T')[0]
-  });
-
-  // Change Stage Form State
-  const [selectedTargetStageId, setSelectedTargetStageId] = useState('');
-  const [changeStageLostReason, setChangeStageLostReason] = useState('Budget mismatch');
-  const [changeStageNote, setChangeStageNote] = useState('');
 
   // Gate Check Modal State inside LeadsView
   const [isGateModalOpen, setIsGateModalOpen] = useState(false);
@@ -84,6 +72,8 @@ export const LeadsView = ({
 
   // Selection state for multi-delete
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
+
+  const sortedStages = [...stages].sort((a, b) => a.order - b.order);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -151,140 +141,128 @@ export const LeadsView = ({
   const handleOpenAddActivityModal = (lead) => {
     setOpenMenuLeadId(null);
     setActivityModalLead(lead);
-    setActivityForm({
-      type: 'Call',
-      description: `Logged phone call with ${lead.contactName || 'Lead'}`,
-      timestamp: new Date().toISOString().slice(0, 16),
-      assignedOwnerId: lead.ownerId || currentUser.id,
-      createFollowup: true,
-      dueDate: new Date().toISOString().split('T')[0]
-    });
   };
 
-  const handleSaveActivity = async (e) => {
-    e.preventDefault();
-    if (!activityModalLead || !onCreateActivity) return;
+  const handleSubmitActivityFromModal = async (payload) => {
+    const { activityData, outcomeData, targetEntity } = payload;
 
-    await onCreateActivity({
-      type: activityForm.type,
-      description: activityForm.description,
-      timestamp: activityForm.timestamp ? new Date(activityForm.timestamp).toISOString() : new Date().toISOString(),
-      linkedType: 'Lead',
-      linkedId: activityModalLead.id,
-      linkedTitle: activityModalLead.title,
-      authorId: currentUser.id,
-      authorName: currentUser.name,
-      isOutbound: activityForm.type === 'Outbound Email' || activityForm.type === 'Call'
-    });
+    // 1. Create activity record
+    if (onCreateActivity) {
+      await onCreateActivity(activityData);
+    }
 
-    if (activityForm.createFollowup && onCreateTask) {
-      const assignedUser = users.find(u => u.id === activityForm.assignedOwnerId) || currentUser;
-      const taskTypeMap = {
-        'Call': 'Call',
-        'Meeting': 'Meeting',
-        'Outbound Email': 'Email',
-        'Note': 'Call'
-      };
+    const leadDeal = deals.find(d => d.leadId === targetEntity.id || d.title === targetEntity.title);
+
+    // 2. Stage & Status Updates
+    if (outcomeData.shouldAdvanceStage && outcomeData.targetStageObj) {
+      if (leadDeal && onUpdateDeal) {
+        await onUpdateDeal(leadDeal.id, {
+          stageId: outcomeData.targetStageObj.id,
+          stageName: outcomeData.targetStageObj.name,
+          pendingGateCheck: null
+        });
+      }
+      if (onUpdateLead) {
+        await onUpdateLead(targetEntity.id, {
+          status: outcomeData.newStatus || 'Qualified'
+        });
+      }
+    } else if (outcomeData.requiresManagerApproval && outcomeData.targetStageObj) {
+      if (leadDeal && onUpdateDeal) {
+        await onUpdateDeal(leadDeal.id, {
+          status: 'Pending Review',
+          pendingGateCheck: {
+            targetStageId: outcomeData.targetStageObj.id,
+            submittedById: currentUser.id,
+            submittedByName: currentUser.name,
+            submittedAt: new Date().toISOString(),
+            answers: outcomeData.criteriaAnswers
+          }
+        });
+      }
+      if (onUpdateLead) {
+        await onUpdateLead(targetEntity.id, {
+          status: 'Pending Review'
+        });
+      }
+    } else {
+      // Stage remains same, status = 'Follow up'
+      if (onUpdateLead) {
+        await onUpdateLead(targetEntity.id, {
+          status: 'Follow up'
+        });
+      }
+      if (leadDeal && onUpdateDeal) {
+        await onUpdateDeal(leadDeal.id, {
+          status: 'Follow up'
+        });
+      }
+    }
+
+    // 3. Create Follow-up Task for Assigned Rep
+    if (onCreateTask && outcomeData.assignedOwnerId) {
       await onCreateTask({
-        title: `[Follow-up] ${activityForm.type}: ${activityModalLead.title}`,
-        dueDate: activityForm.dueDate || new Date().toISOString().split('T')[0],
-        type: taskTypeMap[activityForm.type] || 'Call',
+        title: `[Follow-up] ${activityData.type}: ${targetEntity.title}`,
+        dueDate: outcomeData.dueDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        type: activityData.type === 'Meeting' ? 'Meeting' : 'Call',
         linkedType: 'Lead',
-        linkedId: activityModalLead.id,
-        linkedTitle: activityModalLead.title,
-        ownerId: assignedUser.id,
-        ownerName: assignedUser.name,
+        linkedId: targetEntity.id,
+        linkedTitle: targetEntity.title,
+        ownerId: outcomeData.assignedOwnerId,
+        ownerName: outcomeData.assignedOwnerName,
         status: 'pending',
-        note: activityForm.description
+        note: outcomeData.summaryNote
       });
     }
 
     setActivityModalLead(null);
   };
 
-  const handleOpenChangeStageModal = (lead) => {
-    setOpenMenuLeadId(null);
-    setChangeStageLead(lead);
-    setChangeStageLostReason('Budget mismatch');
-    setChangeStageNote('');
+  const handleApproveLeadStage = async (lead) => {
     const leadDeal = deals.find(d => d.leadId === lead.id || d.title === lead.title);
-    setSelectedTargetStageId(leadDeal?.stageId || stages[0]?.id || '');
+    
+    if (leadDeal && onApproveStageGateCheck) {
+      await onApproveStageGateCheck(leadDeal.id, currentUser);
+    } else {
+      const targetStageId = leadDeal?.pendingGateCheck?.targetStageId;
+      const targetStageObj = stages.find(s => s.id === targetStageId) || stages[1];
+      
+      if (leadDeal && onUpdateDeal) {
+        await onUpdateDeal(leadDeal.id, {
+          stageId: targetStageObj.id,
+          stageName: targetStageObj.name,
+          status: targetStageObj.category === 'Won' ? 'Won' : 'Active',
+          pendingGateCheck: null
+        });
+      }
+      if (onUpdateLead) {
+        await onUpdateLead(lead.id, {
+          status: 'Qualified',
+          pendingGateCheck: null
+        });
+      }
+    }
   };
 
-  const handleSaveChangeStage = async (e) => {
-    e.preventDefault();
-    if (!changeStageLead || !selectedTargetStageId) return;
-
-    const targetStage = stages.find(s => s.id === selectedTargetStageId);
-    if (!targetStage) return;
-
-    const leadDeal = deals.find(d => d.leadId === changeStageLead.id || d.title === changeStageLead.title) || {
-      id: `dl-${changeStageLead.id}`,
-      title: changeStageLead.title,
-      leadId: changeStageLead.id,
-      stageId: stages[0]?.id || 'stg-1',
-      stageName: stages[0]?.name || 'New Lead',
-      value: 10000,
-      ownerId: changeStageLead.ownerId || currentUser.id
-    };
-
-    if (currentUser.role === 'Admin') {
-      if (onUpdateDeal) {
+  const handleRejectLeadStage = async (lead) => {
+    const leadDeal = deals.find(d => d.leadId === lead.id || d.title === lead.title);
+    
+    if (leadDeal && onRejectStageGateCheck) {
+      await onRejectStageGateCheck(leadDeal.id, currentUser, 'Criteria rejected by Manager');
+    } else {
+      if (leadDeal && onUpdateDeal) {
         await onUpdateDeal(leadDeal.id, {
-          stageId: targetStage.id,
-          stageName: targetStage.name
+          status: 'Follow up',
+          pendingGateCheck: null
         });
       }
-
-      let leadStatus = 'Contacted';
-      if (targetStage.category === 'New') leadStatus = 'New';
-      else if (targetStage.category === 'Won' || targetStage.category === 'Negotiation') leadStatus = 'Qualified';
-      else if (targetStage.category === 'Lost') leadStatus = 'Unqualified';
-
-      await onUpdateLead(changeStageLead.id, { status: leadStatus });
-      setChangeStageLead(null);
-      return;
-    }
-
-    const fromStageObj = stages.find(s => s.id === leadDeal.stageId) || stages[0];
-
-    if (targetStage.name === 'Closed Lost' || targetStage.category === 'Lost') {
-      if (onSubmitStageGateCheck) {
-        await onSubmitStageGateCheck({
-          dealId: leadDeal.id,
-          dealTitle: leadDeal.title,
-          fromStageId: fromStageObj.id,
-          fromStageName: fromStageObj.name,
-          targetStageId: targetStage.id,
-          targetStageName: targetStage.name,
-          submittedBy: currentUser.id,
-          submittedByName: currentUser.name,
-          status: 'approved_and_executed',
-          answers: {},
-          outcome: 'lost',
-          lostReason: changeStageLostReason,
-          note: changeStageNote
-        });
-      } else if (onUpdateDeal) {
-        await onUpdateDeal(leadDeal.id, {
-          stageId: targetStage.id,
-          stageName: targetStage.name,
-          status: 'Lost',
-          lostReason: changeStageLostReason,
-          lostNote: changeStageNote
+      if (onUpdateLead) {
+        await onUpdateLead(lead.id, {
+          status: 'Follow up',
+          pendingGateCheck: null
         });
       }
-
-      await onUpdateLead(changeStageLead.id, { status: 'Unqualified' });
-      setChangeStageLead(null);
-      return;
     }
-
-    setChangeStageLead(null);
-    setGateCheckDeal(leadDeal);
-    setGateCheckFromStage(fromStageObj);
-    setGateCheckTargetStage(targetStage);
-    setIsGateModalOpen(true);
   };
 
   const handleOpenAddModal = () => {
@@ -474,9 +452,8 @@ export const LeadsView = ({
             return (
               <div
                 key={lead.id}
-                className={`bg-[#FFFFFF] border rounded-2xl p-4 space-y-3 transition-colors ${
-                  isSelected ? 'border-[#1D4E63] bg-[#F6F7F8]' : 'border-[#E3E6EA]'
-                }`}
+                className={`bg-[#FFFFFF] border rounded-2xl p-4 space-y-3 transition-colors ${isSelected ? 'border-[#1D4E63] bg-[#F6F7F8]' : 'border-[#E3E6EA]'
+                  }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3">
@@ -517,7 +494,7 @@ export const LeadsView = ({
                       </button>
 
                       {openMenuLeadId === lead.id && (
-                        <div 
+                        <div
                           className="absolute right-0 mt-1 w-44 bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl shadow-xl z-50 py-1 text-left text-xs font-semibold text-[#12161C]"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -528,7 +505,7 @@ export const LeadsView = ({
                             <Calendar className="w-3.5 h-3.5 text-[#3F7A5C]" />
                             <span>Add Activity</span>
                           </button>
-                          
+
                           <button
                             onClick={() => handleOpenChangeStageModal(lead)}
                             className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
@@ -557,21 +534,24 @@ export const LeadsView = ({
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span 
-                      className="px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white"
-                      style={{ backgroundColor: currentStageObj?.color || '#1D4E63' }}
-                    >
-                      {currentStageName}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${
-                      lead.isOutbound
+                    {(() => {
+                      const badgeStyle = getStageBadgeStyle(currentStageName, currentStageObj?.color);
+                      return (
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeStyle.badgeClass}`}>
+                          {currentStageName}
+                        </span>
+                      );
+                    })()}
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${lead.isOutbound
                         ? 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
                         : 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]'
-                    }`}>
+                      }`}>
                       {lead.isOutbound ? 'Outbound' : 'Inbound'}
                     </span>
                   </div>
                 </div>
+
+
 
                 <div className="flex items-center justify-between text-[10px] text-[#5B6472] pt-1 font-mono">
                   <span>Assigned: {lead.ownerName || 'Unassigned'}</span>
@@ -648,12 +628,24 @@ export const LeadsView = ({
 
                       {/* Pipeline Stage Badge */}
                       <td className="px-4 py-3.5">
-                        <span 
-                          className="px-2.5 py-1 rounded-full text-[10px] font-bold text-white inline-block shadow-2xs"
-                          style={{ backgroundColor: currentStageObj?.color || '#1D4E63' }}
-                        >
-                          {currentStageName}
-                        </span>
+                        {(() => {
+                          const badgeStyle = getStageBadgeStyle(currentStageName, currentStageObj?.color);
+                          const isPendingApproval = lead.status === 'Pending Review' || Boolean(leadDeal?.pendingGateCheck);
+
+                          return (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-block shadow-2xs border ${badgeStyle.badgeClass}`}>
+                                {currentStageName}
+                              </span>
+                              {isPendingApproval && (
+                                <span className="text-[10px] font-mono font-bold text-[#965700] bg-[#FEF8EC] border border-[#F5DDA9] px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                                  <Clock className="w-3 h-3 text-[#965700]" />
+                                  <span>Pending Stage Approval</span>
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Contact */}
@@ -675,14 +667,13 @@ export const LeadsView = ({
                         </div>
                       </td>
 
-                      {/* Source & Outbound Badge */}
+                      {/* Source & Effort */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${
-                            lead.isOutbound
-                              ? 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
-                              : 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]'
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${lead.isOutbound
+                              ? 'bg-[#FEFCE8] text-[#A16207] border-[#FEF08A]'
+                              : 'bg-[#FFFFFF] text-[#12161C] border-[#E3E6EA]'
+                            }`}>
                             {lead.isOutbound ? 'Cold Outbound' : 'Inbound'}
                           </span>
                           <span className="text-[10px] text-[#5B6472] font-mono">({lead.source})</span>
@@ -691,12 +682,11 @@ export const LeadsView = ({
 
                       {/* Status */}
                       <td className="px-4 py-3.5">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          lead.status === 'Qualified' ? 'bg-[#F0F7F3] text-[#255B40] border-[#BCDBC9]' :
-                          lead.status === 'Contacted' ? 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]' :
-                          lead.status === 'New' ? 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]' :
-                          'bg-[#FDF2F1] text-[#922D27] border-[#F4C4C1]'
-                        }`}>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${lead.status === 'Qualified' ? 'bg-[#F0FDF4] text-[#15803D] border-[#BBF7D0]' :
+                            (lead.status === 'Buy Again' || lead.status === 'Renewal Due' || lead.status === 'Buy Renewal') ? 'bg-[#FEFCE8] text-[#A16207] border-[#FEF08A]' :
+                              lead.status === 'Unqualified' ? 'bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]' :
+                                'bg-[#FFFFFF] text-[#12161C] border-[#E3E6EA]'
+                          }`}>
                           {lead.status}
                         </span>
                       </td>
@@ -740,10 +730,9 @@ export const LeadsView = ({
                             </button>
 
                             {openMenuLeadId === lead.id && (
-                              <div 
-                                className={`absolute right-0 w-44 bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl shadow-xl z-50 py-1 text-left text-xs font-semibold text-[#12161C] ${
-                                  isLowerRow ? 'bottom-full mb-1' : 'top-full mt-1'
-                                }`}
+                              <div
+                                className={`absolute right-0 w-44 bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl shadow-xl z-50 py-1 text-left text-xs font-semibold text-[#12161C] ${isLowerRow ? 'bottom-full mb-1' : 'top-full mt-1'
+                                  }`}
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <button
@@ -752,14 +741,6 @@ export const LeadsView = ({
                                 >
                                   <Calendar className="w-3.5 h-3.5 text-[#3F7A5C]" />
                                   <span>Add Activity</span>
-                                </button>
-                                
-                                <button
-                                  onClick={() => handleOpenChangeStageModal(lead)}
-                                  className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                                >
-                                  <ArrowRightLeft className="w-3.5 h-3.5 text-[#1D4E63]" />
-                                  <span>Change Stage</span>
                                 </button>
                               </div>
                             )}
@@ -809,11 +790,10 @@ export const LeadsView = ({
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="e.g. AeroTech Circuit Thermal Pads Supply"
-                  className={`w-full bg-[#F6F7F8] border rounded-xl p-2.5 text-[#12161C] focus:outline-none ${
-                    /^\d+$/.test((formData.title || '').trim()) && formData.title.trim().length > 0
+                  className={`w-full bg-[#F6F7F8] border rounded-xl p-2.5 text-[#12161C] focus:outline-none ${/^\d+$/.test((formData.title || '').trim()) && formData.title.trim().length > 0
                       ? 'border-[#B5423A] focus:border-[#B5423A]'
                       : 'border-[#E3E6EA] focus:border-[#1D4E63]'
-                  }`}
+                    }`}
                 />
                 {/^\d+$/.test((formData.title || '').trim()) && formData.title.trim().length > 0 && (
                   <p className="text-[11px] text-[#922D27] font-semibold mt-1 flex items-center gap-1">
@@ -947,252 +927,20 @@ export const LeadsView = ({
         </div>
       )}
 
-      {/* 1. ADD ACTIVITY MODAL */}
-      {activityModalLead && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl max-w-2xl w-full p-8 space-y-6 shadow-xl text-sm text-[#12161C]">
-            <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-5">
-              <div className="flex items-center gap-3">
-                <span className="p-2.5 bg-[#F0F7F3] text-[#3F7A5C] border border-[#BCDBC9] rounded-xl">
-                  <Calendar className="w-6 h-6" />
-                </span>
-                <div>
-                  <h3 className="font-display text-lg font-extrabold text-[#12161C]">Log Activity for Lead</h3>
-                  <div className="text-xs text-[#5B6472] font-medium">{activityModalLead.title}</div>
-                </div>
-              </div>
-              <button onClick={() => setActivityModalLead(null)} className="p-2 text-[#5B6472] hover:text-[#12161C] rounded-lg hover:bg-[#F6F7F8]">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* 1. ADD ACTIVITY MODAL WITH INTEGRATED STAGE QUALIFICATION & AUTO FOLLOW-UP */}
+      <AddActivityModal
+        isOpen={Boolean(activityModalLead)}
+        onClose={() => setActivityModalLead(null)}
+        targetEntity={activityModalLead}
+        entityType="Lead"
+        stages={stages}
+        deals={deals}
+        users={users}
+        currentUser={currentUser}
+        onSubmitActivity={handleSubmitActivityFromModal}
+      />
 
-            <form onSubmit={handleSaveActivity} className="space-y-5">
-              <div>
-                <label className="block text-[#12161C] font-bold mb-2 text-xs uppercase tracking-wider">Activity Type</label>
-                <select
-                  value={activityForm.type}
-                  onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
-                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3.5 text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
-                >
-                  <option value="Call">Phone Call</option>
-                  <option value="Meeting">Meeting / Demo</option>
-                  <option value="Outbound Email">Outbound Email</option>
-                  <option value="Note">Internal Note</option>
-                </select>
-              </div>
 
-              <div>
-                <label className="block text-[#12161C] font-bold mb-2 text-xs uppercase tracking-wider">Date & Time</label>
-                <input
-                  type="datetime-local"
-                  value={activityForm.timestamp}
-                  onChange={(e) => setActivityForm({ ...activityForm, timestamp: e.target.value })}
-                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3.5 text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63] font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[#12161C] font-bold mb-2 text-xs uppercase tracking-wider">Activity Description</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={activityForm.description}
-                  onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
-                  placeholder="Details of the interaction..."
-                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3.5 text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
-                />
-              </div>
-
-              {/* Assign Follow-up Task Section */}
-              <div className="p-4 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer font-bold text-xs text-[#12161C]">
-                    <input
-                      type="checkbox"
-                      checked={activityForm.createFollowup}
-                      onChange={(e) => setActivityForm({ ...activityForm, createFollowup: e.target.checked })}
-                      className="w-4 h-4 text-[#1D4E63] rounded border-[#E3E6EA] focus:ring-[#1D4E63]"
-                    />
-                    <span>Assign & Schedule Follow-up Task</span>
-                  </label>
-                  <span className="text-[10px] text-[#5B6472] font-mono font-medium">Visible in Assigned User's Ledger & Team Agenda</span>
-                </div>
-
-                {activityForm.createFollowup && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <label className="block text-[#5B6472] font-semibold text-xs mb-1.5">Assign Follow-up To Employee *</label>
-                      <select
-                        value={activityForm.assignedOwnerId}
-                        onChange={(e) => setActivityForm({ ...activityForm, assignedOwnerId: e.target.value })}
-                        className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2.5 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
-                      >
-                        {users.map(u => (
-                          <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[#5B6472] font-semibold text-xs mb-1.5">Follow-up Due Date *</label>
-                      <input
-                        type="date"
-                        value={activityForm.dueDate}
-                        onChange={(e) => setActivityForm({ ...activityForm, dueDate: e.target.value })}
-                        className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2.5 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] font-mono"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-5 border-t border-[#E3E6EA]">
-                <button
-                  type="button"
-                  onClick={() => setActivityModalLead(null)}
-                  className="px-6 py-2.5 bg-[#F6F7F8] hover:bg-[#EEF0F3] text-[#5B6472] rounded-full font-semibold border border-[#E3E6EA]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-7 py-2.5 bg-[#3F7A5C] hover:bg-[#34664D] text-white rounded-full font-bold shadow-2xs"
-                >
-                  Log Activity
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 2. CHANGE STAGE MODAL */}
-      {changeStageLead && (() => {
-        const targetStageObj = stages.find(s => s.id === selectedTargetStageId);
-        const isTargetLost = targetStageObj?.name === 'Closed Lost' || targetStageObj?.category === 'Lost';
-        const lostReasons = [
-          'Budget mismatch',
-          'No decision-maker access',
-          'Losing to competitor',
-          'Slow internal process',
-          'Technical fit issue',
-          'Went silent'
-        ];
-
-        return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl max-w-2xl w-full p-8 space-y-6 shadow-xl text-sm text-[#12161C]">
-              <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-5">
-                <div className="flex items-center gap-3">
-                  <span className="p-2.5 bg-[#F6F7F8] text-[#1D4E63] border border-[#E3E6EA] rounded-xl">
-                    <ArrowRightLeft className="w-6 h-6" />
-                  </span>
-                  <div>
-                    <h3 className="font-display text-lg font-extrabold text-[#12161C]">Change Pipeline Stage</h3>
-                    <div className="text-xs text-[#5B6472] font-medium">{changeStageLead.title}</div>
-                  </div>
-                </div>
-                <button onClick={() => setChangeStageLead(null)} className="p-2 text-[#5B6472] hover:text-[#12161C] rounded-lg hover:bg-[#F6F7F8]">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveChangeStage} className="space-y-5">
-                <div className="p-4 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl space-y-1">
-                  <div className="font-bold text-[#12161C] text-base">{changeStageLead.title}</div>
-                  <div className="text-xs text-[#5B6472]">{changeStageLead.companyName || changeStageLead.contactName}</div>
-                </div>
-
-                <div>
-                  <label className="block text-[#12161C] font-bold mb-2 text-xs uppercase tracking-wider">Select Target Stage</label>
-                  <select
-                    value={selectedTargetStageId}
-                    onChange={(e) => setSelectedTargetStageId(e.target.value)}
-                    className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3.5 text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
-                  >
-                    {stages.map(stg => (
-                      <option key={stg.id} value={stg.id}>{stg.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {currentUser.role === 'Admin' ? (
-                  <div className="p-4 bg-[#F0F7F3] border border-[#BCDBC9] rounded-xl flex items-center gap-3 text-xs text-[#3F7A5C]">
-                    <ShieldCheck className="w-5 h-5 text-[#3F7A5C] shrink-0" />
-                    <span>Admin Privilege Active: Stage will update directly without qualification forms.</span>
-                  </div>
-                ) : isTargetLost ? (
-                  <div className="p-5 bg-[#FDF2F1] border border-[#F4C4C1] rounded-xl space-y-4">
-                    <div className="flex items-center gap-2.5 text-[#B5423A] font-bold text-xs">
-                      <AlertTriangle className="w-5 h-5 text-[#B5423A] shrink-0" />
-                      <span>Closed Lost Selected &mdash; Mandatory Lost Reason Required</span>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-[#12161C] font-bold mb-2 text-xs uppercase tracking-wider">
-                        Mandatory Lost Reason *
-                      </label>
-                      <select
-                        value={changeStageLostReason}
-                        onChange={(e) => setChangeStageLostReason(e.target.value)}
-                        className="w-full bg-[#FFFFFF] border border-[#F4C4C1] rounded-xl p-3.5 text-sm text-[#12161C] focus:outline-none focus:border-[#B5423A] cursor-pointer"
-                      >
-                        {lostReasons.map(r => (
-                          <option key={r} value={r}>{r}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[#5B6472] font-semibold text-xs mb-2">
-                        Free-text Lost Note / Observations (Optional)
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={changeStageNote}
-                        onChange={(e) => setChangeStageNote(e.target.value)}
-                        placeholder="Describe why the lead/deal was lost..."
-                        className="w-full bg-[#FFFFFF] border border-[#F4C4C1] rounded-xl p-3.5 text-sm text-[#12161C] focus:outline-none focus:border-[#B5423A]"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl flex items-center gap-3 text-xs text-[#1D4E63]">
-                    <ShieldCheck className="w-5 h-5 text-[#1D4E63] shrink-0" />
-                    <span>Proceeding will launch the Stage Gate Qualification Checklist for <strong>{targetStageObj?.name}</strong>.</span>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-end gap-3 pt-5 border-t border-[#E3E6EA]">
-                  <button
-                    type="button"
-                    onClick={() => setChangeStageLead(null)}
-                    className="px-6 py-2.5 bg-[#F6F7F8] hover:bg-[#EEF0F3] text-[#5B6472] rounded-full font-semibold border border-[#E3E6EA]"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className={`px-7 py-2.5 rounded-full font-bold shadow-2xs transition-colors ${
-                      currentUser.role === 'Admin'
-                        ? 'bg-[#1D4E63] hover:bg-[#153B4B] text-white'
-                        : isTargetLost 
-                          ? 'bg-[#B5423A] hover:bg-[#96342E] text-white' 
-                          : 'bg-[#1D4E63] hover:bg-[#153B4B] text-white'
-                    }`}
-                  >
-                    {currentUser.role === 'Admin'
-                      ? 'Update Stage'
-                      : isTargetLost 
-                        ? 'Confirm & Move to Closed Lost' 
-                        : 'Proceed to Qualification Check'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        );
-      })()}
 
 
 
@@ -1205,9 +953,9 @@ export const LeadsView = ({
         targetStage={gateCheckTargetStage}
         currentUser={currentUser}
         onSubmitCheck={onSubmitStageGateCheck}
-        onApproveCheck={() => {}}
-        onRejectCheck={() => {}}
-        onSaveDraft={() => {}}
+        onApproveCheck={() => { }}
+        onRejectCheck={() => { }}
+        onSaveDraft={() => { }}
       />
 
     </div>

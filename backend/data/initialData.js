@@ -47,14 +47,14 @@ export const initialUsers = [
 ];
 
 export const initialStages = [
-  { id: 'stg-1', name: 'New Lead', order: 1, category: 'New', color: '#B9D4DE' },
-  { id: 'stg-2', name: 'Contacted', order: 2, category: 'Contacted', color: '#93BECC' },
-  { id: 'stg-3', name: 'Sample Sent', order: 3, category: 'Sample Sent', color: '#3E7C93' },
-  { id: 'stg-4', name: 'Proposal Sent', order: 4, category: 'Proposal', color: '#2A6580' },
-  { id: 'stg-5', name: 'Negotiation', order: 5, category: 'Negotiation', color: '#1D4E63' },
-  { id: 'stg-6', name: 'Closed Won', order: 6, category: 'Won', color: '#3F7A5C' },
-  { id: 'stg-7', name: 'Buy Again (Renewal)', order: 7, category: 'Buy Again', color: '#C6790A' },
-  { id: 'stg-8', name: 'Closed Lost', order: 8, category: 'Lost', color: '#B5423A' },
+  { id: 'stg-1', name: 'New Lead', order: 1, category: 'New', color: '#FFFFFF' },
+  { id: 'stg-2', name: 'Contacted', order: 2, category: 'Contacted', color: '#A7F3D0' },
+  { id: 'stg-3', name: 'Sample Sent', order: 3, category: 'Sample Sent', color: '#6EE7B7' },
+  { id: 'stg-4', name: 'Proposal Sent', order: 4, category: 'Proposal', color: '#34D399' },
+  { id: 'stg-5', name: 'Negotiation', order: 5, category: 'Negotiation', color: '#10B981' },
+  { id: 'stg-6', name: 'Closed Won', order: 6, category: 'Won', color: '#16A34A' },
+  { id: 'stg-7', name: 'Buy Again (Renewal)', order: 7, category: 'Buy Again', color: '#EAB308' },
+  { id: 'stg-8', name: 'Closed Lost', order: 8, category: 'Lost', color: '#DC2626' },
 ];
 
 export const initialCompanies = [

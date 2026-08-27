@@ -13,25 +13,33 @@ import {
 } from '../data/initialData.js';
 
 const DEFAULT_STAGE_COLORS = {
-  'New Lead': '#B9D4DE',
-  'Contacted': '#93BECC',
-  'Sample Sent': '#3E7C93',
-  'Proposal Sent': '#2A6580',
-  'Negotiation': '#1D4E63',
-  'Closed Won': '#3F7A5C',
-  'Buy Again (Renewal)': '#C6790A',
-  'Closed Lost': '#B5423A',
+  'New Lead': '#FFFFFF',
+  'Contacted': '#A7F3D0',
+  'Sample Sent': '#6EE7B7',
+  'Proposal Sent': '#34D399',
+  'Negotiation': '#10B981',
+  'Closed Won': '#16A34A',
+  'Buy Again (Renewal)': '#EAB308',
+  'Closed Lost': '#DC2626',
 };
 
 const OLD_HEX_MAP = {
-  '#64748b': '#B9D4DE',
-  '#0284c7': '#93BECC',
-  '#8b5cf6': '#3E7C93',
-  '#eab308': '#2A6580',
-  '#f97316': '#1D4E63',
-  '#10b981': '#3F7A5C',
-  '#ec4899': '#C6790A',
-  '#ef4444': '#B5423A',
+  '#64748b': '#FFFFFF',
+  '#0284c7': '#A7F3D0',
+  '#8b5cf6': '#6EE7B7',
+  '#eab308': '#34D399',
+  '#f97316': '#10B981',
+  '#10b981': '#16A34A',
+  '#ec4899': '#EAB308',
+  '#ef4444': '#DC2626',
+  '#B9D4DE': '#FFFFFF',
+  '#93BECC': '#A7F3D0',
+  '#3E7C93': '#6EE7B7',
+  '#2A6580': '#34D399',
+  '#1D4E63': '#10B981',
+  '#3F7A5C': '#16A34A',
+  '#C6790A': '#EAB308',
+  '#B5423A': '#DC2626',
 };
 
 class CRMStore {
@@ -495,9 +503,39 @@ class CRMStore {
   }
 
   approveStageGateCheck(id, reviewer) {
-    const checkIdx = this.stageGateChecks.findIndex(c => c.id === id);
+    let checkIdx = this.stageGateChecks.findIndex(c => c.id === id || c.dealId === id);
+    let check = null;
+
     if (checkIdx !== -1) {
-      const check = this.stageGateChecks[checkIdx];
+      check = this.stageGateChecks[checkIdx];
+    }
+
+    const dealIdx = this.deals.findIndex(d => d.id === id || d.leadId === id || (check && d.id === check.dealId));
+    let dealObj = dealIdx !== -1 ? this.deals[dealIdx] : null;
+
+    if (!check && dealObj) {
+      const targetStageId = dealObj.pendingGateCheck?.targetStageId;
+      const sortedStages = [...this.stages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const curIdx = sortedStages.findIndex(s => s.id === dealObj.stageId || s.name === dealObj.stageName);
+      const nextStg = targetStageId 
+        ? sortedStages.find(s => s.id === targetStageId) 
+        : (curIdx !== -1 && curIdx + 1 < sortedStages.length ? sortedStages[curIdx + 1] : sortedStages[0]);
+
+      check = {
+        id: `sgc-${Date.now()}`,
+        dealId: dealObj.id,
+        dealTitle: dealObj.title,
+        targetStageId: nextStg.id,
+        targetStageName: nextStg.name,
+        submittedBy: dealObj.pendingGateCheck?.submittedById || 'u-3',
+        submittedByName: dealObj.pendingGateCheck?.submittedByName || 'Sales Rep',
+        outcome: 'advanced',
+        status: 'pending_review'
+      };
+      this.stageGateChecks.unshift(check);
+    }
+
+    if (check) {
       check.status = 'approved_and_executed';
       check.reviewedBy = reviewer?.id || 'u-1';
       check.reviewedByName = reviewer?.name || 'Alex Vance';
@@ -505,7 +543,7 @@ class CRMStore {
 
       // Update associated approval tasks to completed
       this.tasks = this.tasks.map(t => {
-        if (t.stageGateCheckId === id) {
+        if (t.stageGateCheckId === check.id || t.linkedId === check.dealId) {
           return {
             ...t,
             status: 'done',
@@ -519,41 +557,59 @@ class CRMStore {
       this.executeGateCheckTransition(check);
       return check;
     }
-    return null;
+
+    if (dealObj) {
+      delete dealObj.pendingGateCheck;
+      dealObj.status = 'Active';
+      return { success: true, deal: dealObj };
+    }
+
+    return { success: true, id };
   }
 
   rejectStageGateCheck(id, reviewer, reason) {
-    const checkIdx = this.stageGateChecks.findIndex(c => c.id === id);
+    let checkIdx = this.stageGateChecks.findIndex(c => c.id === id || c.dealId === id);
+    let check = null;
+
     if (checkIdx !== -1) {
-      const check = this.stageGateChecks[checkIdx];
+      check = this.stageGateChecks[checkIdx];
+    }
+
+    // Clear pending status on deal
+    const dealIdx = this.deals.findIndex(d => d.id === id || d.leadId === id || (check && d.id === check.dealId));
+    if (dealIdx !== -1) {
+      delete this.deals[dealIdx].pendingGateCheck;
+      this.deals[dealIdx].status = 'Follow up';
+      
+      // Also update linked lead status to 'Follow up'
+      const leadIdx = this.leads.findIndex(l => l.id === this.deals[dealIdx].leadId || l.title === this.deals[dealIdx].title);
+      if (leadIdx !== -1) {
+        this.leads[leadIdx].status = 'Follow up';
+      }
+    }
+
+    if (check) {
       check.status = 'rejected';
       check.reviewedBy = reviewer?.id || 'u-1';
       check.reviewedByName = reviewer?.name || 'Alex Vance';
       check.rejectionReason = reason || 'Requirements not met';
-
-      // Clear pending status on deal
-      const dealIdx = this.deals.findIndex(d => d.id === check.dealId);
-      if (dealIdx !== -1) {
-        delete this.deals[dealIdx].pendingGateCheck;
-      }
-
-      // Update associated approval tasks
-      this.tasks = this.tasks.map(t => {
-        if (t.stageGateCheckId === id) {
-          return {
-            ...t,
-            status: 'done',
-            reviewedByName: reviewer?.name || 'Alex Vance',
-            resolution: 'Rejected',
-            rejectionReason: reason || 'Requirements not met'
-          };
-        }
-        return t;
-      });
-
-      return check;
     }
-    return null;
+
+    // Update associated approval tasks
+    this.tasks = this.tasks.map(t => {
+      if ((check && t.stageGateCheckId === check.id) || t.linkedId === id) {
+        return {
+          ...t,
+          status: 'done',
+          reviewedByName: reviewer?.name || 'Alex Vance',
+          resolution: 'Rejected',
+          rejectionReason: reason || 'Requirements not met'
+        };
+      }
+      return t;
+    });
+
+    return check || { success: true, id };
   }
 
   executeGateCheckTransition(check) {

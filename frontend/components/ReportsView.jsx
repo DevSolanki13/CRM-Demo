@@ -185,7 +185,7 @@ export const ReportsView = ({
                 <div key={stage.id} className="space-y-1">
                   <div className="flex items-center justify-between text-xs font-medium">
                     <span className="text-[#12161C] flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stage.color || '#1D4E63' }} />
+                      <span className="w-2.5 h-2.5 rounded-full border border-[#D1D5DB]" style={{ backgroundColor: stage.color || '#FFFFFF' }} />
                       <span className="font-bold">{stage.name}</span>
                       <span className="text-[#5B6472] font-mono">({count})</span>
                     </span>

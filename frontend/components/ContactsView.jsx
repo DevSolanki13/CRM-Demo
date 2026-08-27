@@ -14,11 +14,13 @@ import {
   Briefcase 
 } from 'lucide-react';
 import { formatDate, filterByRole } from '../utils/crmHelpers.js';
+import { AddActivityModal } from './AddActivityModal.jsx';
 
 export const ContactsView = ({
   contacts,
   companies,
   users,
+  stages = [],
   deals,
   notes,
   activities,
@@ -27,7 +29,9 @@ export const ContactsView = ({
   onUpdateContact,
   onDeleteContact,
   onCreateNote,
-  onCreateActivity
+  onCreateActivity,
+  onCreateTask,
+  onUpdateDeal
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState('All');
@@ -39,6 +43,41 @@ export const ContactsView = ({
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
+  const [activityModalContact, setActivityModalContact] = useState(null);
+
+  const handleSubmitActivityFromModal = async (payload) => {
+    const { activityData, outcomeData, targetEntity } = payload;
+
+    if (onCreateActivity) {
+      await onCreateActivity(activityData);
+    }
+
+    const contactDeal = deals.find(d => d.contactId === targetEntity.id);
+
+    if (outcomeData.shouldAdvanceStage && outcomeData.targetStageObj && contactDeal && onUpdateDeal) {
+      await onUpdateDeal(contactDeal.id, {
+        stageId: outcomeData.targetStageObj.id,
+        stageName: outcomeData.targetStageObj.name
+      });
+    }
+
+    if (onCreateTask && outcomeData.assignedOwnerId) {
+      await onCreateTask({
+        title: `[Follow-up] ${activityData.type}: ${targetEntity.name}`,
+        dueDate: outcomeData.dueDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        type: activityData.type === 'Meeting' ? 'Meeting' : 'Call',
+        linkedType: 'Contact',
+        linkedId: targetEntity.id,
+        linkedTitle: targetEntity.name,
+        ownerId: outcomeData.assignedOwnerId,
+        ownerName: outcomeData.assignedOwnerName,
+        status: 'pending',
+        note: outcomeData.summaryNote
+      });
+    }
+
+    setActivityModalContact(null);
+  };
 
   const [formData, setFormData] = useState({
     name: '',
@@ -273,20 +312,13 @@ export const ContactsView = ({
             </div>
 
             {/* Quick Action Controls */}
-            <div className="grid grid-cols-2 gap-2">
+            <div>
               <button
-                onClick={() => handleLogCall(true)}
-                className="p-2 bg-[#F6F7F8] hover:bg-[#EEF0F3] border border-[#E3E6EA] rounded-xl text-xs text-[#12161C] font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                onClick={() => setActivityModalContact(selectedContact)}
+                className="w-full p-2.5 bg-[#EFF6F9] hover:bg-[#D8E8EF] border border-[#D8E8EF] rounded-xl text-xs text-[#1D4E63] font-bold flex items-center justify-center gap-2 transition-colors shadow-2xs"
               >
-                <PhoneCall className="w-3.5 h-3.5 text-[#1D4E63]" />
-                <span>Log Outbound Call</span>
-              </button>
-              <button
-                onClick={() => handleLogCall(false)}
-                className="p-2 bg-[#F6F7F8] hover:bg-[#EEF0F3] border border-[#E3E6EA] rounded-xl text-xs text-[#12161C] font-semibold flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <PhoneCall className="w-3.5 h-3.5 text-[#3F7A5C]" />
-                <span>Log Inbound Call</span>
+                <PhoneCall className="w-4 h-4 text-[#1D4E63]" />
+                <span>Log Activity & Stage Qualification</span>
               </button>
             </div>
 
@@ -447,6 +479,17 @@ export const ContactsView = ({
           </div>
         </div>
       )}
+      {/* Add Activity Modal */}
+      <AddActivityModal
+        isOpen={Boolean(activityModalContact)}
+        onClose={() => setActivityModalContact(null)}
+        targetEntity={activityModalContact}
+        entityType="Contact"
+        stages={stages}
+        users={users}
+        currentUser={currentUser}
+        onSubmitActivity={handleSubmitActivityFromModal}
+      />
 
     </div>
   );

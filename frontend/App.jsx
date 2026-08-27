@@ -46,25 +46,33 @@ import { GlobalSearchModal } from './components/GlobalSearchModal.jsx';
 import { Loader2 } from 'lucide-react';
 
 const OLD_HEX_MAP = {
-  '#64748b': '#B9D4DE',
-  '#0284c7': '#93BECC',
-  '#8b5cf6': '#3E7C93',
-  '#eab308': '#2A6580',
-  '#f97316': '#1D4E63',
-  '#10b981': '#3F7A5C',
-  '#ec4899': '#C6790A',
-  '#ef4444': '#B5423A',
+  '#64748b': '#FFFFFF',
+  '#0284c7': '#A7F3D0',
+  '#8b5cf6': '#6EE7B7',
+  '#eab308': '#34D399',
+  '#f97316': '#10B981',
+  '#10b981': '#16A34A',
+  '#ec4899': '#EAB308',
+  '#ef4444': '#DC2626',
+  '#B9D4DE': '#FFFFFF',
+  '#93BECC': '#A7F3D0',
+  '#3E7C93': '#6EE7B7',
+  '#2A6580': '#34D399',
+  '#1D4E63': '#10B981',
+  '#3F7A5C': '#16A34A',
+  '#C6790A': '#EAB308',
+  '#B5423A': '#DC2626',
 };
 
 const DEFAULT_STAGE_COLORS = {
-  'New Lead': '#B9D4DE',
-  'Contacted': '#93BECC',
-  'Sample Sent': '#3E7C93',
-  'Proposal Sent': '#2A6580',
-  'Negotiation': '#1D4E63',
-  'Closed Won': '#3F7A5C',
-  'Buy Again (Renewal)': '#C6790A',
-  'Closed Lost': '#B5423A',
+  'New Lead': '#FFFFFF',
+  'Contacted': '#A7F3D0',
+  'Sample Sent': '#6EE7B7',
+  'Proposal Sent': '#34D399',
+  'Negotiation': '#10B981',
+  'Closed Won': '#16A34A',
+  'Buy Again (Renewal)': '#EAB308',
+  'Closed Lost': '#DC2626',
 };
 
 const normalizeStateStages = (data) => {
@@ -269,12 +277,79 @@ export default function App() {
   };
 
   const handleApproveStageGateCheck = async (id, reviewer) => {
-    await approveStageGateCheck(id, reviewer);
+    const cleanId = String(id).replace('v-task-', '');
+    const deal = state.deals.find(d => d.id === cleanId || d.leadId === cleanId);
+
+    if (deal) {
+      const targetStageId = deal.pendingGateCheck?.targetStageId;
+      const sortedStages = [...state.stages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const curIdx = sortedStages.findIndex(s => s.id === deal.stageId || s.name === deal.stageName);
+      const nextStg = targetStageId 
+        ? sortedStages.find(s => s.id === targetStageId) 
+        : (curIdx !== -1 && curIdx + 1 < sortedStages.length ? sortedStages[curIdx + 1] : sortedStages[0]);
+
+      if (nextStg) {
+        await handleUpdateDeal(deal.id, {
+          stageId: nextStg.id,
+          stageName: nextStg.name,
+          status: nextStg.category === 'Won' ? 'Won' : 'Active',
+          pendingGateCheck: null
+        });
+      }
+
+      const linkedLead = state.leads.find(l => l.id === deal.leadId || l.title === deal.title);
+      if (linkedLead) {
+        await handleUpdateLead(linkedLead.id, {
+          status: 'Qualified'
+        });
+      }
+    } else {
+      const lead = state.leads.find(l => l.id === cleanId);
+      if (lead) {
+        await handleUpdateLead(lead.id, {
+          status: 'Qualified'
+        });
+      }
+    }
+
+    try {
+      await approveStageGateCheck(cleanId, reviewer);
+    } catch (_e) {
+      // ignore
+    }
     await reloadState();
   };
 
   const handleRejectStageGateCheck = async (id, reviewer, reason) => {
-    await rejectStageGateCheck(id, reviewer, reason);
+    const cleanId = String(id).replace('v-task-', '');
+    const deal = state.deals.find(d => d.id === cleanId || d.leadId === cleanId);
+
+    if (deal) {
+      await handleUpdateDeal(deal.id, {
+        status: 'Follow up',
+        pendingGateCheck: null
+      });
+
+      const linkedLead = state.leads.find(l => l.id === deal.leadId || l.title === deal.title);
+      if (linkedLead) {
+        await handleUpdateLead(linkedLead.id, {
+          status: 'Follow up'
+        });
+      }
+    } else {
+      const lead = state.leads.find(l => l.id === cleanId);
+      if (lead) {
+        await handleUpdateLead(lead.id, {
+          status: 'Follow up'
+        });
+      }
+    }
+
+    try {
+      await rejectStageGateCheck(cleanId, reviewer, reason);
+    } catch (_e) {
+      // ignore
+    }
     await reloadState();
   };
 
@@ -359,6 +434,8 @@ export default function App() {
               onCreateActivity={handleCreateActivity}
               onCreateTask={handleCreateTask}
               onSubmitStageGateCheck={handleCreateStageGateCheck}
+              onApproveStageGateCheck={handleApproveStageGateCheck}
+              onRejectStageGateCheck={handleRejectStageGateCheck}
             />
           )}
 
@@ -374,6 +451,8 @@ export default function App() {
               onCreateDeal={handleCreateDeal}
               onUpdateDeal={handleUpdateDeal}
               onDeleteDeal={handleDeleteDeal}
+              onCreateActivity={handleCreateActivity}
+              onCreateTask={handleCreateTask}
               onSubmitStageGateCheck={handleCreateStageGateCheck}
               onApproveStageGateCheck={handleApproveStageGateCheck}
               onRejectStageGateCheck={handleRejectStageGateCheck}
@@ -387,6 +466,7 @@ export default function App() {
               contacts={state.contacts}
               companies={state.companies}
               users={state.users}
+              stages={state.stages}
               deals={state.deals}
               notes={state.notes}
               activities={state.activities}
@@ -396,6 +476,8 @@ export default function App() {
               onDeleteContact={handleDeleteContact}
               onCreateNote={handleCreateNote}
               onCreateActivity={handleCreateActivity}
+              onCreateTask={handleCreateTask}
+              onUpdateDeal={handleUpdateDeal}
             />
           )}
 
@@ -414,6 +496,9 @@ export default function App() {
             <TasksView
               tasks={state.tasks}
               users={state.users}
+              leads={state.leads}
+              deals={state.deals}
+              stages={state.stages}
               currentUser={currentUser}
               onCreateTask={handleCreateTask}
               onUpdateTask={handleUpdateTask}

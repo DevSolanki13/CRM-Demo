@@ -14,10 +14,13 @@ import {
   ShieldCheck,
   Clock,
   AlertTriangle,
-  Layers
+  Layers,
+  PhoneCall,
+  CheckCircle2
 } from 'lucide-react';
 import { formatCurrency, filterByRole } from '../utils/crmHelpers.js';
 import { StageGateCheckModal } from './StageGateCheckModal.jsx';
+import { AddActivityModal } from './AddActivityModal.jsx';
 
 export const PipelineView = ({
   deals,
@@ -30,6 +33,8 @@ export const PipelineView = ({
   onCreateDeal,
   onUpdateDeal,
   onDeleteDeal,
+  onCreateActivity,
+  onCreateTask,
   onSubmitStageGateCheck,
   onApproveStageGateCheck,
   onRejectStageGateCheck,
@@ -43,6 +48,72 @@ export const PipelineView = ({
   // Modal for Quick Add / Edit Deal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState(null);
+
+  // Add Activity Modal state
+  const [activityModalDeal, setActivityModalDeal] = useState(null);
+
+  const handleSubmitActivityFromModal = async (payload) => {
+    const { activityData, outcomeData, targetEntity } = payload;
+
+    if (onCreateActivity) {
+      await onCreateActivity(activityData);
+    }
+
+    if (outcomeData.shouldAdvanceStage && outcomeData.targetStageObj && onUpdateDeal) {
+      // Auto-approved (Admin / Manager)
+      await onUpdateDeal(targetEntity.id, {
+        stageId: outcomeData.targetStageObj.id,
+        stageName: outcomeData.targetStageObj.name,
+        status: outcomeData.newStatus || 'Active',
+        pendingGateCheck: null
+      });
+    } else if (outcomeData.requiresManagerApproval && outcomeData.targetStageObj) {
+      // Pending Manager / Admin Approval Request (Sales Rep)
+      if (onSubmitStageGateCheck) {
+        await onSubmitStageGateCheck(targetEntity.id, {
+          targetStageId: outcomeData.targetStageObj.id,
+          submittedById: currentUser.id,
+          submittedByName: currentUser.name,
+          submittedAt: new Date().toISOString(),
+          answers: outcomeData.criteriaAnswers,
+          badgeText: `Pending ${outcomeData.targetStageObj.name} Approval`
+        });
+      } else if (onUpdateDeal) {
+        await onUpdateDeal(targetEntity.id, {
+          status: 'Pending Review',
+          pendingGateCheck: {
+            targetStageId: outcomeData.targetStageObj.id,
+            submittedById: currentUser.id,
+            submittedByName: currentUser.name,
+            submittedAt: new Date().toISOString(),
+            answers: outcomeData.criteriaAnswers
+          }
+        });
+      }
+    } else if (onUpdateDeal) {
+      // Unfulfilled criteria or disconnected
+      await onUpdateDeal(targetEntity.id, {
+        status: 'Follow up'
+      });
+    }
+
+    if (onCreateTask && outcomeData.assignedOwnerId) {
+      await onCreateTask({
+        title: `[Follow-up] ${activityData.type}: ${targetEntity.title}`,
+        dueDate: outcomeData.dueDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        type: activityData.type === 'Meeting' ? 'Meeting' : 'Call',
+        linkedType: 'Deal',
+        linkedId: targetEntity.id,
+        linkedTitle: targetEntity.title,
+        ownerId: outcomeData.assignedOwnerId,
+        ownerName: outcomeData.assignedOwnerName,
+        status: 'pending',
+        note: outcomeData.summaryNote
+      });
+    }
+
+    setActivityModalDeal(null);
+  };
 
   // Stage Gate Check Modal state
   const [isGateModalOpen, setIsGateModalOpen] = useState(false);
@@ -235,7 +306,7 @@ export const PipelineView = ({
               {/* Column Header */}
               <div className="flex items-center justify-between px-1 shrink-0">
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stage.color || '#1D4E63' }} />
+                  <span className="w-2.5 h-2.5 rounded-full border border-[#D1D5DB]" style={{ backgroundColor: stage.color || '#FFFFFF' }} />
                   <h3 className="font-display font-extrabold text-sm text-[#12161C]">{stage.name}</h3>
                   <span className="text-[11px] font-mono text-[#5B6472]">
                     ({stageDeals.length})
@@ -372,6 +443,17 @@ export const PipelineView = ({
                             </span>
                           )}
                         </div>
+
+
+
+                        {/* Quick Add Activity & Qualification Button */}
+                        <button
+                          onClick={() => setActivityModalDeal(deal)}
+                          className="w-full py-1.5 px-2 bg-[#F6F7F8] hover:bg-[#EFF6F9] border border-[#E3E6EA] hover:border-[#D8E8EF] rounded-lg text-[11px] text-[#1D4E63] font-bold flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                          <PhoneCall className="w-3 h-3 text-[#1D4E63]" />
+                          <span>Log Activity & Gate Check</span>
+                        </button>
 
                         {/* Card Footer */}
                         <div className="flex items-center justify-between pt-1 text-[10px] text-[#5B6472]">
@@ -589,6 +671,19 @@ export const PipelineView = ({
         onApproveCheck={onApproveStageGateCheck}
         onRejectCheck={onRejectStageGateCheck}
         onSaveDraft={onSavePartialGateCheck}
+      />
+
+      {/* Add Activity & Stage Qualification Modal */}
+      <AddActivityModal
+        isOpen={Boolean(activityModalDeal)}
+        onClose={() => setActivityModalDeal(null)}
+        targetEntity={activityModalDeal}
+        entityType="Deal"
+        stages={stages}
+        deals={deals}
+        users={users}
+        currentUser={currentUser}
+        onSubmitActivity={handleSubmitActivityFromModal}
       />
 
     </div>
