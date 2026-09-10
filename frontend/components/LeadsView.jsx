@@ -107,7 +107,7 @@ export const LeadsView = ({
     const matchesStatus = selectedStatus === 'All' || l.status === selectedStatus;
     const matchesOwner = selectedOwner === 'All' || l.ownerId === selectedOwner;
 
-    const leadDeal = deals.find(d => d.leadId === l.id || d.title === l.title);
+    const leadDeal = deals.find(d => d.leadId === l.id);
     const matchesStage = selectedStage === 'All' || (leadDeal && leadDeal.stageId === selectedStage);
 
     return matchesSearch && matchesSource && matchesStatus && matchesOwner && matchesStage;
@@ -143,6 +143,33 @@ export const LeadsView = ({
     setActivityModalLead(lead);
   };
 
+  const handleOpenLeadStageGate = (lead) => {
+    setOpenMenuLeadId(null);
+    const leadDeal = deals.find(d => d.leadId === lead.id);
+    const curStage = leadDeal ? stages.find(s => s.id === leadDeal.stageId) : sortedStages[0];
+    const curIdx = sortedStages.findIndex(s => s.id === curStage?.id);
+    const nextStg = (curIdx !== -1 && curIdx + 1 < sortedStages.length) ? sortedStages[curIdx + 1] : sortedStages[1];
+
+    const dealForGate = leadDeal || {
+      id: lead.id,
+      leadId: lead.id,
+      title: lead.title,
+      companyName: lead.companyName,
+      contactName: lead.contactName,
+      stageId: curStage?.id || sortedStages[0]?.id,
+      stageName: curStage?.name || sortedStages[0]?.name,
+      ownerId: lead.ownerId,
+      ownerName: lead.ownerName,
+      status: lead.status,
+      pendingGateCheck: lead.pendingGateCheck
+    };
+
+    setGateCheckDeal(dealForGate);
+    setGateCheckFromStage(curStage || sortedStages[0]);
+    setGateCheckTargetStage(nextStg);
+    setIsGateModalOpen(true);
+  };
+
   const handleSubmitActivityFromModal = async (payload) => {
     const { activityData, outcomeData, targetEntity } = payload;
 
@@ -151,7 +178,7 @@ export const LeadsView = ({
       await onCreateActivity(activityData);
     }
 
-    const leadDeal = deals.find(d => d.leadId === targetEntity.id || d.title === targetEntity.title);
+    const leadDeal = deals.find(d => d.leadId === targetEntity.id);
 
     // 2. Stage & Status Updates
     if (outcomeData.shouldAdvanceStage && outcomeData.targetStageObj) {
@@ -168,22 +195,40 @@ export const LeadsView = ({
         });
       }
     } else if (outcomeData.requiresManagerApproval && outcomeData.targetStageObj) {
-      if (leadDeal && onUpdateDeal) {
-        await onUpdateDeal(leadDeal.id, {
-          status: 'Pending Review',
-          pendingGateCheck: {
-            targetStageId: outcomeData.targetStageObj.id,
-            submittedById: currentUser.id,
-            submittedByName: currentUser.name,
-            submittedAt: new Date().toISOString(),
-            answers: outcomeData.criteriaAnswers
-          }
-        });
-      }
-      if (onUpdateLead) {
-        await onUpdateLead(targetEntity.id, {
-          status: 'Pending Review'
-        });
+      const fromStg = outcomeData.fromStageObj || (leadDeal ? stages.find(s => s.id === leadDeal.stageId) : sortedStages[0]);
+      const checkPayload = {
+        dealId: leadDeal?.id || null,
+        leadId: targetEntity.id,
+        dealTitle: leadDeal?.title || targetEntity.title,
+        leadTitle: targetEntity.title,
+        fromStageId: fromStg?.id,
+        fromStageName: fromStg?.name || 'New Lead',
+        targetStageId: outcomeData.targetStageObj.id,
+        targetStageName: outcomeData.targetStageObj.name,
+        submittedBy: currentUser.id,
+        submittedByName: currentUser.name,
+        answers: outcomeData.criteriaAnswers || {},
+        note: activityData.description || outcomeData.summaryNote || '',
+        status: 'pending_review',
+        outcome: 'advanced',
+        badgeText: `Pending ${outcomeData.targetStageObj.name} Approval`
+      };
+
+      if (onSubmitStageGateCheck) {
+        await onSubmitStageGateCheck(checkPayload);
+      } else {
+        if (leadDeal && onUpdateDeal) {
+          await onUpdateDeal(leadDeal.id, {
+            status: 'Pending Review',
+            pendingGateCheck: checkPayload
+          });
+        }
+        if (onUpdateLead) {
+          await onUpdateLead(targetEntity.id, {
+            status: 'Pending Review',
+            pendingGateCheck: checkPayload
+          });
+        }
       }
     } else {
       // Stage remains same, status = 'Follow up'
@@ -218,50 +263,17 @@ export const LeadsView = ({
     setActivityModalLead(null);
   };
 
-  const handleApproveLeadStage = async (lead) => {
-    const leadDeal = deals.find(d => d.leadId === lead.id || d.title === lead.title);
-    
-    if (leadDeal && onApproveStageGateCheck) {
-      await onApproveStageGateCheck(leadDeal.id, currentUser);
-    } else {
-      const targetStageId = leadDeal?.pendingGateCheck?.targetStageId;
-      const targetStageObj = stages.find(s => s.id === targetStageId) || stages[1];
-      
-      if (leadDeal && onUpdateDeal) {
-        await onUpdateDeal(leadDeal.id, {
-          stageId: targetStageObj.id,
-          stageName: targetStageObj.name,
-          status: targetStageObj.category === 'Won' ? 'Won' : 'Active',
-          pendingGateCheck: null
-        });
-      }
-      if (onUpdateLead) {
-        await onUpdateLead(lead.id, {
-          status: 'Qualified',
-          pendingGateCheck: null
-        });
-      }
+  const handleApproveLeadStage = async (dealOrLead) => {
+    const targetId = dealOrLead?.id || dealOrLead?.leadId;
+    if (targetId && onApproveStageGateCheck) {
+      await onApproveStageGateCheck(targetId, currentUser);
     }
   };
 
-  const handleRejectLeadStage = async (lead) => {
-    const leadDeal = deals.find(d => d.leadId === lead.id || d.title === lead.title);
-    
-    if (leadDeal && onRejectStageGateCheck) {
-      await onRejectStageGateCheck(leadDeal.id, currentUser, 'Criteria rejected by Manager');
-    } else {
-      if (leadDeal && onUpdateDeal) {
-        await onUpdateDeal(leadDeal.id, {
-          status: 'Follow up',
-          pendingGateCheck: null
-        });
-      }
-      if (onUpdateLead) {
-        await onUpdateLead(lead.id, {
-          status: 'Follow up',
-          pendingGateCheck: null
-        });
-      }
+  const handleRejectLeadStage = async (dealOrLead, reason) => {
+    const targetId = dealOrLead?.id || dealOrLead?.leadId;
+    if (targetId && onRejectStageGateCheck) {
+      await onRejectStageGateCheck(targetId, currentUser, reason || 'Criteria rejected by Manager');
     }
   };
 
@@ -398,9 +410,10 @@ export const LeadsView = ({
           >
             <option value="All">All Statuses</option>
             <option value="New">New</option>
-            <option value="Contacted">Contacted</option>
+            <option value="Working">Working</option>
             <option value="Qualified">Qualified</option>
             <option value="Unqualified">Unqualified</option>
+            <option value="Converted">Converted</option>
           </select>
         </div>
 
@@ -445,7 +458,7 @@ export const LeadsView = ({
         ) : (
           filteredLeads.map(lead => {
             const isSelected = selectedLeadIds.includes(lead.id);
-            const leadDeal = deals.find(d => d.leadId === lead.id || d.title === lead.title);
+            const leadDeal = deals.find(d => d.leadId === lead.id);
             const currentStageName = leadDeal ? leadDeal.stageName : 'New Lead';
             const currentStageObj = stages.find(s => s.id === leadDeal?.stageId);
 
@@ -597,7 +610,7 @@ export const LeadsView = ({
               ) : (
                 filteredLeads.map((lead, idx) => {
                   const isSelected = selectedLeadIds.includes(lead.id);
-                  const leadDeal = deals.find(d => d.leadId === lead.id || d.title === lead.title);
+                  const leadDeal = deals.find(d => d.leadId === lead.id);
                   const currentStageName = leadDeal ? leadDeal.stageName : 'New Lead';
                   const currentStageObj = stages.find(s => s.id === leadDeal?.stageId);
                   const isLowerRow = idx >= Math.max(0, filteredLeads.length - 2);
@@ -682,13 +695,14 @@ export const LeadsView = ({
 
                       {/* Status */}
                       <td className="px-4 py-3.5">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${lead.status === 'Qualified' ? 'bg-[#F0FDF4] text-[#15803D] border-[#BBF7D0]' :
-                            (lead.status === 'Buy Again' || lead.status === 'Renewal Due' || lead.status === 'Buy Renewal') ? 'bg-[#FEFCE8] text-[#A16207] border-[#FEF08A]' :
-                              lead.status === 'Unqualified' ? 'bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]' :
-                                'bg-[#FFFFFF] text-[#12161C] border-[#E3E6EA]'
-                          }`}>
-                          {lead.status}
-                        </span>
+                        {(() => {
+                          const statusStyle = getStatusBadgeStyle(lead.status);
+                          return (
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusStyle.badgeClass}`}>
+                              {lead.status}
+                            </span>
+                          );
+                        })()}
                       </td>
 
                       {/* Assigned Owner */}
@@ -709,6 +723,16 @@ export const LeadsView = ({
                       {/* Actions */}
                       <td className="px-4 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1.5 relative">
+                          {lead.status === 'Qualified' && !leadDeal && onConvertToDeal && (
+                            <button
+                              onClick={() => onConvertToDeal(lead)}
+                              className="px-2.5 py-1 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors"
+                              title="Convert to Deal"
+                            >
+                              <ArrowRightLeft className="w-3 h-3" />
+                              <span>Convert</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => handleOpenEditModal(lead)}
                             className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg transition-colors"
@@ -741,6 +765,13 @@ export const LeadsView = ({
                                 >
                                   <Calendar className="w-3.5 h-3.5 text-[#3F7A5C]" />
                                   <span>Add Activity</span>
+                                </button>
+                                <button
+                                  onClick={() => handleOpenLeadStageGate(lead)}
+                                  className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5 text-[#1D4E63]" />
+                                  <span>Change Stage / Gate</span>
                                 </button>
                               </div>
                             )}
@@ -875,9 +906,10 @@ export const LeadsView = ({
                     className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
                   >
                     <option value="New">New</option>
-                    <option value="Contacted">Contacted</option>
+                    <option value="Working">Working</option>
                     <option value="Qualified">Qualified</option>
                     <option value="Unqualified">Unqualified</option>
+                    <option value="Converted">Converted</option>
                   </select>
                 </div>
 
@@ -953,8 +985,8 @@ export const LeadsView = ({
         targetStage={gateCheckTargetStage}
         currentUser={currentUser}
         onSubmitCheck={onSubmitStageGateCheck}
-        onApproveCheck={() => { }}
-        onRejectCheck={() => { }}
+        onApproveCheck={() => gateCheckDeal && handleApproveLeadStage(gateCheckDeal)}
+        onRejectCheck={(_, __, reason) => gateCheckDeal && handleRejectLeadStage(gateCheckDeal, reason)}
         onSaveDraft={() => { }}
       />
 

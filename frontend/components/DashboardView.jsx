@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Users,
   Trophy,
@@ -10,9 +9,20 @@ import {
   RefreshCw,
   ChevronRight,
   Layers,
-  Send
+  Send,
+  AlertTriangle,
+  Clock,
+  Flag,
+  ArrowRight
 } from 'lucide-react';
-import { formatCurrency, formatDate, filterByRole } from '../utils/crmHelpers.js';
+import {
+  formatCurrency,
+  formatDate,
+  filterByRole,
+  isDealStale,
+  getStageAgingStatus,
+  isCloseDateOverdue
+} from '../utils/crmHelpers.js';
 import { ManifestStrip } from './ManifestStrip.jsx';
 
 const getStageBarColor = (stageName, category) => {
@@ -57,6 +67,15 @@ export const DashboardView = ({
 
   const todayStr = new Date().toISOString().split('T')[0];
   const pendingTasksToday = userTasks.filter(t => t.status === 'pending' && t.dueDate <= todayStr);
+
+  // Stale and at-risk deals detection
+  const staleOrAtRiskDeals = userDeals.filter(d =>
+    d.status !== 'Won' && d.status !== 'Lost' && (
+      isDealStale(d.lastActivityDate) ||
+      getStageAgingStatus(d.daysInStage).level === 'risk' ||
+      isCloseDateOverdue(d.expectedCloseDate, d.status)
+    )
+  );
 
   // Outbound Activity Metrics
   const outboundCalls = activities.filter(a => a.isOutbound && a.type === 'Outbound Call').length;
@@ -211,6 +230,71 @@ export const DashboardView = ({
           </div>
 
         </div>
+
+        {/* Stale & At-Risk Opportunities Intervention Widget */}
+        {staleOrAtRiskDeals.length > 0 && (
+          <div className="bg-[#FFFFFF] border border-[#F5DDA9] p-5 rounded-2xl shadow-[0_1px_2px_rgba(18,22,28,0.06)] space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E3E6EA] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-[#FEF8EC] text-[#965700] border border-[#F5DDA9]">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-display text-sm font-bold text-[#12161C]">
+                    {staleOrAtRiskDeals.length} Deal Opportunities Require Urgent Intervention
+                  </h3>
+                  <p className="text-xs text-[#5B6472]">
+                    Deals inactive &gt;10 days, exceeding stage aging limit (&gt;15d), or overdue close date.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => onNavigateTab('pipeline')}
+                className="text-xs font-bold text-[#1D4E63] hover:text-[#153B4B] flex items-center gap-1 shrink-0"
+              >
+                <span>View in Kanban</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+              {staleOrAtRiskDeals.slice(0, 3).map(deal => {
+                const aging = getStageAgingStatus(deal.daysInStage);
+                const stale = isDealStale(deal.lastActivityDate);
+                const overdue = isCloseDateOverdue(deal.expectedCloseDate, deal.status);
+                return (
+                  <div key={deal.id} className="p-3.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#12161C] truncate max-w-[160px]">{deal.title}</span>
+                      <span className="font-mono font-bold text-[#255B40]">{formatCurrency(deal.value)}</span>
+                    </div>
+                    <div className="text-[11px] text-[#5B6472] flex items-center justify-between">
+                      <span>{deal.stageName}</span>
+                      <span>Rep: {deal.ownerName}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                      {stale && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#FEF8EC] text-[#965700] border border-[#F5DDA9] font-bold">
+                          Stale (&gt;10d)
+                        </span>
+                      )}
+                      {aging.level === 'risk' && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#B91C1C] border border-[#FECACA] font-bold">
+                          {aging.label}
+                        </span>
+                      )}
+                      {overdue && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#DC2626] border-[#FECACA] font-bold">
+                          Overdue
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Outbound Sales Activity Metrics Highlight */}
         <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl space-y-4 shadow-[0_1px_2px_rgba(18,22,28,0.06)]">

@@ -9,27 +9,49 @@ import {
   ChevronLeft,
   X,
   Search,
-  MoreHorizontal,
   Flag,
   ShieldCheck,
   Clock,
   AlertTriangle,
   Layers,
   PhoneCall,
-  CheckCircle2
+  CheckCircle2,
+  Ban,
+  ShieldAlert,
+  ArrowRight,
+  Sparkles,
+  ExternalLink
 } from 'lucide-react';
-import { formatCurrency, filterByRole } from '../utils/crmHelpers.js';
+import {
+  formatCurrency,
+  filterByRole,
+  getStageAgingStatus,
+  isDealStale,
+  isCloseDateOverdue,
+  isProposalExpiringSoon,
+  ALLOWED_TRANSITIONS
+} from '../utils/crmHelpers.js';
 import { StageGateCheckModal } from './StageGateCheckModal.jsx';
 import { AddActivityModal } from './AddActivityModal.jsx';
 
+const LOST_REASONS = [
+  'Price / Budget mismatch',
+  'Competitor won',
+  'Timeline / Project postponed',
+  'Product fit / Specifications mismatch',
+  'No decision / Lead went silent',
+  'Internal reorganization / Decision-maker left',
+  'Other (see note)'
+];
+
 export const PipelineView = ({
-  deals,
-  stages,
-  users,
-  companies,
-  contacts,
-  currentUser,
-  branding,
+  deals = [],
+  stages = [],
+  users = [],
+  companies = [],
+  contacts = [],
+  currentUser = { id: 'usr-1', name: 'Alex Vance', role: 'Admin' },
+  branding = {},
   onCreateDeal,
   onUpdateDeal,
   onDeleteDeal,
@@ -39,7 +61,10 @@ export const PipelineView = ({
   onApproveStageGateCheck,
   onRejectStageGateCheck,
   onSavePartialGateCheck,
-  onOpenSettings
+  onOpenSettings,
+  onTransitionDealStage,
+  onCloseLostDeal,
+  onCreateRebuyDeal
 }) => {
   const [draggedDealId, setDraggedDealId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,68 +77,28 @@ export const PipelineView = ({
   // Add Activity Modal state
   const [activityModalDeal, setActivityModalDeal] = useState(null);
 
-  const handleSubmitActivityFromModal = async (payload) => {
-    const { activityData, outcomeData, targetEntity } = payload;
+  // Admin Override Modal state
+  const [overrideModal, setOverrideModal] = useState({
+    isOpen: false,
+    deal: null,
+    targetStage: null,
+    reason: 'Executive bypass / rapid board repositioning'
+  });
 
-    if (onCreateActivity) {
-      await onCreateActivity(activityData);
-    }
+  // Quick Close Lost Modal state
+  const [closeLostModal, setCloseLostModal] = useState({
+    isOpen: false,
+    deal: null,
+    reason: LOST_REASONS[0],
+    note: ''
+  });
 
-    if (outcomeData.shouldAdvanceStage && outcomeData.targetStageObj && onUpdateDeal) {
-      // Auto-approved (Admin / Manager)
-      await onUpdateDeal(targetEntity.id, {
-        stageId: outcomeData.targetStageObj.id,
-        stageName: outcomeData.targetStageObj.name,
-        status: outcomeData.newStatus || 'Active',
-        pendingGateCheck: null
-      });
-    } else if (outcomeData.requiresManagerApproval && outcomeData.targetStageObj) {
-      // Pending Manager / Admin Approval Request (Sales Rep)
-      if (onSubmitStageGateCheck) {
-        await onSubmitStageGateCheck(targetEntity.id, {
-          targetStageId: outcomeData.targetStageObj.id,
-          submittedById: currentUser.id,
-          submittedByName: currentUser.name,
-          submittedAt: new Date().toISOString(),
-          answers: outcomeData.criteriaAnswers,
-          badgeText: `Pending ${outcomeData.targetStageObj.name} Approval`
-        });
-      } else if (onUpdateDeal) {
-        await onUpdateDeal(targetEntity.id, {
-          status: 'Pending Review',
-          pendingGateCheck: {
-            targetStageId: outcomeData.targetStageObj.id,
-            submittedById: currentUser.id,
-            submittedByName: currentUser.name,
-            submittedAt: new Date().toISOString(),
-            answers: outcomeData.criteriaAnswers
-          }
-        });
-      }
-    } else if (onUpdateDeal) {
-      // Unfulfilled criteria or disconnected
-      await onUpdateDeal(targetEntity.id, {
-        status: 'Follow up'
-      });
-    }
-
-    if (onCreateTask && outcomeData.assignedOwnerId) {
-      await onCreateTask({
-        title: `[Follow-up] ${activityData.type}: ${targetEntity.title}`,
-        dueDate: outcomeData.dueDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],
-        type: activityData.type === 'Meeting' ? 'Meeting' : 'Call',
-        linkedType: 'Deal',
-        linkedId: targetEntity.id,
-        linkedTitle: targetEntity.title,
-        ownerId: outcomeData.assignedOwnerId,
-        ownerName: outcomeData.assignedOwnerName,
-        status: 'pending',
-        note: outcomeData.summaryNote
-      });
-    }
-
-    setActivityModalDeal(null);
-  };
+  // Target Picker Modal (for stages with multiple branch transitions, e.g. Contacted -> Sample Sent OR Proposal Sent)
+  const [targetPickerModal, setTargetPickerModal] = useState({
+    isOpen: false,
+    deal: null,
+    targets: []
+  });
 
   // Stage Gate Check Modal state
   const [isGateModalOpen, setIsGateModalOpen] = useState(false);
@@ -146,10 +131,84 @@ export const PipelineView = ({
     return matchesSearch && matchesStatus;
   });
 
+  const handleSubmitActivityFromModal = async (payload) => {
+    const { activityData, outcomeData, targetEntity } = payload;
+
+    if (onCreateActivity) {
+      await onCreateActivity(activityData);
+    }
+
+    if (outcomeData.shouldAdvanceStage && outcomeData.targetStageObj) {
+      if (onTransitionDealStage) {
+        await onTransitionDealStage(targetEntity.id, {
+          targetStageId: outcomeData.targetStageObj.id,
+          user: currentUser,
+          adminOverride: currentUser.role === 'Admin',
+          overrideReason: 'Advanced via activity outcome gate check'
+        });
+      } else if (onUpdateDeal) {
+        await onUpdateDeal(targetEntity.id, {
+          stageId: outcomeData.targetStageObj.id,
+          stageName: outcomeData.targetStageObj.name,
+          status: outcomeData.newStatus || 'Active',
+          pendingGateCheck: null
+        });
+      }
+    } else if (outcomeData.requiresManagerApproval && outcomeData.targetStageObj) {
+      const fromStg = stages.find(s => s.id === targetEntity.stageId) || sortedStages[0];
+      const checkPayload = {
+        dealId: targetEntity.id,
+        leadId: targetEntity.leadId || null,
+        dealTitle: targetEntity.title,
+        fromStageId: fromStg?.id,
+        fromStageName: fromStg?.name || targetEntity.stageName || 'Current Stage',
+        targetStageId: outcomeData.targetStageObj.id,
+        targetStageName: outcomeData.targetStageObj.name,
+        submittedBy: currentUser.id,
+        submittedByName: currentUser.name,
+        answers: outcomeData.criteriaAnswers || {},
+        note: activityData.description || outcomeData.summaryNote || '',
+        status: 'pending_review',
+        outcome: 'advanced',
+        badgeText: `Pending ${outcomeData.targetStageObj.name} Approval`
+      };
+
+      if (onSubmitStageGateCheck) {
+        await onSubmitStageGateCheck(checkPayload);
+      } else if (onUpdateDeal) {
+        await onUpdateDeal(targetEntity.id, {
+          status: 'Pending Review',
+          pendingGateCheck: checkPayload
+        });
+      }
+    } else if (onUpdateDeal) {
+      await onUpdateDeal(targetEntity.id, {
+        status: 'Follow up'
+      });
+    }
+
+    if (onCreateTask && outcomeData.assignedOwnerId) {
+      await onCreateTask({
+        title: `[Follow-up] ${activityData.type}: ${targetEntity.title}`,
+        dueDate: outcomeData.dueDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        type: activityData.type === 'Meeting' ? 'Meeting' : 'Call',
+        linkedType: 'Deal',
+        linkedId: targetEntity.id,
+        linkedTitle: targetEntity.title,
+        ownerId: outcomeData.assignedOwnerId,
+        ownerName: outcomeData.assignedOwnerName,
+        status: 'pending',
+        note: outcomeData.summaryNote
+      });
+    }
+
+    setActivityModalDeal(null);
+  };
+
   const handleDragStart = (e, dealId) => {
     if (currentUser.role !== 'Admin') {
       e.preventDefault();
-      alert("Drag & Drop is reserved for Admin users. Please click 'Stage Gate Check' or the arrow controls on the deal card.");
+      alert("Drag & Drop is reserved for Admin users. Standard Reps must complete stage gate checks using the card controls.");
       return;
     }
     e.dataTransfer.setData('text/plain', dealId);
@@ -170,7 +229,7 @@ export const PipelineView = ({
     setIsGateModalOpen(true);
   };
 
-  const handleDrop = async (e, targetStageId) => {
+  const handleDrop = (e, targetStageId) => {
     e.preventDefault();
     if (currentUser.role !== 'Admin') {
       alert("Drag & Drop is reserved for Admin users.");
@@ -184,35 +243,118 @@ export const PipelineView = ({
     const targetStage = stages.find(s => s.id === targetStageId);
     if (!deal || !targetStage || deal.stageId === targetStageId) return;
 
-    if (onUpdateDeal) {
-      await onUpdateDeal(deal.id, {
-        stageId: targetStage.id,
-        stageName: targetStage.name
-      });
-    }
+    // Prompt Admin Override Modal for audit trail accountability
+    setOverrideModal({
+      isOpen: true,
+      deal,
+      targetStage,
+      reason: `Admin drag-and-drop moved to ${targetStage.name}`
+    });
     setDraggedDealId(null);
   };
 
-  const handleMoveStep = async (deal, direction) => {
-    const currentIndex = sortedStages.findIndex(s => s.id === deal.stageId);
-    if (currentIndex === -1) return;
+  const handleConfirmAdminOverride = async (e) => {
+    e.preventDefault();
+    const { deal, targetStage, reason } = overrideModal;
+    if (!deal || !targetStage) return;
 
-    const newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
-    if (newIndex < 0 || newIndex >= sortedStages.length) return;
+    if (onTransitionDealStage) {
+      await onTransitionDealStage(deal.id, {
+        targetStageId: targetStage.id,
+        user: currentUser,
+        adminOverride: true,
+        overrideReason: reason || 'Admin Kanban board drag-and-drop override'
+      });
+    } else if (onUpdateDeal) {
+      await onUpdateDeal(deal.id, {
+        stageId: targetStage.id,
+        stageName: targetStage.name,
+        status: targetStage.category === 'Won' ? 'Won' : targetStage.category === 'Lost' ? 'Lost' : 'Active'
+      });
+    }
 
-    const nextStage = sortedStages[newIndex];
+    setOverrideModal({ isOpen: false, deal: null, targetStage: null, reason: '' });
+  };
 
-    if (currentUser.role === 'Admin') {
-      if (onUpdateDeal) {
-        await onUpdateDeal(deal.id, {
-          stageId: nextStage.id,
-          stageName: nextStage.name
-        });
-      }
+  const handleAdvanceStep = (deal) => {
+    const currentStage = stages.find(s => s.id === deal.stageId);
+    const currentName = currentStage?.name || deal.stageName || 'New Lead';
+    const allowed = (ALLOWED_TRANSITIONS[currentName] || []).filter(name => name !== 'Closed Lost');
+
+    if (!allowed || allowed.length === 0) {
+      alert(`No forward stages available from "${currentName}".`);
       return;
     }
 
-    handleOpenGateCheckModal(deal, nextStage);
+    if (allowed.length === 1) {
+      const targetStage = stages.find(s => s.name === allowed[0]);
+      if (targetStage) {
+        handleOpenGateCheckModal(deal, targetStage);
+      }
+    } else {
+      // Multiple options (e.g. Contacted -> Sample Sent OR Proposal Sent)
+      const targetStageObjs = allowed.map(name => stages.find(s => s.name === name)).filter(Boolean);
+      setTargetPickerModal({
+        isOpen: true,
+        deal,
+        targets: targetStageObjs
+      });
+    }
+  };
+
+  const handleDemoteStep = (deal) => {
+    const currentIndex = sortedStages.findIndex(s => s.id === deal.stageId);
+    if (currentIndex <= 0) return;
+
+    const prevStage = sortedStages[currentIndex - 1];
+    handleOpenGateCheckModal(deal, prevStage);
+  };
+
+  const handleOpenCloseLost = (deal) => {
+    setCloseLostModal({
+      isOpen: true,
+      deal,
+      reason: LOST_REASONS[0],
+      note: ''
+    });
+  };
+
+  const handleConfirmCloseLost = async (e) => {
+    e.preventDefault();
+    const { deal, reason, note } = closeLostModal;
+    if (!deal) return;
+
+    if (!note.trim()) {
+      alert('Please provide context or notes explaining why this deal was marked Lost.');
+      return;
+    }
+
+    if (onCloseLostDeal) {
+      await onCloseLostDeal(deal.id, {
+        lostReason: reason,
+        lostNote: note,
+        user: currentUser
+      });
+    } else if (onUpdateDeal) {
+      const lostStage = stages.find(s => s.name === 'Closed Lost') || { id: 'stg-lost', name: 'Closed Lost' };
+      await onUpdateDeal(deal.id, {
+        stageId: lostStage.id,
+        stageName: lostStage.name,
+        status: 'Lost',
+        lostReason: reason,
+        lostNote: note
+      });
+    }
+
+    setCloseLostModal({ isOpen: false, deal: null, reason: LOST_REASONS[0], note: '' });
+  };
+
+  const handleCreateRebuy = async (deal) => {
+    if (onCreateRebuyDeal) {
+      await onCreateRebuyDeal(deal.id);
+    } else {
+      alert('Rebuy creation service is not available.');
+    }
   };
 
   const handleOpenAddModal = (stageId) => {
@@ -261,7 +403,7 @@ export const PipelineView = ({
               <span>Pipeline Kanban Console</span>
             </h1>
             <p className="text-xs text-[#5B6472] mt-1 font-medium">
-              Manage deal opportunities, physical sample dispatches & repeat customer renewals
+              Manage deal opportunities, physical sample dispatches, stage gate governance & repeat customer renewals
             </p>
           </div>
 
@@ -273,7 +415,7 @@ export const PipelineView = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search deals..."
+                placeholder="Search deals or companies..."
                 className="bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl pl-9 pr-3 py-1.5 text-xs text-[#12161C] placeholder-[#5B6472] focus:outline-none focus:border-[#1D4E63]"
               />
             </div>
@@ -293,7 +435,7 @@ export const PipelineView = ({
       <div className="flex-1 flex gap-4 overflow-x-auto pb-4 pt-1 items-stretch min-h-0 custom-horizontal-scrollbar">
         {sortedStages.map(stage => {
           const stageDeals = filteredDeals.filter(d => d.stageId === stage.id);
-          const totalVal = stageDeals.reduce((sum, d) => sum + d.value, 0);
+          const totalVal = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
 
           return (
             <div
@@ -355,6 +497,12 @@ export const PipelineView = ({
                         ? 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
                         : 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]';
 
+                    // Health metrics
+                    const aging = getStageAgingStatus(deal.daysInStage);
+                    const stale = isDealStale(deal.lastActivityDate);
+                    const overdue = isCloseDateOverdue(deal.expectedCloseDate, deal.status);
+                    const proposalWarn = isProposalExpiringSoon(deal.proposalExpiryDate);
+
                     return (
                       <div
                         key={deal.id}
@@ -372,11 +520,60 @@ export const PipelineView = ({
                               {priorityLabel}
                             </span>
 
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold bg-[#F6F7F8] text-[#5B6472] border border-[#E3E6EA]">
-                              {deal.isRecurring ? 'Recurring' : 'B2B Deal'}
+                            {/* Stage Aging Badge */}
+                            <span
+                              className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border flex items-center gap-1 ${aging.bg} ${aging.text} ${aging.border}`}
+                              title={`${deal.daysInStage || 0} days spent in stage (${aging.level})`}
+                            >
+                              <Clock className="w-2.5 h-2.5" />
+                              <span>{deal.daysInStage || 0}d</span>
                             </span>
 
-                            {/* Stage Gate Badges */}
+                            {/* Stale Warning Badge */}
+                            {stale && (
+                              <span
+                                className="bg-[#FEF8EC] text-[#965700] border border-[#F5DDA9] text-[10px] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse"
+                                title="No activity recorded in over 10 days"
+                              >
+                                <AlertTriangle className="w-2.5 h-2.5 text-[#C6790A]" />
+                                <span>Stale</span>
+                              </span>
+                            )}
+
+                            {/* Proposal Expiring Warning Badge */}
+                            {proposalWarn && (
+                              <span
+                                className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border ${proposalWarn.badgeClass}`}
+                                title={proposalWarn.label}
+                              >
+                                <Clock className="w-2.5 h-2.5" />
+                                <span>{proposalWarn.label}</span>
+                              </span>
+                            )}
+
+                            {/* Overdue Close Date Badge */}
+                            {overdue && (
+                              <span
+                                className="bg-[#FDF2F1] text-[#B5423A] border border-[#F4C4C1] text-[10px] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
+                                title="Expected close date has passed"
+                              >
+                                <Flag className="w-2.5 h-2.5 text-[#B5423A]" />
+                                <span>Overdue</span>
+                              </span>
+                            )}
+
+                            {/* Rebuy Child Badge */}
+                            {deal.parentDealId && (
+                              <span
+                                className="bg-[#EFF6F9] text-[#1D4E63] border border-[#D8E8EF] text-[10px] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
+                                title={`Linked renewal child of ${deal.parentDealId}`}
+                              >
+                                <RefreshCw className="w-2.5 h-2.5 text-[#1D4E63]" />
+                                <span>Rebuy Child</span>
+                              </span>
+                            )}
+
+                            {/* Stage Gate Review Badges */}
                             {deal.pendingGateCheck ? (
                               <button
                                 onClick={() => handleOpenGateCheckModal(deal, stages.find(s => s.id === deal.pendingGateCheck.targetStageId))}
@@ -399,12 +596,26 @@ export const PipelineView = ({
                             ) : null}
                           </div>
 
-                          <button
-                            onClick={() => handleOpenEditModal(deal)}
-                            className="p-1 text-[#5B6472] hover:text-[#12161C] rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            {/* Quick Close Lost trigger */}
+                            {deal.status !== 'Won' && deal.status !== 'Lost' && (
+                              <button
+                                onClick={() => handleOpenCloseLost(deal)}
+                                className="p-1 text-[#5B6472] hover:text-[#B5423A] hover:bg-[#FDF2F1] rounded opacity-0 group-hover:opacity-100 transition-all"
+                                title="Quick Close as Lost"
+                              >
+                                <Ban className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => handleOpenEditModal(deal)}
+                              className="p-1 text-[#5B6472] hover:text-[#12161C] rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Edit deal details"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Deal Title */}
@@ -444,16 +655,29 @@ export const PipelineView = ({
                           )}
                         </div>
 
+                        {/* Action Buttons */}
+                        <div className="space-y-1.5 pt-1">
+                          {/* Create Rebuy Button for Won Deals */}
+                          {(deal.status === 'Won' || deal.stageName === 'Closed Won') && (
+                            <button
+                              onClick={() => handleCreateRebuy(deal)}
+                              className="w-full py-1.5 px-2 bg-[#F0FDF4] hover:bg-[#DCFCE7] border border-[#BBF7D0] rounded-lg text-[11px] text-[#15803D] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                              title="Create child rebuy deal without mutating this Won contract"
+                            >
+                              <RefreshCw className="w-3 h-3 text-[#15803D]" />
+                              <span>Generate Rebuy Deal</span>
+                            </button>
+                          )}
 
-
-                        {/* Quick Add Activity & Qualification Button */}
-                        <button
-                          onClick={() => setActivityModalDeal(deal)}
-                          className="w-full py-1.5 px-2 bg-[#F6F7F8] hover:bg-[#EFF6F9] border border-[#E3E6EA] hover:border-[#D8E8EF] rounded-lg text-[11px] text-[#1D4E63] font-bold flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <PhoneCall className="w-3 h-3 text-[#1D4E63]" />
-                          <span>Log Activity & Gate Check</span>
-                        </button>
+                          {/* Quick Add Activity & Qualification Button */}
+                          <button
+                            onClick={() => setActivityModalDeal(deal)}
+                            className="w-full py-1.5 px-2 bg-[#F6F7F8] hover:bg-[#EFF6F9] border border-[#E3E6EA] hover:border-[#D8E8EF] rounded-lg text-[11px] text-[#1D4E63] font-bold flex items-center justify-center gap-1.5 transition-colors"
+                          >
+                            <PhoneCall className="w-3 h-3 text-[#1D4E63]" />
+                            <span>Log Activity & Gate Check</span>
+                          </button>
+                        </div>
 
                         {/* Card Footer */}
                         <div className="flex items-center justify-between pt-1 text-[10px] text-[#5B6472]">
@@ -461,6 +685,9 @@ export const PipelineView = ({
                             <div className="w-5 h-5 rounded-full bg-[#1D4E63] text-white font-mono font-extrabold flex items-center justify-center text-[10px] ring-2 ring-[#FFFFFF]">
                               {deal.ownerName ? deal.ownerName.charAt(0).toUpperCase() : 'A'}
                             </div>
+                            <span className="text-[11px] font-medium text-[#12161C] pl-2.5">
+                              {deal.ownerName || 'Alex Vance'}
+                            </span>
                           </div>
 
                           <div className="flex items-center gap-2">
@@ -471,16 +698,16 @@ export const PipelineView = ({
 
                             <div className="flex items-center gap-0.5">
                               <button
-                                onClick={() => handleMoveStep(deal, 'prev')}
+                                onClick={() => handleDemoteStep(deal)}
                                 className="p-1 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded"
-                                title="Previous stage"
+                                title="Demote / previous stage (requires mandatory demotion reason)"
                               >
                                 <ChevronLeft className="w-3 h-3" />
                               </button>
                               <button
-                                onClick={() => handleMoveStep(deal, 'next')}
+                                onClick={() => handleAdvanceStep(deal)}
                                 className="p-1 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded"
-                                title="Next stage"
+                                title="Advance to next stage (Stage Gate Check)"
                               >
                                 <ChevronRight className="w-3 h-3" />
                               </button>
@@ -499,6 +726,210 @@ export const PipelineView = ({
           );
         })}
       </div>
+
+      {/* Target Picker Modal (For branching stages, e.g. Contacted -> Sample Sent OR Proposal Sent) */}
+      {targetPickerModal.isOpen && targetPickerModal.deal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl text-[#12161C]">
+            <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-3">
+              <div>
+                <h2 className="font-display text-sm font-bold text-[#12161C]">Select Next Pipeline Stage</h2>
+                <p className="text-xs text-[#5B6472] mt-0.5">
+                  Choose the destination stage for <strong>{targetPickerModal.deal.title}</strong>
+                </p>
+              </div>
+              <button
+                onClick={() => setTargetPickerModal({ isOpen: false, deal: null, targets: [] })}
+                className="text-[#5B6472] hover:text-[#12161C] p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              {targetPickerModal.targets.map(targetStage => {
+                const isSkipSample = targetStage.name === 'Proposal Sent' && targetPickerModal.deal.stageName === 'Contacted';
+
+                return (
+                  <button
+                    key={targetStage.id}
+                    onClick={() => {
+                      const deal = targetPickerModal.deal;
+                      setTargetPickerModal({ isOpen: false, deal: null, targets: [] });
+                      handleOpenGateCheckModal(deal, targetStage);
+                    }}
+                    className="w-full text-left p-3.5 rounded-xl border border-[#E3E6EA] hover:border-[#1D4E63] hover:bg-[#F6F7F8] transition-all flex items-start justify-between group"
+                  >
+                    <div>
+                      <div className="font-bold text-xs text-[#12161C] flex items-center gap-2">
+                        <span>{targetStage.name}</span>
+                        {isSkipSample && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 bg-[#EFF6F9] text-[#1D4E63] border border-[#D8E8EF] rounded-full font-semibold">
+                            Skip Sample
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[#5B6472] mt-1">
+                        {isSkipSample
+                          ? 'Buyer waived physical sample trial. Proceed directly to price quotation & proposal gate check.'
+                          : `Advance deal to ${targetStage.name} stage verification.`}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#5B6472] group-hover:text-[#1D4E63] shrink-0 mt-0.5" />
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setTargetPickerModal({ isOpen: false, deal: null, targets: [] })}
+                className="px-4 py-1.5 text-xs text-[#5B6472] hover:text-[#12161C] font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Override Modal (Mandatory accountability for Admin drag-and-drop & bypasses) */}
+      {overrideModal.isOpen && overrideModal.deal && overrideModal.targetStage && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl text-[#12161C]">
+            <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-3">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-[#C6790A]" />
+                <h2 className="font-display text-sm font-bold text-[#12161C]">Admin Stage Override Verification</h2>
+              </div>
+              <button
+                onClick={() => setOverrideModal({ isOpen: false, deal: null, targetStage: null, reason: '' })}
+                className="text-[#5B6472] hover:text-[#12161C] p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-[#FEF8EC] border border-[#F5DDA9] p-3.5 rounded-xl text-xs text-[#965700] space-y-1">
+              <div className="font-bold flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Audited Governance Override</span>
+              </div>
+              <p className="text-[#5B6472]">
+                You are transitioning <strong>{overrideModal.deal.title}</strong> directly from <strong>{overrideModal.deal.stageName}</strong> to <strong>{overrideModal.targetStage.name}</strong>. This bypass will be permanently logged in the audit ledger.
+              </p>
+            </div>
+
+            <form onSubmit={handleConfirmAdminOverride} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-[#12161C] font-bold mb-1">
+                  Override Justification / Reason *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={overrideModal.reason}
+                  onChange={(e) => setOverrideModal({ ...overrideModal, reason: e.target.value })}
+                  placeholder="e.g. Executive approval by VP of Sales, client expedited onboarding"
+                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E3E6EA]">
+                <button
+                  type="button"
+                  onClick={() => setOverrideModal({ isOpen: false, deal: null, targetStage: null, reason: '' })}
+                  className="px-4 py-2 bg-[#F6F7F8] hover:bg-[#EEF0F3] text-[#5B6472] rounded-full font-semibold border border-[#E3E6EA]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-full font-bold shadow-2xs"
+                >
+                  Confirm &amp; Log Override
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Close Lost Modal */}
+      {closeLostModal.isOpen && closeLostModal.deal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl text-[#12161C]">
+            <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-3">
+              <div className="flex items-center gap-2">
+                <Ban className="w-5 h-5 text-[#B5423A]" />
+                <h2 className="font-display text-sm font-bold text-[#12161C]">Close Deal as Lost</h2>
+              </div>
+              <button
+                onClick={() => setCloseLostModal({ isOpen: false, deal: null, reason: LOST_REASONS[0], note: '' })}
+                className="text-[#5B6472] hover:text-[#12161C] p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmCloseLost} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-[#12161C] font-bold mb-1">
+                  Deal Opportunity
+                </label>
+                <p className="text-xs font-semibold text-[#5B6472] bg-[#F6F7F8] p-2 rounded-lg border border-[#E3E6EA]">
+                  {closeLostModal.deal.title} ({formatCurrency(closeLostModal.deal.value)})
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[#12161C] font-bold mb-1">
+                  Primary Lost Reason *
+                </label>
+                <select
+                  value={closeLostModal.reason}
+                  onChange={(e) => setCloseLostModal({ ...closeLostModal, reason: e.target.value })}
+                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
+                >
+                  {LOST_REASONS.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[#12161C] font-bold mb-1">
+                  Context / Notes (Mandatory) *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={closeLostModal.note}
+                  onChange={(e) => setCloseLostModal({ ...closeLostModal, note: e.target.value })}
+                  placeholder="Detail what happened, which competitor won, or pricing friction observed..."
+                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E3E6EA]">
+                <button
+                  type="button"
+                  onClick={() => setCloseLostModal({ isOpen: false, deal: null, reason: LOST_REASONS[0], note: '' })}
+                  className="px-4 py-2 bg-[#F6F7F8] hover:bg-[#EEF0F3] text-[#5B6472] rounded-full font-semibold border border-[#E3E6EA]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-[#B5423A] hover:bg-[#922D27] text-white rounded-full font-bold shadow-2xs"
+                >
+                  Confirm Close Lost
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit Deal Modal */}
       {isModalOpen && (
@@ -626,7 +1057,7 @@ export const PipelineView = ({
                 {formData.isRecurring && (
                   <div>
                     <label className="block text-[11px] text-[#5B6472] mb-1 font-medium">
-                      Auto Renewal Cycle (Days after Won status to flip to "Buy Again")
+                      Auto Renewal Cycle (Days after Won status to generate Rebuy opportunity)
                     </label>
                     <input
                       type="number"

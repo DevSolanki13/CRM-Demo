@@ -133,9 +133,43 @@ export const deleteDeal = (req, res) => {
   res.json({ success });
 };
 
+export const transitionDealStage = (req, res) => {
+  try {
+    const result = crmStore.transitionDealStage(req.params.id, req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const closeLostDeal = (req, res) => {
+  try {
+    const result = crmStore.closeLostDeal(req.params.id, req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+export const createRebuyDeal = (req, res) => {
+  try {
+    const rebuyDeal = crmStore.createRebuyDeal(req.params.id, req.body.user);
+    if (!rebuyDeal) {
+      return res.status(404).json({ error: 'Parent deal not found' });
+    }
+    res.status(201).json(rebuyDeal);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
 export const checkRenewals = (_req, res) => {
   const result = crmStore.triggerRenewalCheck();
   res.json({ success: true, flippedCount: result.flippedCount, state: result.state });
+};
+
+export const getAuditLogs = (_req, res) => {
+  res.json(crmStore.getAuditLogs());
 };
 
 // Tasks

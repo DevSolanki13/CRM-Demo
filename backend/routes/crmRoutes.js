@@ -40,6 +40,12 @@ crmRouter.post('/deals', crmController.createDeal);
 crmRouter.put('/deals/:id', crmController.updateDeal);
 crmRouter.delete('/deals/:id', crmController.deleteDeal);
 crmRouter.post('/deals/check-renewals', crmController.checkRenewals);
+crmRouter.post('/deals/:id/stage-transition', crmController.transitionDealStage);
+crmRouter.post('/deals/:id/close-lost', crmController.closeLostDeal);
+crmRouter.post('/deals/:id/create-rebuy', crmController.createRebuyDeal);
+
+// Audit Logs
+crmRouter.get('/audit-logs', crmController.getAuditLogs);
 
 // Tasks
 crmRouter.get('/tasks', crmController.getTasks);

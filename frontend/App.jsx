@@ -17,6 +17,10 @@ import {
   createDeal,
   updateDeal,
   deleteDeal,
+  transitionDealStage,
+  closeLostDeal,
+  createRebuyDeal,
+  fetchAuditLogs,
   triggerRenewalAutomation,
   createTask,
   updateTask,
@@ -278,77 +282,20 @@ export default function App() {
 
   const handleApproveStageGateCheck = async (id, reviewer) => {
     const cleanId = String(id).replace('v-task-', '');
-    const deal = state.deals.find(d => d.id === cleanId || d.leadId === cleanId);
-
-    if (deal) {
-      const targetStageId = deal.pendingGateCheck?.targetStageId;
-      const sortedStages = [...state.stages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-      const curIdx = sortedStages.findIndex(s => s.id === deal.stageId || s.name === deal.stageName);
-      const nextStg = targetStageId 
-        ? sortedStages.find(s => s.id === targetStageId) 
-        : (curIdx !== -1 && curIdx + 1 < sortedStages.length ? sortedStages[curIdx + 1] : sortedStages[0]);
-
-      if (nextStg) {
-        await handleUpdateDeal(deal.id, {
-          stageId: nextStg.id,
-          stageName: nextStg.name,
-          status: nextStg.category === 'Won' ? 'Won' : 'Active',
-          pendingGateCheck: null
-        });
-      }
-
-      const linkedLead = state.leads.find(l => l.id === deal.leadId || l.title === deal.title);
-      if (linkedLead) {
-        await handleUpdateLead(linkedLead.id, {
-          status: 'Qualified'
-        });
-      }
-    } else {
-      const lead = state.leads.find(l => l.id === cleanId);
-      if (lead) {
-        await handleUpdateLead(lead.id, {
-          status: 'Qualified'
-        });
-      }
-    }
-
     try {
       await approveStageGateCheck(cleanId, reviewer);
-    } catch (_e) {
-      // ignore
+    } catch (err) {
+      console.warn('approveStageGateCheck error:', err);
     }
     await reloadState();
   };
 
   const handleRejectStageGateCheck = async (id, reviewer, reason) => {
     const cleanId = String(id).replace('v-task-', '');
-    const deal = state.deals.find(d => d.id === cleanId || d.leadId === cleanId);
-
-    if (deal) {
-      await handleUpdateDeal(deal.id, {
-        status: 'Follow up',
-        pendingGateCheck: null
-      });
-
-      const linkedLead = state.leads.find(l => l.id === deal.leadId || l.title === deal.title);
-      if (linkedLead) {
-        await handleUpdateLead(linkedLead.id, {
-          status: 'Follow up'
-        });
-      }
-    } else {
-      const lead = state.leads.find(l => l.id === cleanId);
-      if (lead) {
-        await handleUpdateLead(lead.id, {
-          status: 'Follow up'
-        });
-      }
-    }
-
     try {
       await rejectStageGateCheck(cleanId, reviewer, reason);
-    } catch (_e) {
-      // ignore
+    } catch (err) {
+      console.warn('rejectStageGateCheck error:', err);
     }
     await reloadState();
   };
@@ -356,6 +303,67 @@ export default function App() {
   const handleSavePartialGateCheck = async (dealId, partialState) => {
     await updateDeal(dealId, { partialGateState: partialState });
     await reloadState();
+  };
+
+  // Stage Transition Handlers
+  const handleTransitionDealStage = async (dealId, payload) => {
+    try {
+      const res = await transitionDealStage(dealId, payload);
+      await reloadState();
+      return res;
+    } catch (err) {
+      alert(err.message || 'Stage transition failed');
+      throw err;
+    }
+  };
+
+  const handleCloseLostDeal = async (dealId, payload) => {
+    try {
+      const res = await closeLostDeal(dealId, payload);
+      await reloadState();
+      return res;
+    } catch (err) {
+      alert(err.message || 'Close lost failed');
+      throw err;
+    }
+  };
+
+  const handleCreateRebuyDeal = async (parentDealId) => {
+    try {
+      const res = await createRebuyDeal(parentDealId, currentUser);
+      await reloadState();
+      return res;
+    } catch (err) {
+      alert(err.message || 'Failed to create rebuy deal');
+      throw err;
+    }
+  };
+
+  const handleConvertToDeal = async (lead) => {
+    try {
+      const initialStage = state.stages.find(s => s.order === 1) || state.stages[0];
+      const newDeal = {
+        title: `${lead.companyName || lead.title} - Opportunity`,
+        value: 35000,
+        stageId: initialStage.id,
+        stageName: initialStage.name,
+        status: 'Active',
+        companyId: lead.companyId || '',
+        companyName: lead.companyName || '',
+        contactId: lead.contactId || '',
+        contactName: lead.contactName || '',
+        ownerId: lead.ownerId || currentUser.id,
+        ownerName: lead.ownerName || currentUser.name,
+        leadId: lead.id,
+        expectedCloseDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        isRecurring: true,
+        recurrenceDays: 60
+      };
+      await createDeal(newDeal);
+      await reloadState();
+    } catch (err) {
+      alert(err.message || 'Failed to convert lead to deal');
+    }
   };
 
   // Quick Action Handler from Header
@@ -430,6 +438,7 @@ export default function App() {
               onCreateLead={handleCreateLead}
               onUpdateLead={handleUpdateLead}
               onDeleteLead={handleDeleteLead}
+              onConvertToDeal={handleConvertToDeal}
               onUpdateDeal={handleUpdateDeal}
               onCreateActivity={handleCreateActivity}
               onCreateTask={handleCreateTask}
@@ -458,6 +467,9 @@ export default function App() {
               onRejectStageGateCheck={handleRejectStageGateCheck}
               onSavePartialGateCheck={handleSavePartialGateCheck}
               onOpenSettings={() => setActiveTab('settings')}
+              onTransitionDealStage={handleTransitionDealStage}
+              onCloseLostDeal={handleCloseLostDeal}
+              onCreateRebuyDeal={handleCreateRebuyDeal}
             />
           )}
 

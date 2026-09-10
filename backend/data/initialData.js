@@ -82,14 +82,14 @@ export const initialContacts = [
 ];
 
 export const initialLeads = [
-  { id: 'ld-1', title: 'BioPharma Lab Packaging Contract', contactName: 'Rachel Green', contactEmail: 'r.green@biopharma.example.com', contactPhone: '+1 (617) 555-0144', companyName: 'BioPharma Health', source: 'Inbound Inquiry', isOutbound: false, status: 'Qualified', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-07-01', lastActivityDate: '2026-08-05' },
-  { id: 'ld-2', title: 'Artisan Foods Eco-Wrap Campaign', contactName: 'Sofia Rodriguez', contactEmail: 'sofia@artisanfoods.example.com', contactPhone: '+1 (503) 555-0123', companyName: 'Artisan Foods Co', source: 'Cold Outbound', isOutbound: true, status: 'Contacted', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-07-10', lastActivityDate: '2026-08-07' },
-  { id: 'ld-3', title: 'AeroTech Electronics Thermal Pads', contactName: 'David Miller', contactEmail: 'dmiller@aerotech.example.com', contactPhone: '+1 (512) 555-0192', companyName: 'AeroTech Solutions', source: 'LinkedIn', isOutbound: true, status: 'Qualified', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-07-12', lastActivityDate: '2026-08-06' },
-  { id: 'ld-4', title: 'GreenGrid Solar Sealants Pilot', contactName: 'Laura Bennett', contactEmail: 'lbennett@greengrid.example.com', contactPhone: '+1 (303) 555-0155', companyName: 'GreenGrid Energy', source: 'Website', isOutbound: false, status: 'New', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-08-02', lastActivityDate: '2026-08-02' },
-  { id: 'ld-5', title: 'Quantum Precision Coating Supply', contactName: 'Dr. James Thorne', contactEmail: 'jthorne@quantumoptics.example.com', contactPhone: '+1 (408) 555-0177', companyName: 'Quantum Optics', source: 'Trade Show', isOutbound: true, status: 'Contacted', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-08-03', lastActivityDate: '2026-08-08' },
-  { id: 'ld-6', title: 'Vanguard Silicone Liners Supply', contactName: 'Amanda Sterling', contactEmail: 'asterling@vanguardmed.example.com', contactPhone: '+1 (312) 555-0199', companyName: 'Vanguard Medical Systems', source: 'Referral', isOutbound: false, status: 'Qualified', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-08-04', lastActivityDate: '2026-08-08' },
-  { id: 'ld-7', title: 'Apex Apparel Bio-Dye Order', contactName: 'Kevin O\'Connor', contactEmail: 'k.oconnor@apexapparel.example.com', contactPhone: '+1 (212) 555-0166', companyName: 'Apex Apparel Group', source: 'Inbound Inquiry', isOutbound: false, status: 'Qualified', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-06-15', lastActivityDate: '2026-07-25' },
-  { id: 'ld-8', title: 'Nexus Logistics Container Seals (Renewal Due)', contactName: 'Michael Chang', contactEmail: 'mchang@nexuslogistics.example.com', contactPhone: '+1 (206) 555-0188', companyName: 'Nexus Logistics', source: 'Existing Client', isOutbound: false, status: 'Contacted', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-05-10', lastActivityDate: '2026-08-01' },
+  { id: 'ld-1', title: 'BioPharma Lab Packaging Contract', contactName: 'Rachel Green', contactEmail: 'r.green@biopharma.example.com', contactPhone: '+1 (617) 555-0144', companyName: 'BioPharma Health', source: 'Inbound Inquiry', isOutbound: false, status: 'Converted', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-07-01', lastActivityDate: '2026-08-05' },
+  { id: 'ld-2', title: 'Artisan Foods Eco-Wrap Campaign', contactName: 'Sofia Rodriguez', contactEmail: 'sofia@artisanfoods.example.com', contactPhone: '+1 (503) 555-0123', companyName: 'Artisan Foods Co', source: 'Cold Outbound', isOutbound: true, status: 'Converted', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-07-10', lastActivityDate: '2026-08-07' },
+  { id: 'ld-3', title: 'AeroTech Electronics Thermal Pads', contactName: 'David Miller', contactEmail: 'dmiller@aerotech.example.com', contactPhone: '+1 (512) 555-0192', companyName: 'AeroTech Solutions', source: 'LinkedIn', isOutbound: true, status: 'Converted', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-07-12', lastActivityDate: '2026-08-06' },
+  { id: 'ld-4', title: 'GreenGrid Solar Sealants Pilot', contactName: 'Laura Bennett', contactEmail: 'lbennett@greengrid.example.com', contactPhone: '+1 (303) 555-0155', companyName: 'GreenGrid Energy', source: 'Website', isOutbound: false, status: 'Working', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-08-02', lastActivityDate: '2026-08-02' },
+  { id: 'ld-5', title: 'Quantum Precision Coating Supply', contactName: 'Dr. James Thorne', contactEmail: 'jthorne@quantumoptics.example.com', contactPhone: '+1 (408) 555-0177', companyName: 'Quantum Optics', source: 'Trade Show', isOutbound: true, status: 'Converted', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-08-03', lastActivityDate: '2026-08-08' },
+  { id: 'ld-6', title: 'Vanguard Silicone Liners Supply', contactName: 'Amanda Sterling', contactEmail: 'asterling@vanguardmed.example.com', contactPhone: '+1 (312) 555-0199', companyName: 'Vanguard Medical Systems', source: 'Referral', isOutbound: false, status: 'Converted', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-08-04', lastActivityDate: '2026-08-08' },
+  { id: 'ld-7', title: 'Apex Apparel Bio-Dye Order', contactName: 'Kevin O\'Connor', contactEmail: 'k.oconnor@apexapparel.example.com', contactPhone: '+1 (212) 555-0166', companyName: 'Apex Apparel Group', source: 'Inbound Inquiry', isOutbound: false, status: 'Converted', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-06-15', lastActivityDate: '2026-07-25' },
+  { id: 'ld-8', title: 'Nexus Logistics Container Seals', contactName: 'Michael Chang', contactEmail: 'mchang@nexuslogistics.example.com', contactPhone: '+1 (206) 555-0188', companyName: 'Nexus Logistics', source: 'Existing Client', isOutbound: false, status: 'Converted', ownerId: 'u-3', ownerName: 'Marcus Vance', createdAt: '2026-05-10', lastActivityDate: '2026-08-01' },
   { id: 'ld-9', title: 'Titan Heavy Machinery Gasket Pilot', contactName: 'Sarah Jenkins', contactEmail: 'sjenkins@titanindustrial.example.com', contactPhone: '+1 (313) 555-0182', companyName: 'Titan Industrial Systems', source: 'Cold Outbound', isOutbound: true, status: 'Unqualified', ownerId: 'u-4', ownerName: 'Elena Rostova', createdAt: '2026-07-05', lastActivityDate: '2026-07-30' },
 ];
 
@@ -114,6 +114,7 @@ export const initialDeals = [
     createdAt: '2026-07-01',
     updatedAt: '2026-08-05',
     daysInStage: 5,
+    valueHistory: [{ date: '2026-07-01', value: 62000, stage: 'Sample Sent', reason: 'Initial quotation' }]
   },
   {
     id: 'dl-2',
@@ -136,6 +137,7 @@ export const initialDeals = [
     createdAt: '2026-07-10',
     updatedAt: '2026-08-07',
     daysInStage: 3,
+    valueHistory: [{ date: '2026-07-10', value: 28000, stage: 'Contacted', reason: 'Initial estimation' }],
     pendingGateCheck: {
       id: 'sgc-2',
       dealId: 'dl-2',
@@ -179,6 +181,7 @@ export const initialDeals = [
     createdAt: '2026-07-12',
     updatedAt: '2026-08-06',
     daysInStage: 4,
+    valueHistory: [{ date: '2026-07-12', value: 48000, stage: 'Sample Sent', reason: 'Initial estimation' }]
   },
   {
     id: 'dl-4',
@@ -200,6 +203,7 @@ export const initialDeals = [
     createdAt: '2026-08-02',
     updatedAt: '2026-08-02',
     daysInStage: 1,
+    valueHistory: [{ date: '2026-08-02', value: 35000, stage: 'New Lead', reason: 'Inbound lead value' }]
   },
   {
     id: 'dl-5',
@@ -210,6 +214,7 @@ export const initialDeals = [
     stageId: 'stg-4',
     stageName: 'Proposal Sent',
     expectedCloseDate: '2026-08-28',
+    proposalExpiryDate: '2026-09-10',
     contactId: 'cnt-5',
     contactName: 'Dr. James Thorne',
     companyId: 'c-5',
@@ -222,6 +227,7 @@ export const initialDeals = [
     createdAt: '2026-08-03',
     updatedAt: '2026-08-08',
     daysInStage: 2,
+    valueHistory: [{ date: '2026-08-03', value: 84000, stage: 'Proposal Sent', reason: 'Formal quotation' }]
   },
   {
     id: 'dl-6',
@@ -232,6 +238,7 @@ export const initialDeals = [
     stageId: 'stg-5',
     stageName: 'Negotiation',
     expectedCloseDate: '2026-08-20',
+    proposalExpiryDate: '2026-08-25',
     contactId: 'cnt-8',
     contactName: 'Amanda Sterling',
     companyId: 'c-8',
@@ -244,6 +251,10 @@ export const initialDeals = [
     createdAt: '2026-08-04',
     updatedAt: '2026-08-08',
     daysInStage: 3,
+    valueHistory: [
+      { date: '2026-08-04', value: 135000, stage: 'Proposal Sent', reason: 'Original proposal' },
+      { date: '2026-08-08', value: 120000, stage: 'Negotiation', reason: 'Volume discount counter-offer' }
+    ]
   },
   {
     id: 'dl-7',
@@ -267,16 +278,17 @@ export const initialDeals = [
     createdAt: '2026-06-15',
     updatedAt: '2026-07-25',
     daysInStage: 18,
+    valueHistory: [{ date: '2026-06-15', value: 95000, stage: 'Closed Won', reason: 'Confirmed purchase order' }]
   },
   {
-    id: 'dl-8',
+    id: 'dl-8-parent',
     leadId: 'ld-8',
-    title: 'Nexus Logistics Container Seals',
+    title: 'Nexus Logistics Container Seals (Initial Sale)',
     value: 52000,
     currency: 'INR',
-    stageId: 'stg-7',
-    stageName: 'Buy Again (Renewal)',
-    expectedCloseDate: '2026-08-01',
+    stageId: 'stg-6',
+    stageName: 'Closed Won',
+    expectedCloseDate: '2026-06-01',
     actualCloseDate: '2026-06-01',
     contactId: 'cnt-3',
     contactName: 'Michael Chang',
@@ -286,10 +298,36 @@ export const initialDeals = [
     ownerName: 'Marcus Vance',
     isRecurring: true,
     recurrenceDays: 60,
-    status: 'Renewal Due',
+    status: 'Won',
     createdAt: '2026-05-10',
+    updatedAt: '2026-06-01',
+    daysInStage: 40,
+    valueHistory: [{ date: '2026-05-10', value: 52000, stage: 'Closed Won', reason: 'Initial contract won' }]
+  },
+  {
+    id: 'dl-8',
+    parentDealId: 'dl-8-parent',
+    leadId: 'ld-8',
+    title: 'Nexus Logistics Container Seals (Renewal Rebuy)',
+    value: 52000,
+    currency: 'INR',
+    stageId: 'stg-7',
+    stageName: 'Buy Again (Renewal)',
+    expectedCloseDate: '2026-08-15',
+    contactId: 'cnt-3',
+    contactName: 'Michael Chang',
+    companyId: 'c-3',
+    companyName: 'Nexus Logistics',
+    ownerId: 'u-3',
+    ownerName: 'Marcus Vance',
+    isRecurring: true,
+    isRebuy: true,
+    recurrenceDays: 60,
+    status: 'Renewal Due',
+    createdAt: '2026-08-01',
     updatedAt: '2026-08-01',
     daysInStage: 10,
+    valueHistory: [{ date: '2026-08-01', value: 52000, stage: 'Buy Again (Renewal)', reason: 'Automated 60-day repeat opportunity' }]
   },
   {
     id: 'dl-9',
@@ -313,6 +351,7 @@ export const initialDeals = [
     createdAt: '2026-07-05',
     updatedAt: '2026-07-30',
     daysInStage: 12,
+    valueHistory: [{ date: '2026-07-05', value: 41000, stage: 'Closed Lost', reason: 'Lost to competitor' }]
   },
 ];
 
@@ -566,3 +605,63 @@ export const initialStageGateChecks = [
     timestamp: '2026-08-10T14:30:00Z'
   }
 ];
+
+export const initialAuditLogs = [
+  {
+    id: 'aud-1',
+    timestamp: '2026-08-02T11:00:00Z',
+    actorId: 'u-1',
+    actorName: 'Alex Vance (Admin)',
+    action: 'STAGE_TRANSITION',
+    entityType: 'Deal',
+    entityId: 'dl-1',
+    entityTitle: 'BioPharma Lab Packaging Contract',
+    fromStage: 'Contacted',
+    toStage: 'Sample Sent',
+    reason: 'Stage Gate Check approved and verified.',
+    metadata: { reviewer: 'Alex Vance', outcome: 'advanced' }
+  },
+  {
+    id: 'aud-2',
+    timestamp: '2026-07-25T14:20:00Z',
+    actorId: 'u-3',
+    actorName: 'Marcus Vance (Sales Rep)',
+    action: 'STAGE_TRANSITION',
+    entityType: 'Deal',
+    entityId: 'dl-7',
+    entityTitle: 'Apex Apparel Bio-Dye Order',
+    fromStage: 'Negotiation',
+    toStage: 'Closed Won',
+    reason: 'Signed PO received and credit terms locked.',
+    metadata: { value: 95000, currency: 'INR' }
+  },
+  {
+    id: 'aud-3',
+    timestamp: '2026-07-30T16:45:00Z',
+    actorId: 'u-4',
+    actorName: 'Elena Rostova (Sales Rep)',
+    action: 'CLOSED_LOST',
+    entityType: 'Deal',
+    entityId: 'dl-9',
+    entityTitle: 'Titan Heavy Machinery Gasket Pilot',
+    fromStage: 'Negotiation',
+    toStage: 'Closed Lost',
+    reason: 'Losing to competitor: Competitor offered lower pricing on bulk volume.',
+    metadata: { lostReason: 'Losing to competitor' }
+  },
+  {
+    id: 'aud-4',
+    timestamp: '2026-08-01T09:00:00Z',
+    actorId: 'u-1',
+    actorName: 'System Automation',
+    action: 'REBUY_CREATED',
+    entityType: 'Deal',
+    entityId: 'dl-8',
+    entityTitle: 'Nexus Logistics Container Seals (Renewal Rebuy)',
+    fromStage: 'Closed Won',
+    toStage: 'Buy Again (Renewal)',
+    reason: '60-day repeat purchase cycle reached for Nexus Logistics.',
+    metadata: { parentDealId: 'dl-8-parent', cycleDays: 60 }
+  }
+];
+

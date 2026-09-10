@@ -14,37 +14,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 
-const STAGE_CRITERIA = {
-  'New Lead->Contacted': [
-    'Reached decision-maker or identified who they are',
-    'Confirmed genuine need/use-case',
-    'Rough budget range known',
-    'Realistic timeline known'
-  ],
-  'Contacted->Sample Sent': [
-    'Exact specs/quantity confirmed',
-    'Internal evaluation process/timeline known',
-    'Competitor also sampling',
-    'Shipping/logistics confirmed'
-  ],
-  'Sample Sent->Proposal Sent': [
-    'Sample passed technical/quality requirements',
-    'Decision-maker engaged',
-    'Target price point known',
-    'Defined next step with date'
-  ],
-  'Proposal Sent->Negotiation': [
-    'Specific feedback received',
-    'Pricing is the main blocker vs other issue',
-    'Internal approvers identified',
-    'Competing vendor still in play'
-  ],
-  'Negotiation->Closed Won': [
-    'Final pricing/terms agreed',
-    'Signed PO or firm signing date',
-    'Delivery/renewal terms locked'
-  ]
-};
+import { STAGE_CRITERIA } from '../utils/crmHelpers.js';
 
 const LOST_REASONS = [
   'Budget mismatch',
@@ -53,6 +23,15 @@ const LOST_REASONS = [
   'Slow internal process',
   'Technical fit issue',
   'Went silent'
+];
+
+const REJECTION_REASONS = [
+  'Target price point missing / unconfirmed',
+  'Sample testing incomplete or negative quality feedback',
+  'Key decision-maker not verified / engaged',
+  'Commercial terms / scope undefined',
+  'Timeline unrealistic or unverified',
+  'Other / Custom feedback'
 ];
 
 const BACKWARD_MOVE_REASONS = [
@@ -80,6 +59,9 @@ export const StageGateCheckModal = ({
   const [answers, setAnswers] = useState({});
   const [lostReason, setLostReason] = useState(LOST_REASONS[0]);
   const [backwardReason, setBackwardReason] = useState(BACKWARD_MOVE_REASONS[0]);
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState(REJECTION_REASONS[0]);
+  const [rejectionNote, setRejectionNote] = useState('');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [forceDirectLost, setForceDirectLost] = useState(false);
@@ -154,6 +136,7 @@ export const StageGateCheckModal = ({
     if (isBackwardMove) {
       const checkData = {
         dealId: deal.id,
+        leadId: deal.leadId || (deal.id?.startsWith('ld-') ? deal.id : null),
         dealTitle: deal.title,
         fromStageId: fromStage.id,
         fromStageName: fromStage.name,
@@ -180,6 +163,7 @@ export const StageGateCheckModal = ({
 
     const checkData = {
       dealId: deal.id,
+      leadId: deal.leadId || (deal.id?.startsWith('ld-') ? deal.id : null),
       dealTitle: deal.title,
       fromStageId: fromStage.id,
       fromStageName: fromStage.name,
@@ -211,11 +195,15 @@ export const StageGateCheckModal = ({
     onClose();
   };
 
-  const handleReject = async () => {
+  const handleConfirmReject = async () => {
     if (!deal.pendingGateCheck || submitting) return;
     setSubmitting(true);
-    await onRejectCheck(deal.pendingGateCheck.id, currentUser, 'Requirements incomplete');
+    const feedback = rejectionReason === 'Other / Custom feedback'
+      ? (rejectionNote.trim() || 'Requirements incomplete')
+      : `${rejectionReason}${rejectionNote.trim() ? ` (${rejectionNote.trim()})` : ''}`;
+    await onRejectCheck(deal.pendingGateCheck.id, currentUser, feedback);
     setSubmitting(false);
+    setShowRejectForm(false);
     onClose();
   };
 
@@ -474,25 +462,66 @@ export const StageGateCheckModal = ({
                 </button>
 
                 {isReviewMode ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleReject}
-                      disabled={submitting}
-                      className="px-4 py-2 bg-[#FDF2F1] hover:bg-[#F9E2E0] text-[#922D27] font-bold rounded-xl text-xs border border-[#F4C4C1]"
-                    >
-                      Reject Submission
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleApprove}
-                      disabled={submitting}
-                      className="px-5 py-2 bg-[#255B40] hover:bg-[#1E4A34] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Approve & Execute Transition</span>
-                    </button>
-                  </div>
+                  showRejectForm ? (
+                    <div className="w-full bg-[#FDF2F1] border border-[#F4C4C1] p-3 rounded-xl space-y-2 text-left">
+                      <div className="font-bold text-xs text-[#922D27]">
+                        Provide Actionable Rejection Feedback to Sales Rep:
+                      </div>
+                      <select
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value)}
+                        className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-lg p-2 text-xs text-[#12161C] focus:outline-none focus:border-[#B5423A]"
+                      >
+                        {REJECTION_REASONS.map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={rejectionNote}
+                        onChange={(e) => setRejectionNote(e.target.value)}
+                        placeholder="Additional details / specific corrective instructions..."
+                        className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-lg p-2 text-xs text-[#12161C] focus:outline-none focus:border-[#B5423A]"
+                      />
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowRejectForm(false)}
+                          className="px-3 py-1.5 bg-[#FFFFFF] text-[#5B6472] rounded-lg text-xs font-semibold border border-[#E3E6EA]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleConfirmReject}
+                          disabled={submitting}
+                          className="px-4 py-1.5 bg-[#922D27] hover:bg-[#78231E] text-white rounded-lg text-xs font-bold shadow-2xs"
+                        >
+                          Confirm &amp; Send Rejection
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowRejectForm(true)}
+                        disabled={submitting}
+                        className="px-4 py-2 bg-[#FDF2F1] hover:bg-[#F9E2E0] text-[#922D27] font-bold rounded-xl text-xs border border-[#F4C4C1]"
+                      >
+                        Reject Submission
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleApprove}
+                        disabled={submitting}
+                        className="px-5 py-2 bg-[#255B40] hover:bg-[#1E4A34] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Approve &amp; Execute Transition</span>
+                      </button>
+                    </div>
+                  )
                 ) : (
                   <button
                     type="submit"

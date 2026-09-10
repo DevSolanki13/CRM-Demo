@@ -207,6 +207,17 @@ export function getStageBadgeStyle(stageName = '', stageColor = '') {
   };
 }
 
+export const ALLOWED_TRANSITIONS = {
+  'New Lead': ['Contacted', 'Closed Lost'],
+  'Contacted': ['Sample Sent', 'Proposal Sent', 'Closed Lost'],
+  'Sample Sent': ['Proposal Sent', 'Closed Lost'],
+  'Proposal Sent': ['Negotiation', 'Closed Won', 'Closed Lost'],
+  'Negotiation': ['Closed Won', 'Closed Lost'],
+  'Buy Again (Renewal)': ['Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'],
+  'Closed Won': [],
+  'Closed Lost': []
+};
+
 export const STAGE_CRITERIA = {
   'New Lead->Contacted': [
     'Reached decision-maker or identified who they are',
@@ -219,6 +230,11 @@ export const STAGE_CRITERIA = {
     'Internal evaluation process/timeline known',
     'Competitor also sampling',
     'Shipping/logistics confirmed'
+  ],
+  'Contacted->Proposal Sent': [
+    'Confirmed physical sample not required for product/service',
+    'Decision-maker and budget parameters validated',
+    'Scope of proposal and delivery timeline agreed'
   ],
   'Sample Sent->Proposal Sent': [
     'Sample passed technical/quality requirements',
@@ -236,6 +252,11 @@ export const STAGE_CRITERIA = {
     'Final pricing/terms agreed',
     'Signed PO or firm signing date',
     'Delivery/renewal terms locked'
+  ],
+  'Buy Again (Renewal)->Proposal Sent': [
+    'Repeat order specifications and quantity confirmed',
+    'Pricing index or repeat discount agreed',
+    'Fulfillment timeline verified'
   ]
 };
 
@@ -446,6 +467,26 @@ export function getActivityConnectionInfo(activityType = 'Call') {
 export function getStatusBadgeStyle(status = '') {
   const s = String(status || '').trim().toLowerCase();
 
+  // Converted lead status (Teal Accent)
+  if (s === 'converted') {
+    return {
+      bg: 'bg-[#EFF6F9]',
+      text: 'text-[#1D4E63]',
+      border: 'border-[#AFD3E1]',
+      badgeClass: 'bg-[#EFF6F9] text-[#1D4E63] border-[#AFD3E1]'
+    };
+  }
+
+  // Working lead status (Soft Sky Blue)
+  if (s === 'working') {
+    return {
+      bg: 'bg-[#F0F9FF]',
+      text: 'text-[#0369A1]',
+      border: 'border-[#BAE6FD]',
+      badgeClass: 'bg-[#F0F9FF] text-[#0369A1] border-[#BAE6FD]'
+    };
+  }
+
   // Green / Success statuses
   if (
     s === 'won' ||
@@ -509,4 +550,81 @@ export function getStatusBadgeStyle(status = '') {
     border: 'border-[#E3E6EA]',
     badgeClass: 'bg-[#FFFFFF] text-[#12161C] border-[#E3E6EA]'
   };
+}
+
+// Section 23: Stage Aging Calculator
+export function getStageAgingStatus(daysInStage = 0) {
+  const days = Number(daysInStage) || 0;
+  if (days >= 15) {
+    return {
+      days,
+      label: `${days}d in stage`,
+      level: 'risk',
+      bg: 'bg-[#FEF2F2]',
+      text: 'text-[#B91C1C]',
+      border: 'border-[#FECACA]'
+    };
+  }
+  if (days >= 8) {
+    return {
+      days,
+      label: `${days}d in stage`,
+      level: 'attention',
+      bg: 'bg-[#FEF8EC]',
+      text: 'text-[#965700]',
+      border: 'border-[#F5DDA9]'
+    };
+  }
+  return {
+    days,
+    label: `${days}d in stage`,
+    level: 'normal',
+    bg: 'bg-[#F6F7F8]',
+    text: 'text-[#5B6472]',
+    border: 'border-[#E3E6EA]'
+  };
+}
+
+// Section 24: Stale Deal Inactivity Detection (>= 10 days)
+export function isDealStale(lastActivityDate) {
+  if (!lastActivityDate) return false;
+  const last = new Date(lastActivityDate).getTime();
+  const now = new Date().getTime();
+  const diffDays = Math.floor((now - last) / (1000 * 60 * 60 * 24));
+  return diffDays >= 10;
+}
+
+// Section 25: Expected Close Date Overdue
+export function isCloseDateOverdue(expectedCloseDate, status) {
+  if (!expectedCloseDate || status === 'Won' || status === 'Lost') return false;
+  const target = new Date(expectedCloseDate).getTime();
+  const now = new Date().setHours(0, 0, 0, 0);
+  return target < now;
+}
+
+// Section 8: Proposal Expiration Warning
+export function isProposalExpiringSoon(expiryDateString) {
+  if (!expiryDateString) return null;
+  const target = new Date(expiryDateString).getTime();
+  const now = new Date().getTime();
+  const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) {
+    return {
+      expired: true,
+      expiringSoon: false,
+      diffDays,
+      label: 'Proposal Expired',
+      badgeClass: 'bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]'
+    };
+  }
+  if (diffDays <= 3) {
+    return {
+      expired: false,
+      expiringSoon: true,
+      diffDays,
+      label: diffDays === 0 ? 'Expires today' : `Expires in ${diffDays}d`,
+      badgeClass: 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
+    };
+  }
+  return null;
 }

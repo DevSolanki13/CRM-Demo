@@ -41,7 +41,7 @@ export const AddActivityModal = ({
   );
 
   const leadDeal = (deals && Array.isArray(deals))
-    ? deals.find(d => d.leadId === targetEntity?.id || d.id === targetEntity?.id || d.title === targetEntity?.title)
+    ? deals.find(d => d.leadId === targetEntity?.id || d.id === targetEntity?.id)
     : null;
 
   const entityStageId = targetEntity?.stageId || leadDeal?.stageId;

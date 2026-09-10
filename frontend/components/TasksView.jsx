@@ -55,13 +55,18 @@ export const TasksView = ({
   const pendingLeadsAndDealsTasks = [];
   if (isManagerOrAdmin) {
     (leads || []).forEach(lead => {
-      const leadDeal = (deals || []).find(d => d.leadId === lead.id || d.title === lead.title);
-      const isPending = lead.status === 'Pending Review' || leadDeal?.status === 'Pending Review' || Boolean(leadDeal?.pendingGateCheck);
+      const leadDeal = (deals || []).find(d => d.leadId === lead.id);
+      const isPending = lead.status === 'Pending Review' || leadDeal?.status === 'Pending Review' || Boolean(leadDeal?.pendingGateCheck) || Boolean(lead.pendingGateCheck);
 
       if (isPending) {
-        const hasExistingTask = tasks.some(t => t.linkedId === lead.id || t.linkedId === leadDeal?.id);
-        if (!hasExistingTask) {
-          const targetStageObj = stages.find(s => s.id === leadDeal?.pendingGateCheck?.targetStageId);
+        const hasExistingApprovalTask = tasks.some(t => 
+          (t.linkedId === lead.id || (leadDeal && t.linkedId === leadDeal.id)) && 
+          (t.type === 'Approval' || Boolean(t.stageGateCheckId)) && 
+          t.status === 'pending'
+        );
+
+        if (!hasExistingApprovalTask) {
+          const targetStageObj = stages.find(s => s.id === (leadDeal?.pendingGateCheck?.targetStageId || lead.pendingGateCheck?.targetStageId));
           pendingLeadsAndDealsTasks.push({
             id: `v-task-${lead.id}`,
             title: `[Stage Approval Required] ${lead.title}: Advance to ${targetStageObj?.name || 'Next Stage'}`,
@@ -73,11 +78,11 @@ export const TasksView = ({
             ownerId: currentUser.id,
             ownerName: currentUser.name,
             status: 'pending',
-            submittedByName: leadDeal?.pendingGateCheck?.submittedByName || lead.ownerName || 'Sales Rep',
+            submittedByName: leadDeal?.pendingGateCheck?.submittedByName || lead.pendingGateCheck?.submittedByName || lead.ownerName || 'Sales Rep',
             fromStageName: leadDeal?.stageName || 'Current Stage',
             targetStageName: targetStageObj?.name || 'Next Stage',
-            answers: leadDeal?.pendingGateCheck?.answers || {},
-            note: 'Submitted via Add Activity qualification check.'
+            answers: leadDeal?.pendingGateCheck?.answers || lead.pendingGateCheck?.answers || {},
+            note: leadDeal?.pendingGateCheck?.note || lead.pendingGateCheck?.note || 'Submitted via stage qualification check.'
           });
         }
       }
@@ -85,8 +90,13 @@ export const TasksView = ({
 
     (deals || []).forEach(deal => {
       if (deal.pendingGateCheck || deal.status === 'Pending Review') {
-        const hasExistingTask = tasks.some(t => t.linkedId === deal.id) || pendingLeadsAndDealsTasks.some(vt => vt.linkedId === deal.id);
-        if (!hasExistingTask) {
+        const hasExistingApprovalTask = tasks.some(t => 
+          (t.linkedId === deal.id || (deal.leadId && t.linkedId === deal.leadId)) && 
+          (t.type === 'Approval' || Boolean(t.stageGateCheckId)) && 
+          t.status === 'pending'
+        ) || pendingLeadsAndDealsTasks.some(vt => vt.linkedId === deal.id || (deal.leadId && vt.linkedId === deal.leadId));
+
+        if (!hasExistingApprovalTask) {
           const targetStageObj = stages.find(s => s.id === deal.pendingGateCheck?.targetStageId);
           pendingLeadsAndDealsTasks.push({
             id: `v-task-${deal.id}`,
@@ -103,7 +113,7 @@ export const TasksView = ({
             fromStageName: deal.stageName || 'Current Stage',
             targetStageName: targetStageObj?.name || 'Next Stage',
             answers: deal.pendingGateCheck?.answers || {},
-            note: 'Submitted via Add Activity qualification check.'
+            note: deal.pendingGateCheck?.note || 'Submitted via stage qualification check.'
           });
         }
       }
@@ -113,7 +123,8 @@ export const TasksView = ({
   const allCombinedTasks = [...pendingLeadsAndDealsTasks, ...tasks];
 
   const filteredTasks = allCombinedTasks.filter(t => {
-    const matchesScope = activeScope === 'my' ? (t.ownerId === currentUser.id || t.type === 'Approval' || isManagerOrAdmin) : true;
+    const isApprovalTask = t.type === 'Approval' || Boolean(t.stageGateCheckId);
+    const matchesScope = activeScope === 'my' ? (t.ownerId === currentUser.id || (isApprovalTask && isManagerOrAdmin)) : true;
     const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
     const matchesType = typeFilter === 'All' || t.type === typeFilter;
     return matchesScope && matchesStatus && matchesType;

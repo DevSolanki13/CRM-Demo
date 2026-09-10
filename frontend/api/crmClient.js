@@ -145,8 +145,53 @@ export async function deleteDeal(id) {
   return data.success;
 }
 
+export async function transitionDealStage(id, payload) {
+  const res = await fetch(`${BASE_URL}/deals/${id}/stage-transition`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to transition stage');
+  }
+  return res.json();
+}
+
+export async function closeLostDeal(id, payload) {
+  const res = await fetch(`${BASE_URL}/deals/${id}/close-lost`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to mark deal as Closed Lost');
+  }
+  return res.json();
+}
+
+export async function createRebuyDeal(id, user) {
+  const res = await fetch(`${BASE_URL}/deals/${id}/create-rebuy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user })
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to create rebuy deal');
+  }
+  return res.json();
+}
+
 export async function triggerRenewalAutomation() {
   const res = await fetch(`${BASE_URL}/deals/check-renewals`, { method: 'POST' });
+  return res.json();
+}
+
+export async function fetchAuditLogs() {
+  const res = await fetch(`${BASE_URL}/audit-logs`);
+  if (!res.ok) throw new Error('Failed to load audit logs');
   return res.json();
 }
 
@@ -229,16 +274,9 @@ export async function createStageGateCheck(check) {
 }
 
 export async function approveStageGateCheck(id, reviewer) {
-  if (id && (id.startsWith('dl-') || id.startsWith('ld-') || id.startsWith('v-task-'))) {
-    const cleanId = id.replace('v-task-', '');
-    return updateDeal(cleanId, {
-      status: 'Active',
-      pendingGateCheck: null
-    });
-  }
-
+  const cleanId = String(id || '').replace('v-task-', '');
   try {
-    const res = await fetch(`${BASE_URL}/stage-gate-checks/${id}/approve`, {
+    const res = await fetch(`${BASE_URL}/stage-gate-checks/${encodeURIComponent(cleanId)}/approve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reviewer })
@@ -254,16 +292,9 @@ export async function approveStageGateCheck(id, reviewer) {
 }
 
 export async function rejectStageGateCheck(id, reviewer, reason) {
-  if (id && (id.startsWith('dl-') || id.startsWith('ld-') || id.startsWith('v-task-'))) {
-    const cleanId = id.replace('v-task-', '');
-    return updateDeal(cleanId, {
-      status: 'Follow up',
-      pendingGateCheck: null
-    });
-  }
-
+  const cleanId = String(id || '').replace('v-task-', '');
   try {
-    const res = await fetch(`${BASE_URL}/stage-gate-checks/${id}/reject`, {
+    const res = await fetch(`${BASE_URL}/stage-gate-checks/${encodeURIComponent(cleanId)}/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reviewer, reason })
