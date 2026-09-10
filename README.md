@@ -1,73 +1,90 @@
-# NexusCRM — Customizable B2B Sales & Recurring Order CRM
+# NexusCRM — B2B Sales Pipeline & Recurring Order Management
 
-## Overview
+NexusCRM is a full-stack, customizable B2B Sales Customer Relationship Management (CRM) application engineered for pipeline governance, stage-gate qualification workflows, manager approval ledgers, and repeat purchase management.
 
-**NexusCRM** is a production-grade, highly customizable B2B Sales & Recurring Order Management CRM web application built with **React 19**, **JavaScript (JSX)**, **Node.js**, **Express**, and **Vite**. 
-
-It features an **elevation-based design system** (60-30-10 color distribution, WCAG AA-compliant contrast ratios, 3-level elevation tokens), full **Indian Rupee (INR ₹)** financial localization, **Stage-Gate Governance Qualification**, automated **Recurring Order Renewals**, **Role-Based Access Control (RBAC)**, and a **System Architecture Hardware Manifest Strip**.
+![Sales Console](images/WebSite/Final%20Ui.png)
 
 ---
 
 ## Key Features
 
-### 🎨 Design System & Color Theory
-- **60-30-10 Distribution**: 60% neutral surfaces (`#F6F7F8` canvas, `#FFFFFF` cards, `#E3E6EA` borders), 30% primary teal scale (`#1D4E63` / `#EFF6F9`), 10% semantic status accents.
-- **3-Level Elevation System**: Level 0 flat canvas, Level 1 card/table containers (`0 1px 2px rgba(...)`), Level 2 elevated modals, dropdowns & manifest strip (`#FAFCFD` surface tint + `0 8px 24px rgba(...)`).
-- **WCAG AA Compliance**: High-contrast text pairings for Amber (`#965700`), Green (`#255B40`), Red (`#922D27`), and Primary Neutral (`#1D4E63`).
-- **Indian Rupee (INR ₹) Localization**: Currency formatting (`₹` / `en-IN`) across metrics, deal values, reports, export CSVs, and initial datasets.
+### 1. Stage-Gate Qualification Engine
+- **Structured Qualification Gates**: Advancing opportunities requires completing stage-specific Yes/No qualification checklists (e.g. decision-maker confirmed, use-case validated, commercial alignment).
+- **Automated Routing on Failure**: Failing qualification criteria automatically routes deals to **Closed Lost** with mandatory lost-reason selection and rep observation notes.
+- **Backward Stage Demotion**: Backward pipeline movements enforce mandatory demotion reasons and activity logging to prevent unexplained pipeline slippage.
 
-### 📈 8-Stage Sequential & Semantic Pipeline
-- **Sequential Stepping (In Progress)**: `New Lead` (`#B9D4DE`) &rarr; `Contacted` (`#93BECC`) &rarr; `Sample Sent` (`#3E7C93`) &rarr; `Proposal Sent` (`#2A6580`) &rarr; `Negotiation` (`#1D4E63`).
-- **Semantic Outcome Fill**: `Closed Won` (`#3F7A5C`), `Buy Again (Renewal)` (`#C6790A`), `Closed Lost` (`#B5423A`).
-- **Empty-Value (₹0) Handling**: Stages with ₹0 total value render pale neutral tracks (`#E3E6EA`) to prevent empty columns from reading as error states.
+### 2. Manager Approval & Task Ledger
+- **Role-Gated Transitions**: When a Sales Rep advances a deal or qualifies a lead, the record moves to `Pending Review` status.
+- **Reviewer Tasks**: Automatically creates `[Stage Approval Required]` tasks in the agenda for Managers and Admins with submitted criteria answers, rep observations, and stage paths.
+- **One-Click Execution**: Managers can click **`[ Approve & Move Stage ]`** or **`[ Reject ]`** directly from the Follow-ups & Tasks Ledger to execute transitions and log permanent audit events.
 
-### 🛡️ Stage-Gate Governance & Qualification
-- **Mandatory 4-Question Checklists**: Reps must answer 4 Yes/No qualification criteria to advance deals through pipeline stages.
-- **Manager & Admin Approval Ledger**: Submissions requiring review automatically generate approval tasks for Managers and Admins in the **Follow-ups & Tasks Ledger** (`TasksView.jsx`).
-- **Form Responses & Rep Observations**: Approval cards display explicit **YES / NO** qualification criteria badges, free-text **Rep Observations (Note)**, submitter info, and stage transition path.
-- **One-Click Task Approvals**: Managers and Admins can click **`[ Approve & Move Stage ]`** or **`[ Reject ]`** directly on task cards to execute stage transitions.
-- **Automated Closed Lost Routing**: Failing any qualification check automatically routes deals to Closed Lost with mandatory **Lost Reason** selection (`Budget mismatch`, `Losing to competitor`, `Went silent`, etc.).
-- **Backward Move Demotion Tracking**: Mandatory demotion reason tracking when moving deals backward in the pipeline.
+### 3. Rebuy & Recurring Order Architecture
+- **Historical Integrity**: Closing a deal as `Closed Won` preserves the original transaction history permanently.
+- **Automated Rebuy Generation**: Recurring accounts trigger scheduled repeat-order cycles (e.g., 60-day renewal cycle) and generate new child opportunities without overwriting previous closed sales.
 
-### 🔄 Recurring Order & Renewal Automation
-- **Repeat Cycle Tracking**: Configurable renewal cycles (e.g. 60 days) that flag accounts as "Buy Again Due".
-- **One-Click Re-Order**: Instant renewal deal creation directly from the Renewal Tracking table.
+### 4. Interactive Pipeline Board & Governance
+- **Kanban Board**: Drag-and-drop pipeline interface with stage aging badges, stale warnings, and close-date indicators.
+- **Admin Overrides**: Administrators can bypass gates with mandatory audit reasons logged to the permanent audit trail.
+- **Governance Audit Ledger**: Auditable log tracking actor ID, reviewer name, timestamp, action type, from/to stages, and override/rejection reasons.
 
-### ⚡ System Architecture & Hardware Manifest Strip
-- **Manifest Strip (`ManifestStrip.jsx`)**: Real-time diagnostic bar rendering hardware specs, active port bindings, memory utilization, API latencies, and RBAC status.
-
-### 👥 Team Workload & Entity Management
-- **Entity Directories**: Comprehensive views for Companies, Contacts, Leads, Employees, Tasks, and Settings.
-- **Lead Activity Follow-up Assignment**: Logging a lead activity allows assigning scheduled follow-up tasks to specific team members, automatically populating their **"My Follow-ups"** and the **"Team Agenda"** with full descriptions.
-- **Lead Quality Validation**: Enforces non-numeric lead titles (must contain text or letters like `AeroTech` or `Lead 101`, blocking numeric-only titles like `12345`).
-- **3-Dots Quick Action Lead Menu**: Instant modal triggers on every lead row (`Add Activity`, `Change Stage`).
-- **Tasks Ledger**: Follow-up activity tracking, Stage Approval cards, due-today amber warnings, overdue red alerts, and Team Agenda scope switching.
-- **CSV Export Center**: One-click formatted CSV file exports for Contacts, Leads, and Deals.
-- **Global Search**: Modal search across all entities with keyboard shortcuts (`Esc`).
+### 5. Multi-Entity Management
+- **Leads Ledger**: Cold outbound vs. inbound tracking, lead status tracking (`New`, `Working`, `Qualified`, `Unqualified`, `Converted`), non-numeric title validation, and one-click conversion to deals.
+- **Accounts & Contacts**: Corporate account hierarchies, linked contacts, communication logs, and custom fields.
+- **Agenda & Follow-ups**: Follow-up scheduling for phone calls and meetings with scope switching between personal tasks and team-wide agenda.
 
 ---
 
-## Screenshots
+## Pipeline Stage Matrix
 
-### Main Sales Console Interface
-![Final UI](images/WebSite/Final%20Ui.png)
+```text
+New Lead ──► Contacted ──► Sample Sent ──► Proposal Sent ──► Negotiation ──► Closed Won
+    │            │              │               │                 │             │
+    ▼            ▼              ▼               ▼                 ▼             ▼
+Closed Lost  Closed Lost   Closed Lost     Closed Lost       Closed Lost   Rebuy Deal
+```
+
+| Stage | Code | Category | Progression Requirements |
+|:---|:---|:---|:---|
+| **New Lead** | `stg-1` | New | Inbound inquiry or outbound lead captured |
+| **Contacted** | `stg-2` | Contacted | Meaningful conversation logged; decision-maker identified |
+| **Sample Sent** | `stg-3` | Evaluation | Product/sample dispatched; testing criteria agreed |
+| **Proposal Sent** | `stg-4` | Proposal | Formal quote submitted with commercial terms and validity date |
+| **Negotiation** | `stg-5` | Negotiation | Commercial terms, pricing, and volume tiers in active discussion |
+| **Closed Won** | `stg-6` | Won | Signed contract / Purchase Order received; triggers rebuy schedule |
+| **Closed Lost** | `stg-8` | Lost | Terminal lost state with mandatory reason and explanation |
+
+---
+
+## Role-Based Access Control (RBAC)
+
+| Capability | Admin | Manager | Sales Rep |
+|:---|:---:|:---:|:---:|
+| Create & Edit Leads / Deals / Contacts | Yes | Yes | Yes |
+| Log Activities & Qualification Gate Checks | Yes | Yes | Yes |
+| Direct Stage Movement (Auto-approved) | Yes | No | No |
+| Approve / Reject Pending Stage Gates | Yes | Yes | No |
+| Admin Kanban Drag-and-Drop Override | Yes | No | No |
+| View Team-Wide Tasks & Governance Audit Logs | Yes | Yes | Assigned Only |
+| Modify System Settings & Team Roles | Yes | No | No |
 
 ---
 
 ## Tech Stack
 
-- **Frontend**: React 19, JavaScript (JSX), Vanilla CSS / Tailwind CSS, Lucide Icons, Vite
-- **Backend**: Node.js, Express.js (REST API Server)
-- **Tooling**: Esbuild, Git, Vite Bundler
+| Layer | Technologies |
+|:---|:---|
+| **Frontend** | React 19, JavaScript (JSX), Vite, Lucide Icons, Vanilla CSS |
+| **Backend** | Node.js, Express.js (REST API Server) |
+| **Tooling & Build** | Vite, Esbuild |
+| **Styling** | 60-30-10 surface elevation system with WCAG AA-compliant contrast |
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-
-- Node.js (>= 18)
-- npm (comes with Node) or Yarn
+- **Node.js**: `v18.0.0` or higher
+- **npm**: `v9.0.0` or higher
 
 ### Installation
 
@@ -76,24 +93,48 @@ It features an **elevation-based design system** (60-30-10 color distribution, W
 git clone https://github.com/DevSolanki13/CRM-Demo.git
 cd CRM-Demo
 
-# Install dependencies
+# Install project dependencies
 npm install
 ```
 
-### Development Server
+### Running Locally
 
 ```bash
+# Start backend Express server and Vite development server
 npm run dev
 ```
-Starts the Node.js Express backend server (`backend/server.js`) and Vite development server concurrently.
 
-### Build for Production
+The application will be accessible at `http://localhost:3000`.
+
+### Production Build
 
 ```bash
+# Build frontend bundle and server distribution
 npm run build
+
 # Start production server
 npm run start
 ```
+
+---
+
+## REST API Overview
+
+| Method | Endpoint | Description |
+|:---|:---|:---|
+| `GET` | `/api/health` | Service health status check |
+| `GET` / `POST` | `/api/leads` | List all leads / create a new lead |
+| `PUT` / `DELETE` | `/api/leads/:id` | Update lead details / delete lead |
+| `GET` / `POST` | `/api/deals` | List all deals / create a new deal |
+| `POST` | `/api/deals/:id/stage-transition` | Transition deal stage with gate validation |
+| `POST` | `/api/deals/:id/close-lost` | Mark opportunity as Closed Lost with reason |
+| `POST` | `/api/deals/:id/create-rebuy` | Generate new repeat order opportunity |
+| `GET` / `POST` | `/api/stage-gate-checks` | Fetch all stage gate checks / submit new check |
+| `POST` | `/api/stage-gate-checks/:id/approve` | Approve stage gate check and execute transition |
+| `POST` | `/api/stage-gate-checks/:id/reject` | Reject stage gate check with feedback note |
+| `GET` / `POST` | `/api/tasks` | Fetch tasks / create a follow-up task |
+| `PUT` / `DELETE` | `/api/tasks/:id` | Update task status / delete task |
+| `GET` | `/api/audit-logs` | Retrieve chronological governance audit trail |
 
 ---
 
@@ -102,58 +143,43 @@ npm run start
 ```text
 customizable-crm-demo/
 ├── backend/
-│   ├── controllers/        # CRM business logic, stage gate & deal controllers
-│   ├── data/               # Seed datasets for companies, contacts, leads, deals, tasks
-│   ├── routes/             # Express REST API endpoint definitions (/api/crm/*)
-│   ├── store/              # In-memory CRM store & state normalization
-│   └── server.js           # Express API server entry point
+│   ├── controllers/
+│   │   └── crmController.js        # Request handlers & response formatting
+│   ├── data/
+│   │   └── initialData.js          # Seed records (companies, leads, deals, stages)
+│   ├── routes/
+│   │   └── crmRoutes.js            # Express REST route endpoints
+│   ├── store/
+│   │   └── crmStore.js             # State management, stage transitions & audit logs
+│   └── server.js                   # Express server entry point & Vite middleware
 ├── frontend/
 │   ├── api/
-│   │   └── crmClient.js    # REST API client layer
+│   │   └── crmClient.js            # Frontend HTTP API client
 │   ├── components/
-│   │   ├── CompaniesView.jsx       # Corporate accounts table & detail drawer
-│   │   ├── ContactsView.jsx        # Client directory, call logs & detail drawer
-│   │   ├── DashboardView.jsx       # Key metrics, 8-stage pipeline chart, activity feed
-│   │   ├── EmployeesView.jsx       # Team workload cards & role management modal
-│   │   ├── GlobalSearchModal.jsx   # Keyboard-navigable global search modal
-│   │   ├── Header.jsx              # Top header, notification drawer, search trigger
-│   │   ├── ImportExportModal.jsx   # CSV data export modal
-│   │   ├── LeadsView.jsx           # Leads table, 3-dots action menu, filter bar
-│   │   ├── ManifestStrip.jsx       # System architecture & hardware status strip
-│   │   ├── PipelineView.jsx        # Kanban board, deal cards, stage gate check triggers
-│   │   ├── ReportsView.jsx         # Governance audit log, lost deal charts, renewal tracker
-│   │   ├── SettingsView.jsx        # Customization hub, white-label branding, stage customizer
-│   │   ├── Sidebar.jsx             # Collapsible navigation sidebar & user info
-│   │   ├── StageGateCheckModal.jsx # Qualification checklist, lost reason & demotion modal
-│   │   └── TasksView.jsx           # Follow-up ledger, Stage Approval cards, Team Agenda & task controls
+│   │   ├── DashboardView.jsx       # Financial metrics, stage charts & activity stream
+│   │   ├── LeadsView.jsx           # Leads list, 3-dots actions & status filters
+│   │   ├── PipelineView.jsx        # Kanban pipeline board with card action controls
+│   │   ├── TasksView.jsx           # Follow-up ledger & stage approval action cards
+│   │   ├── StageGateCheckModal.jsx # Yes/No qualification checklist & demotion form
+│   │   ├── AddActivityModal.jsx    # Log calls/meetings with integrated gate checks
+│   │   ├── ReportsView.jsx         # Governance audit log & lost deal analytics
+│   │   ├── CompaniesView.jsx       # Corporate accounts ledger
+│   │   ├── ContactsView.jsx        # Client directory & contact information
+│   │   ├── EmployeesView.jsx       # Team directory & role management
+│   │   ├── SettingsView.jsx        # Branding customization & pipeline stage manager
+│   │   ├── Header.jsx              # Navigation bar, user switcher & global search
+│   │   └── Sidebar.jsx             # Module navigation sidebar
 │   ├── utils/
-│   │   └── crmHelpers.js   # INR currency formatters, date utilities, RBAC filters
-│   ├── App.jsx             # Single-page application root, routing & state normalization
-│   ├── index.css           # 60-30-10 design system, elevation tokens & CSS variables
-│   └── main.jsx            # React DOM entry point
-├── images/
-│   └── WebSite/
-│       ├── 1st UI.png
-│       ├── 2nd UI.png
-│       └── Final Ui.png    # Sales console screenshot
-├── index.html              # HTML entry template
-├── package.json            # Project scripts & dependencies
-└── vite.config.ts          # Vite bundler configuration
+│   │   └── crmHelpers.js           # Currency formatting (INR ₹), date & RBAC utilities
+│   ├── App.jsx                     # Top-level application component & routing
+│   ├── index.css                   # Global stylesheet & design token system
+│   └── main.jsx                    # React application entry point
+├── package.json                    # Project configuration & npm scripts
+└── vite.config.ts                  # Vite build & plugin configuration
 ```
-
----
-
-## Scripts
-
-| Script | Description |
-|--------|-------------|
-| `npm install` | Install all backend and frontend dependencies |
-| `npm run dev` | Start development environment (`node backend/server.js`) |
-| `npm run build` | Build optimized production bundle via Vite & Esbuild |
-| `npm run start` | Run production build server (`node dist/server.cjs`) |
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+This project is licensed under the MIT License.
