@@ -8,7 +8,7 @@ export function formatCurrency(amount, currency = 'INR') {
 
 export function formatDate(dateString) {
   if (!dateString) return '';
-  const d = new Date(dateString);
+  const d = parseDateValue(dateString);
   if (isNaN(d.getTime())) return dateString;
   return d.toLocaleDateString('en-US', {
     month: 'short',
@@ -17,9 +17,44 @@ export function formatDate(dateString) {
   });
 }
 
+export function formatDateTime(dateString) {
+  if (!dateString) return '';
+  const d = parseDateValue(dateString);
+  if (isNaN(d.getTime())) return dateString;
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
+function parseDateValue(dateString) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(dateString))) {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  return new Date(dateString);
+}
+
+export function getLocalDateInputValue(date = new Date()) {
+  const value = date instanceof Date ? date : new Date(date);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function getLocalDateInputValueAfterDays(days, date = new Date()) {
+  const value = date instanceof Date ? new Date(date) : new Date(date);
+  value.setDate(value.getDate() + days);
+  return getLocalDateInputValue(value);
+}
+
 export function getDaysDifference(dateString) {
   if (!dateString) return 0;
-  const target = new Date(dateString).getTime();
+  const target = parseDateValue(dateString).getTime();
   const now = new Date().getTime();
   const diffTime = target - now;
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -588,7 +623,7 @@ export function getStageAgingStatus(daysInStage = 0) {
 // Section 24: Stale Deal Inactivity Detection (>= 10 days)
 export function isDealStale(lastActivityDate) {
   if (!lastActivityDate) return false;
-  const last = new Date(lastActivityDate).getTime();
+  const last = parseDateValue(lastActivityDate).getTime();
   const now = new Date().getTime();
   const diffDays = Math.floor((now - last) / (1000 * 60 * 60 * 24));
   return diffDays >= 10;
@@ -597,7 +632,7 @@ export function isDealStale(lastActivityDate) {
 // Section 25: Expected Close Date Overdue
 export function isCloseDateOverdue(expectedCloseDate, status) {
   if (!expectedCloseDate || status === 'Won' || status === 'Lost') return false;
-  const target = new Date(expectedCloseDate).getTime();
+  const target = parseDateValue(expectedCloseDate).getTime();
   const now = new Date().setHours(0, 0, 0, 0);
   return target < now;
 }
@@ -605,7 +640,7 @@ export function isCloseDateOverdue(expectedCloseDate, status) {
 // Section 8: Proposal Expiration Warning
 export function isProposalExpiringSoon(expiryDateString) {
   if (!expiryDateString) return null;
-  const target = new Date(expiryDateString).getTime();
+  const target = parseDateValue(expiryDateString).getTime();
   const now = new Date().getTime();
   const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
   if (diffDays < 0) {

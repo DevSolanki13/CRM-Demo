@@ -1,8 +1,9 @@
 import React from 'react';
 import { PhoneCall, Mail, Package, Calendar, RefreshCw } from 'lucide-react';
+import { getLocalDateInputValue } from '../utils/crmHelpers.js';
 
 export const ManifestStrip = ({ activities = [], tasks = [], deals = [], currentUser }) => {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateInputValue();
 
   // Outbound Metrics
   const callsToday = activities.filter(a => a.type === 'Outbound Call').length;

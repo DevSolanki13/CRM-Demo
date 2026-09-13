@@ -17,7 +17,7 @@ import {
   Check,
   X as XIcon
 } from 'lucide-react';
-import { formatDate, filterByRole } from '../utils/crmHelpers.js';
+import { formatDateTime, filterByRole, getLocalDateInputValue } from '../utils/crmHelpers.js';
 
 export const TasksView = ({
   tasks = [],
@@ -40,7 +40,7 @@ export const TasksView = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
-    dueDate: new Date().toISOString().split('T')[0],
+    dueDate: getLocalDateInputValue(),
     type: 'Call',
     linkedType: 'Contact',
     linkedId: '',
@@ -48,7 +48,7 @@ export const TasksView = ({
     status: 'pending'
   });
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateInputValue();
   const isManagerOrAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Manager';
 
   // Dynamically synthesize approval tasks for any lead/deal currently in 'Pending Review'
@@ -78,6 +78,7 @@ export const TasksView = ({
             ownerId: currentUser.id,
             ownerName: currentUser.name,
             status: 'pending',
+            submittedAt: leadDeal?.pendingGateCheck?.timestamp || lead.pendingGateCheck?.timestamp,
             submittedByName: leadDeal?.pendingGateCheck?.submittedByName || lead.pendingGateCheck?.submittedByName || lead.ownerName || 'Sales Rep',
             fromStageName: leadDeal?.stageName || 'Current Stage',
             targetStageName: targetStageObj?.name || 'Next Stage',
@@ -109,6 +110,7 @@ export const TasksView = ({
             ownerId: currentUser.id,
             ownerName: currentUser.name,
             status: 'pending',
+            submittedAt: deal.pendingGateCheck?.timestamp,
             submittedByName: deal.pendingGateCheck?.submittedByName || deal.ownerName || 'Sales Rep',
             fromStageName: deal.stageName || 'Current Stage',
             targetStageName: targetStageObj?.name || 'Next Stage',
@@ -262,8 +264,13 @@ export const TasksView = ({
         ) : (
           filteredTasks.map(task => {
             const isApprovalTask = task.type === 'Approval' || Boolean(task.stageGateCheckId);
-            const isOverdue = task.status === 'pending' && task.dueDate < todayStr;
-            const isDueToday = task.status === 'pending' && task.dueDate === todayStr;
+            const taskDueDay = task.dueDate?.split('T')[0];
+            const isOverdue = task.status === 'pending' && taskDueDay < todayStr;
+            const isDueToday = task.status === 'pending' && taskDueDay === todayStr;
+            const linkedLead = leads.find(lead => lead.id === task.linkedId);
+            const linkedDeal = deals.find(deal => deal.id === task.linkedId);
+            const pendingCheck = linkedDeal?.pendingGateCheck || linkedLead?.pendingGateCheck;
+            const approvalSubmittedAt = task.submittedAt || pendingCheck?.timestamp || task.createdAt || task.dueDate;
 
             if (isApprovalTask) {
               const answersObj = task.answers || {};
@@ -310,7 +317,7 @@ export const TasksView = ({
                       <div className="text-right">
                         <div className="font-mono font-bold text-[#965700] flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" />
-                          <span>Submitted: {formatDate(task.dueDate)}</span>
+                          <span>Submitted: {formatDateTime(approvalSubmittedAt)}</span>
                         </div>
                         <div className="text-[10px] text-[#5B6472]">
                           Rep: <strong>{task.submittedByName || task.ownerName}</strong>
@@ -490,7 +497,7 @@ export const TasksView = ({
                       isOverdue ? 'text-[#922D27]' : isDueToday ? 'text-[#965700]' : 'text-[#255B40]'
                     }`}>
                       <Calendar className="w-3.5 h-3.5" />
-                      <span>{formatDate(task.dueDate)}</span>
+                      <span>{formatDateTime(task.dueDate)}</span>
                     </div>
                     <div className="text-[10px] text-[#5B6472] font-medium">Assigned: {task.ownerName}</div>
                   </div>

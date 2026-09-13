@@ -13,7 +13,7 @@ import {
   PhoneCall, 
   Briefcase 
 } from 'lucide-react';
-import { formatDate, filterByRole } from '../utils/crmHelpers.js';
+import { formatDate, filterByRole, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
 import { AddActivityModal } from './AddActivityModal.jsx';
 
 export const ContactsView = ({
@@ -62,9 +62,10 @@ export const ContactsView = ({
     }
 
     if (onCreateTask && outcomeData.assignedOwnerId) {
+      const activityTime = new Date(activityData.timestamp).toTimeString().slice(0, 8);
       await onCreateTask({
         title: `[Follow-up] ${activityData.type}: ${targetEntity.name}`,
-        dueDate: outcomeData.dueDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        dueDate: `${outcomeData.dueDate || getLocalDateInputValueAfterDays(1)}T${activityTime}`,
         type: activityData.type === 'Meeting' ? 'Meeting' : 'Call',
         linkedType: 'Contact',
         linkedId: targetEntity.id,

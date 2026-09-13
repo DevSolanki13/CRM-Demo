@@ -13,6 +13,20 @@ import {
   initialAuditLogs,
 } from '../data/initialData.js';
 
+const getLocalDateString = (date = new Date()) => {
+  const value = date instanceof Date ? date : new Date(date);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getLocalDateStringAfterDays = (days) => {
+  const value = new Date();
+  value.setDate(value.getDate() + days);
+  return getLocalDateString(value);
+};
+
 export const ALLOWED_TRANSITIONS = {
   'New Lead': ['Contacted', 'Closed Lost'],
   'Contacted': ['Sample Sent', 'Proposal Sent', 'Closed Lost'],
@@ -122,7 +136,7 @@ class CRMStore {
       website: company.website || '',
       address: company.address || '',
       notes: company.notes || '',
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: getLocalDateString(),
       ...company,
     };
     this.companies.unshift(newComp);
@@ -161,7 +175,7 @@ class CRMStore {
       ownerId: contact.ownerId || 'u-1',
       ownerName: contact.ownerName || 'Alex Vance',
       customFields: contact.customFields || {},
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: getLocalDateString(),
       ...contact,
     };
     this.contacts.unshift(newContact);
@@ -194,7 +208,7 @@ class CRMStore {
       title = `Lead #${title}`;
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     const newLead = {
       id: `ld-${Date.now()}`,
       contactName: lead.contactName || 'Unknown Prospect',
@@ -214,7 +228,7 @@ class CRMStore {
     this.leads.unshift(newLead);
 
     // Section 5 & 22: Automatically create first-contact task when a lead is created
-    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const tomorrowStr = getLocalDateStringAfterDays(1);
     this.createTask({
       title: `First contact outreach for ${newLead.contactName || newLead.title}`,
       dueDate: tomorrowStr,
@@ -245,7 +259,7 @@ class CRMStore {
   updateLead(id, lead) {
     const idx = this.leads.findIndex((l) => l.id === id);
     if (idx !== -1) {
-      let updatedLead = { ...this.leads[idx], ...lead, lastActivityDate: new Date().toISOString().split('T')[0] };
+      let updatedLead = { ...this.leads[idx], ...lead, lastActivityDate: getLocalDateString() };
       if (updatedLead.title) {
         let title = updatedLead.title.trim();
         if (/^\d+$/.test(title) || !/[a-zA-Z]/.test(title)) {
@@ -298,7 +312,7 @@ class CRMStore {
   }
 
   createDeal(deal) {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     const initialStage = this.stages.find(s => s.id === deal.stageId) || this.stages[0] || { id: 'stg-1', name: 'New Lead' };
 
     const newDeal = {
@@ -310,7 +324,7 @@ class CRMStore {
       currency: deal.currency || 'INR',
       stageId: initialStage.id,
       stageName: initialStage.name,
-      expectedCloseDate: deal.expectedCloseDate || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      expectedCloseDate: deal.expectedCloseDate || getLocalDateStringAfterDays(30),
       proposalExpiryDate: deal.proposalExpiryDate || null,
       contactId: deal.contactId || '',
       contactName: deal.contactName || '',
@@ -361,7 +375,7 @@ class CRMStore {
     const idx = this.deals.findIndex((d) => d.id === id);
     if (idx !== -1) {
       const existing = this.deals[idx];
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateString();
       let valueHistory = existing.valueHistory ? [...existing.valueHistory] : [];
 
       if (deal.value !== undefined && Number(deal.value) !== Number(existing.value)) {
@@ -417,8 +431,8 @@ class CRMStore {
     }
 
     const renewalStage = this.stages.find((s) => s.category === 'Buy Again' || s.name.includes('Buy Again')) || this.stages[6] || { id: 'stg-7', name: 'Buy Again (Renewal)' };
-    const todayStr = new Date().toISOString().split('T')[0];
-    const expectedClose = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
+    const expectedClose = getLocalDateStringAfterDays(30);
 
     const newRebuyDeal = {
       id: `dl-rebuy-${Date.now()}`,
@@ -452,7 +466,7 @@ class CRMStore {
     this.deals.unshift(newRebuyDeal);
 
     // Section 22: Proactive automated task for rebuy outreach
-    const threeDaysStr = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0];
+    const threeDaysStr = getLocalDateStringAfterDays(3);
     this.createTask({
       title: `[Rebuy Outreach] Review renewal contract with ${parentDeal.contactName || parentDeal.companyName}`,
       dueDate: threeDaysStr,
@@ -595,7 +609,7 @@ class CRMStore {
     }
 
     // Execute stage transition immediately
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     delete deal.pendingGateCheck;
     deal.stageId = targetStage.id;
     deal.stageName = targetStage.name;
@@ -607,7 +621,7 @@ class CRMStore {
       deal.status = 'Won';
       deal.actualCloseDate = todayStr;
       // Section 22: Auto-create post-sale task
-      const sevenDaysStr = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+      const sevenDaysStr = getLocalDateStringAfterDays(7);
       this.createTask({
         title: `[Post-Sale Check-in] Fulfillment & Delivery check for ${deal.companyName || deal.title}`,
         dueDate: sevenDaysStr,
@@ -631,7 +645,7 @@ class CRMStore {
       deal.status = 'Active';
       // Event-driven tasks for pipeline steps
       if (targetName === 'Sample Sent') {
-        const sampleDue = new Date(Date.now() + 4 * 86400000).toISOString().split('T')[0];
+        const sampleDue = getLocalDateStringAfterDays(4);
         this.createTask({
           title: `[Sample Evaluation Feedback] Collect testing feedback for ${deal.title}`,
           dueDate: sampleDue,
@@ -645,7 +659,7 @@ class CRMStore {
           note: 'Sample dispatched. Follow up with testing engineer on evaluation.'
         });
       } else if (targetName === 'Proposal Sent') {
-        const propDue = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0];
+        const propDue = getLocalDateStringAfterDays(3);
         this.createTask({
           title: `[Proposal Review] Follow up on proposal terms with ${deal.contactName || deal.companyName}`,
           dueDate: propDue,
@@ -750,7 +764,7 @@ class CRMStore {
     const newTask = {
       id: `tsk-${Date.now()}`,
       title: task.title || 'Follow up action item',
-      dueDate: task.dueDate || new Date().toISOString().split('T')[0],
+      dueDate: task.dueDate || getLocalDateString(),
       type: task.type || 'Call',
       linkedType: task.linkedType || 'Deal',
       linkedId: task.linkedId || '',
@@ -758,7 +772,7 @@ class CRMStore {
       ownerId: task.ownerId || 'u-1',
       ownerName: task.ownerName || 'Alex Vance',
       status: task.status || 'pending',
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: getLocalDateString(),
       ...task,
     };
     this.tasks.unshift(newTask);
@@ -922,7 +936,7 @@ class CRMStore {
     // If pending review, automatically generate approval task for Manager & Admin users
     if (newCheck.status === 'pending_review') {
       const reviewers = this.users.filter(u => u.active && (u.role === 'Manager' || u.role === 'Admin'));
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getLocalDateString();
       const entityTitle = newCheck.leadTitle || newCheck.dealTitle || deal?.title || lead?.title || 'Lead Opportunity';
       const entityId = deal?.id || lead?.id || newCheck.dealId || newCheck.leadId;
       const entityType = deal ? 'Deal' : 'Lead';
@@ -950,6 +964,7 @@ class CRMStore {
             repObservations: newCheck.note || '',
             submittedBy: newCheck.submittedBy || 'u-3',
             submittedByName: newCheck.submittedByName || 'Sales Rep',
+            submittedAt: newCheck.timestamp,
             fromStageName: newCheck.fromStageName || '',
             targetStageName: newCheck.targetStageName || '',
             createdAt: todayStr,
@@ -1136,7 +1151,7 @@ class CRMStore {
   }
 
   executeGateCheckTransition(check) {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     const dealIdx = check.dealId ? this.deals.findIndex(d => d.id === check.dealId) : -1;
     const leadIdx = check.leadId ? this.leads.findIndex(l => l.id === check.leadId) : (dealIdx !== -1 && this.deals[dealIdx].leadId ? this.leads.findIndex(l => l.id === this.deals[dealIdx].leadId) : -1);
 
@@ -1154,7 +1169,7 @@ class CRMStore {
 
         if (check.targetStageName === 'Closed Won') {
           deal.actualCloseDate = todayStr;
-          const sevenDaysStr = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+          const sevenDaysStr = getLocalDateStringAfterDays(7);
           this.createTask({
             title: `[Post-Sale Check-in] Fulfillment & Delivery check for ${deal.companyName || deal.title}`,
             dueDate: sevenDaysStr,
@@ -1278,7 +1293,7 @@ class CRMStore {
       ownerId: 'u-1',
       ownerName: 'Alex Vance',
       customFields: item.customFields || {},
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: getLocalDateString(),
     }));
     this.contacts.unshift(...created);
     return created;

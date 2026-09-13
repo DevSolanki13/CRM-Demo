@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getLocalDateInputValueAfterDays } from './utils/crmHelpers.js';
 import {
   fetchCRMState,
   resetCRMState,
@@ -355,7 +356,7 @@ export default function App() {
         ownerId: lead.ownerId || currentUser.id,
         ownerName: lead.ownerName || currentUser.name,
         leadId: lead.id,
-        expectedCloseDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        expectedCloseDate: getLocalDateInputValueAfterDays(30),
         isRecurring: true,
         recurrenceDays: 60
       };

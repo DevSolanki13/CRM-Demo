@@ -13,7 +13,7 @@ import {
   ShieldCheck,
   FileText
 } from 'lucide-react';
-import { STAGE_CRITERIA, ACTIVITY_STAGE_CRITERIA, getActivityConnectionInfo } from '../utils/crmHelpers.js';
+import { STAGE_CRITERIA, ACTIVITY_STAGE_CRITERIA, getActivityConnectionInfo, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
 
 export const AddActivityModal = ({
   isOpen,
@@ -27,7 +27,6 @@ export const AddActivityModal = ({
   onSubmitActivity
 }) => {
   const [activityType, setActivityType] = useState('Call');
-  const [timestamp, setTimestamp] = useState(new Date().toISOString().slice(0, 16));
   const [description, setDescription] = useState('');
   
   // Call Connection Flow State
@@ -37,7 +36,7 @@ export const AddActivityModal = ({
   const [answers, setAnswers] = useState({});
   const [assignedOwnerId, setAssignedOwnerId] = useState(currentUser?.id || '');
   const [dueDate, setDueDate] = useState(
-    new Date(Date.now() + 86400000).toISOString().split('T')[0] // default tomorrow
+    getLocalDateInputValueAfterDays(1) // default tomorrow
   );
 
   const leadDeal = (deals && Array.isArray(deals))
@@ -158,7 +157,7 @@ export const AddActivityModal = ({
       activityData: {
         type: activityType,
         description: `${description}\n\n[System Audit Note]: ${summaryNote}`,
-        timestamp: new Date(timestamp).toISOString(),
+        timestamp: new Date().toISOString(),
         linkedType: entityType,
         linkedId: targetEntity.id,
         linkedTitle: targetEntity.title || targetEntity.name,
@@ -211,8 +210,8 @@ export const AddActivityModal = ({
 
         <form onSubmit={handleSubmit} className="space-y-5">
 
-          {/* Activity Type & Date */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Activity Type */}
+          <div>
             <div>
               <label className="block text-[#12161C] font-bold mb-1.5 text-xs uppercase tracking-wider">Activity Type *</label>
               <select
@@ -226,16 +225,6 @@ export const AddActivityModal = ({
                 <option value="Sample Follow-up">Physical Sample Follow-up</option>
                 <option value="Note">Internal Sales Note</option>
               </select>
-            </div>
-
-            <div>
-              <label className="block text-[#12161C] font-bold mb-1.5 text-xs uppercase tracking-wider">Date & Time *</label>
-              <input
-                type="datetime-local"
-                value={timestamp}
-                onChange={(e) => setTimestamp(e.target.value)}
-                className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3 text-xs md:text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63] font-mono"
-              />
             </div>
           </div>
 

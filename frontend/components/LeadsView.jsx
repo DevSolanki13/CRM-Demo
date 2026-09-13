@@ -18,7 +18,7 @@ import {
   ShieldCheck,
   Clock
 } from 'lucide-react';
-import { formatDate, filterByRole, getStageBadgeStyle, getStatusBadgeStyle } from '../utils/crmHelpers.js';
+import { formatDate, filterByRole, getStageBadgeStyle, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
 import { StageGateCheckModal } from './StageGateCheckModal.jsx';
 import { AddActivityModal } from './AddActivityModal.jsx';
 
@@ -42,7 +42,6 @@ export const LeadsView = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSource, setSelectedSource] = useState('All');
-  const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedOwner, setSelectedOwner] = useState('All');
   const [selectedStage, setSelectedStage] = useState('All');
 
@@ -104,13 +103,12 @@ export const LeadsView = ({
         : selectedSource === 'Inbound' ? !l.isOutbound
           : l.source === selectedSource;
 
-    const matchesStatus = selectedStatus === 'All' || l.status === selectedStatus;
     const matchesOwner = selectedOwner === 'All' || l.ownerId === selectedOwner;
 
     const leadDeal = deals.find(d => d.leadId === l.id);
     const matchesStage = selectedStage === 'All' || (leadDeal && leadDeal.stageId === selectedStage);
 
-    return matchesSearch && matchesSource && matchesStatus && matchesOwner && matchesStage;
+    return matchesSearch && matchesSource && matchesOwner && matchesStage;
   });
 
   const handleToggleSelectAll = () => {
@@ -246,9 +244,10 @@ export const LeadsView = ({
 
     // 3. Create Follow-up Task for Assigned Rep
     if (onCreateTask && outcomeData.assignedOwnerId) {
+      const activityTime = new Date(activityData.timestamp).toTimeString().slice(0, 8);
       await onCreateTask({
         title: `[Follow-up] ${activityData.type}: ${targetEntity.title}`,
-        dueDate: outcomeData.dueDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        dueDate: `${outcomeData.dueDate || getLocalDateInputValueAfterDays(1)}T${activityTime}`,
         type: activityData.type === 'Meeting' ? 'Meeting' : 'Call',
         linkedType: 'Lead',
         linkedId: targetEntity.id,
@@ -397,23 +396,6 @@ export const LeadsView = ({
             <option value="Website">Website</option>
             <option value="LinkedIn">LinkedIn</option>
             <option value="Trade Show">Trade Show</option>
-          </select>
-        </div>
-
-        {/* Status Filter */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[#5B6472] font-semibold">Status:</span>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
-          >
-            <option value="All">All Statuses</option>
-            <option value="New">New</option>
-            <option value="Working">Working</option>
-            <option value="Qualified">Qualified</option>
-            <option value="Unqualified">Unqualified</option>
-            <option value="Converted">Converted</option>
           </select>
         </div>
 
@@ -594,7 +576,6 @@ export const LeadsView = ({
                 <th className="px-4 py-3.5">Pipeline Stage</th>
                 <th className="px-4 py-3.5">Contact</th>
                 <th className="px-4 py-3.5">Source & Effort</th>
-                <th className="px-4 py-3.5">Status</th>
                 <th className="px-4 py-3.5">Assigned Owner</th>
                 <th className="px-4 py-3.5">Last Activity</th>
                 <th className="px-4 py-3.5 text-right">Actions</th>
@@ -603,7 +584,7 @@ export const LeadsView = ({
             <tbody className="divide-y divide-[#E3E6EA]">
               {filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-[#5B6472]">
+                  <td colSpan={8} className="px-4 py-8 text-center text-[#5B6472]">
                     No leads found matching criteria.
                   </td>
                 </tr>
@@ -691,18 +672,6 @@ export const LeadsView = ({
                           </span>
                           <span className="text-[10px] text-[#5B6472] font-mono">({lead.source})</span>
                         </div>
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-4 py-3.5">
-                        {(() => {
-                          const statusStyle = getStatusBadgeStyle(lead.status);
-                          return (
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusStyle.badgeClass}`}>
-                              {lead.status}
-                            </span>
-                          );
-                        })()}
                       </td>
 
                       {/* Assigned Owner */}

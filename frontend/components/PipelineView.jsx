@@ -29,7 +29,9 @@ import {
   isDealStale,
   isCloseDateOverdue,
   isProposalExpiringSoon,
-  ALLOWED_TRANSITIONS
+  ALLOWED_TRANSITIONS,
+  getLocalDateInputValue,
+  getLocalDateInputValueAfterDays
 } from '../utils/crmHelpers.js';
 import { StageGateCheckModal } from './StageGateCheckModal.jsx';
 import { AddActivityModal } from './AddActivityModal.jsx';
@@ -110,7 +112,7 @@ export const PipelineView = ({
     title: '',
     value: 10000,
     stageId: stages[0]?.id || '',
-    expectedCloseDate: new Date().toISOString().split('T')[0],
+    expectedCloseDate: getLocalDateInputValue(),
     contactId: '',
     companyId: '',
     ownerId: currentUser.id,
@@ -188,9 +190,10 @@ export const PipelineView = ({
     }
 
     if (onCreateTask && outcomeData.assignedOwnerId) {
+      const activityTime = new Date(activityData.timestamp).toTimeString().slice(0, 8);
       await onCreateTask({
         title: `[Follow-up] ${activityData.type}: ${targetEntity.title}`,
-        dueDate: outcomeData.dueDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        dueDate: `${outcomeData.dueDate || getLocalDateInputValueAfterDays(1)}T${activityTime}`,
         type: activityData.type === 'Meeting' ? 'Meeting' : 'Call',
         linkedType: 'Deal',
         linkedId: targetEntity.id,
@@ -363,7 +366,7 @@ export const PipelineView = ({
       title: '',
       value: 25000,
       stageId: stageId || sortedStages[0]?.id || '',
-      expectedCloseDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+      expectedCloseDate: getLocalDateInputValueAfterDays(30),
       contactId: contacts[0]?.id || '',
       companyId: companies[0]?.id || '',
       ownerId: currentUser.id,

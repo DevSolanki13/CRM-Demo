@@ -21,7 +21,8 @@ import {
   filterByRole,
   isDealStale,
   getStageAgingStatus,
-  isCloseDateOverdue
+  isCloseDateOverdue,
+  getLocalDateInputValue
 } from '../utils/crmHelpers.js';
 import { ManifestStrip } from './ManifestStrip.jsx';
 
@@ -65,7 +66,7 @@ export const DashboardView = ({
   const renewalsDueDeals = userDeals.filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again'));
   const renewalsDueValue = renewalsDueDeals.reduce((sum, d) => sum + d.value, 0);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateInputValue();
   const pendingTasksToday = userTasks.filter(t => t.status === 'pending' && t.dueDate <= todayStr);
 
   // Stale and at-risk deals detection
