@@ -32,6 +32,13 @@ NexusCRM is a full-stack, customizable B2B Sales Customer Relationship Managemen
 - **Accounts & Contacts**: Corporate account hierarchies, linked contacts, communication logs, and custom fields.
 - **Agenda & Follow-ups**: Follow-up scheduling for phone calls and meetings with scope switching between personal tasks and team-wide agenda.
 
+### 6. Modern CRM User Experience (UX)
+- **360° Slide-Over Detail Drawer**: Clicking any Deal or Lead opens an interactive side drawer (Sheet UI) featuring 4 dedicated tabs: Overview & Property Editor, Stage Gate Verification, Interaction & Note Logger, and Connected Tasks—without losing board or table context.
+- **Inline Anchored Command Search (`Ctrl+K` / `⌘K`)**: Instant search dropdown anchored directly beneath the header search bar (zero center modals or background blur), supporting categorized search across Deals, Leads, Contacts, and Companies with arrow-key navigation.
+- **Ergonomic Quick-Filter Pills**: Real-time count badges and one-click filtering for deals (`All Deals`, `My Deals`, `Stale >10d`, `Aging in Stage`, `Closing Overdue`, `Renewals Due`) and leads (`All`, `My Leads`, `Outbound`, `Inbound`, `New`).
+- **Non-Blocking Toast System**: Replaced native browser `alert()` popups with rich [`Sonner`](https://sonner.emilkowal.ski) toasts featuring contextual action buttons and status colors.
+- **Crash Resilience & Custom Error Screens**: Built-in `ErrorBoundary` (500 recovery with diagnostics and demo-state reset), `NotFoundView` (404 missing routes/tabs), and backend API 404 fallbacks.
+
 ---
 
 ## Pipeline Stage Matrix
@@ -73,7 +80,7 @@ Closed Lost  Closed Lost   Closed Lost     Closed Lost       Closed Lost   Rebuy
 
 | Layer | Technologies |
 |:---|:---|
-| **Frontend** | React 19, JavaScript (JSX), Vite, Lucide Icons, Vanilla CSS |
+| **Frontend** | React 19, JavaScript (JSX), Vite, Lucide Icons, Sonner (Toasts), Vanilla CSS |
 | **Backend** | Node.js, Express.js (REST API Server) |
 | **Tooling & Build** | Vite, Esbuild |
 | **Styling** | 60-30-10 surface elevation system with WCAG AA-compliant contrast |
@@ -157,8 +164,11 @@ customizable-crm-demo/
 │   │   └── crmClient.js            # Frontend HTTP API client
 │   ├── components/
 │   │   ├── DashboardView.jsx       # Financial metrics, stage charts & activity stream
-│   │   ├── LeadsView.jsx           # Leads list, 3-dots actions & status filters
-│   │   ├── PipelineView.jsx        # Kanban pipeline board with card action controls
+│   │   ├── LeadsView.jsx           # Leads list, quick-filter chips & actionable empty states
+│   │   ├── PipelineView.jsx        # Kanban pipeline board with quick-filter pills & card controls
+│   │   ├── DetailDrawer.jsx        # 360° slide-over inspector sheet (Overview, Gate, Notes, Tasks)
+│   │   ├── ErrorBoundary.jsx       # React crash recovery with diagnostics & reset actions
+│   │   ├── NotFoundView.jsx        # Custom 404 page for missing tabs or records
 │   │   ├── TasksView.jsx           # Follow-up ledger & stage approval action cards
 │   │   ├── StageGateCheckModal.jsx # Yes/No qualification checklist & demotion form
 │   │   ├── AddActivityModal.jsx    # Log calls/meetings with integrated gate checks
@@ -167,7 +177,7 @@ customizable-crm-demo/
 │   │   ├── ContactsView.jsx        # Client directory & contact information
 │   │   ├── EmployeesView.jsx       # Team directory & role management
 │   │   ├── SettingsView.jsx        # Branding customization & pipeline stage manager
-│   │   ├── Header.jsx              # Navigation bar, user switcher & global search
+│   │   ├── Header.jsx              # Navigation bar, user switcher & inline anchored search
 │   │   └── Sidebar.jsx             # Module navigation sidebar
 │   ├── utils/
 │   │   └── crmHelpers.js           # Currency formatting (INR ₹), date & RBAC utilities
