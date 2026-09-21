@@ -11,8 +11,6 @@ import {
   Layers,
   Send,
   AlertTriangle,
-  Clock,
-  Flag,
   ArrowRight
 } from 'lucide-react';
 import {

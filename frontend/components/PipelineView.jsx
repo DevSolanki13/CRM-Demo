@@ -15,13 +15,12 @@ import {
   AlertTriangle,
   Layers,
   PhoneCall,
-  CheckCircle2,
   Ban,
   ShieldAlert,
-  ArrowRight,
-  Sparkles,
-  ExternalLink
+  Lock,
+  GripVertical
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   formatCurrency,
   filterByRole,
@@ -66,11 +65,13 @@ export const PipelineView = ({
   onOpenSettings,
   onTransitionDealStage,
   onCloseLostDeal,
-  onCreateRebuyDeal
+  onCreateRebuyDeal,
+  onOpenDrawer
 }) => {
   const [draggedDealId, setDraggedDealId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [quickFilter, setQuickFilter] = useState('All');
 
   // Modal for Quick Add / Edit Deal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -123,14 +124,29 @@ export const PipelineView = ({
   const sortedStages = [...stages].sort((a, b) => a.order - b.order);
   const userDeals = filterByRole(deals, currentUser);
 
+  // Metrics for Quick Filter Badges
+  const staleCount = userDeals.filter(d => isDealStale(d.lastActivityDate)).length;
+  const agingCount = userDeals.filter(d => getStageAgingStatus(d.daysInStage).level === 'risk').length;
+  const overdueCount = userDeals.filter(d => isCloseDateOverdue(d.expectedCloseDate, d.status)).length;
+  const renewalsCount = userDeals.filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again') || d.isRecurring).length;
+  const myDealsCount = userDeals.filter(d => d.ownerId === currentUser.id).length;
+
   // Filter deals by search & status
   const filteredDeals = userDeals.filter(deal => {
     const matchesSearch = searchQuery === '' ||
       deal.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (deal.contactName && deal.contactName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (deal.companyName && deal.companyName.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesStatus = filterStatus === 'All' || deal.status === filterStatus;
-    return matchesSearch && matchesStatus;
+    if (!matchesSearch || !matchesStatus) return false;
+
+    if (quickFilter === 'MyDeals') return deal.ownerId === currentUser.id;
+    if (quickFilter === 'Stale') return isDealStale(deal.lastActivityDate);
+    if (quickFilter === 'Aging') return getStageAgingStatus(deal.daysInStage).level === 'risk';
+    if (quickFilter === 'Overdue') return isCloseDateOverdue(deal.expectedCloseDate, deal.status);
+    if (quickFilter === 'Renewals') return deal.status === 'Renewal Due' || deal.stageName?.includes('Buy Again') || deal.isRecurring;
+    return true;
   });
 
   const handleSubmitActivityFromModal = async (payload) => {
@@ -211,7 +227,15 @@ export const PipelineView = ({
   const handleDragStart = (e, dealId) => {
     if (currentUser.role !== 'Admin') {
       e.preventDefault();
-      alert("Drag & Drop is reserved for Admin users. Standard Reps must complete stage gate checks using the card controls.");
+      toast.warning("Direct drag & drop is restricted for Standard Reps. Use Stage Gate checks on the card.", {
+        action: {
+          label: "View Gate",
+          onClick: () => {
+            const deal = deals.find(d => d.id === dealId);
+            if (deal) handleOpenGateCheckModal(deal, null);
+          }
+        }
+      });
       return;
     }
     e.dataTransfer.setData('text/plain', dealId);
@@ -235,7 +259,7 @@ export const PipelineView = ({
   const handleDrop = (e, targetStageId) => {
     e.preventDefault();
     if (currentUser.role !== 'Admin') {
-      alert("Drag & Drop is reserved for Admin users.");
+      toast.error("Drag & Drop is reserved for Admin users.");
       return;
     }
 
@@ -285,7 +309,7 @@ export const PipelineView = ({
     const allowed = (ALLOWED_TRANSITIONS[currentName] || []).filter(name => name !== 'Closed Lost');
 
     if (!allowed || allowed.length === 0) {
-      alert(`No forward stages available from "${currentName}".`);
+      toast.info(`No forward stages available from "${currentName}".`);
       return;
     }
 
@@ -328,7 +352,7 @@ export const PipelineView = ({
     if (!deal) return;
 
     if (!note.trim()) {
-      alert('Please provide context or notes explaining why this deal was marked Lost.');
+      toast.warning('Please provide context or notes explaining why this deal was marked Lost.');
       return;
     }
 
@@ -356,7 +380,7 @@ export const PipelineView = ({
     if (onCreateRebuyDeal) {
       await onCreateRebuyDeal(deal.id);
     } else {
-      alert('Rebuy creation service is not available.');
+      toast.error('Rebuy creation service is not available.');
     }
   };
 
@@ -431,6 +455,39 @@ export const PipelineView = ({
               <span>New Deal</span>
             </button>
           </div>
+        </div>
+
+        {/* Quick Filter Pills Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+          {[
+            { id: 'All', label: 'All Deals', count: userDeals.length },
+            { id: 'MyDeals', label: 'My Deals', count: myDealsCount },
+            { id: 'Stale', label: 'Stale (>10d)', count: staleCount, alert: staleCount > 0 },
+            { id: 'Aging', label: 'Aging in Stage', count: agingCount, alert: agingCount > 0 },
+            { id: 'Overdue', label: 'Closing Overdue', count: overdueCount, alert: overdueCount > 0 },
+            { id: 'Renewals', label: 'Renewals Due', count: renewalsCount, alert: renewalsCount > 0 }
+          ].map(pill => (
+            <button
+              key={pill.id}
+              onClick={() => setQuickFilter(pill.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 border ${
+                quickFilter === pill.id
+                  ? 'bg-[#1D4E63] text-white border-[#1D4E63] shadow-2xs'
+                  : 'bg-[#FFFFFF] hover:bg-[#F6F7F8] text-[#5B6472] hover:text-[#12161C] border-[#E3E6EA]'
+              }`}
+            >
+              <span>{pill.label}</span>
+              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-extrabold ${
+                quickFilter === pill.id
+                  ? 'bg-white/20 text-white'
+                  : pill.alert
+                    ? 'bg-[#FEF8EC] text-[#965700] border border-[#F5DDA9]'
+                    : 'bg-[#F6F7F8] text-[#5B6472]'
+              }`}>
+                {pill.count}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -511,8 +568,13 @@ export const PipelineView = ({
                         key={deal.id}
                         draggable={currentUser.role === 'Admin'}
                         onDragStart={(e) => handleDragStart(e, deal.id)}
-                        className={`bg-[#FFFFFF] border border-[#E3E6EA] hover:border-[#1D4E63] p-4 rounded-xl space-y-3 transition-all shadow-[0_1px_2px_rgba(18,22,28,0.06)] group ${
-                          currentUser.role === 'Admin' ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
+                        onClick={(e) => {
+                          if (e.target.closest('button') || e.target.closest('input')) return;
+                          if (onOpenDrawer) onOpenDrawer('deal', deal);
+                          else handleOpenEditModal(deal);
+                        }}
+                        className={`bg-[#FFFFFF] border border-[#E3E6EA] hover:border-[#1D4E63] p-4 rounded-xl space-y-3 transition-all shadow-[0_1px_2px_rgba(18,22,28,0.06)] group cursor-pointer hover:shadow-md ${
+                          currentUser.role === 'Admin' ? 'active:cursor-grabbing' : ''
                         }`}
                       >
 
@@ -600,6 +662,14 @@ export const PipelineView = ({
                           </div>
 
                           <div className="flex items-center gap-1">
+                            {currentUser.role === 'Admin' ? (
+                              <GripVertical className="w-3.5 h-3.5 text-[#5B6472]/40 hover:text-[#12161C] cursor-grab" title="Admin Drag Handle" />
+                            ) : (
+                              <span title="Stage gate required to advance" className="text-[10px] text-[#5B6472] flex items-center gap-0.5">
+                                <Lock className="w-3 h-3 text-[#5B6472]/60" />
+                              </span>
+                            )}
+
                             {/* Quick Close Lost trigger */}
                             {deal.status !== 'Won' && deal.status !== 'Lost' && (
                               <button
@@ -612,9 +682,12 @@ export const PipelineView = ({
                             )}
 
                             <button
-                              onClick={() => handleOpenEditModal(deal)}
+                              onClick={() => {
+                                if (onOpenDrawer) onOpenDrawer('deal', deal);
+                                else handleOpenEditModal(deal);
+                              }}
                               className="p-1 text-[#5B6472] hover:text-[#12161C] rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Edit deal details"
+                              title="Inspect Deal 360°"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>

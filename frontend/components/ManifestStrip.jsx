@@ -1,4 +1,3 @@
-import React from 'react';
 import { PhoneCall, Mail, Package, Calendar, RefreshCw } from 'lucide-react';
 import { getLocalDateInputValue } from '../utils/crmHelpers.js';
 

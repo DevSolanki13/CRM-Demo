@@ -7,17 +7,15 @@ import {
   Trash2, 
   X,
   ShieldAlert,
-  ShieldCheck,
   UserCheck,
   FileText,
   ThumbsUp,
   ThumbsDown,
   Clock,
   ArrowRight,
-  Check,
-  X as XIcon
+  Check
 } from 'lucide-react';
-import { formatDateTime, filterByRole, getLocalDateInputValue } from '../utils/crmHelpers.js';
+import { formatDateTime, getLocalDateInputValue } from '../utils/crmHelpers.js';
 
 export const TasksView = ({
   tasks = [],

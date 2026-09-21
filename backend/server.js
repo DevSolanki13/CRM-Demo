@@ -10,6 +10,11 @@ app.use(express.json({ limit: '10mb' }));
 // Mount API router
 app.use("/api", crmRouter);
 
+// Handle unknown API endpoints with clean JSON 404
+app.all("/api/*", (req, res) => {
+  res.status(404).json({ error: `API endpoint '${req.originalUrl}' not found`, statusCode: 404 });
+});
+
 // Vite / Static file serving
 if (process.env.NODE_ENV !== "production") {
   async function setupViteDevServer() {

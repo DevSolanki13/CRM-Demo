@@ -2,7 +2,7 @@
 
 NexusCRM is a full-stack, customizable B2B Sales Customer Relationship Management (CRM) application engineered for pipeline governance, stage-gate qualification workflows, manager approval ledgers, and repeat purchase management.
 
-![Sales Console](images/WebSite/Final%20Ui.png)
+![Sales Console](images/WebSite/Screenshot%202026-09-22%20004657.png)
 
 ---
 

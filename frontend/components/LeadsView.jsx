@@ -12,14 +12,10 @@ import {
   MoreVertical,
   Calendar,
   ArrowRightLeft,
-  Send,
-  CheckCircle2,
   AlertTriangle,
-  ShieldCheck,
   Clock
 } from 'lucide-react';
 import { formatDate, filterByRole, getStageBadgeStyle, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
-import { StageGateCheckModal } from './StageGateCheckModal.jsx';
 import { AddActivityModal } from './AddActivityModal.jsx';
 
 export const LeadsView = ({
@@ -38,24 +34,20 @@ export const LeadsView = ({
   onCreateTask,
   onSubmitStageGateCheck,
   onApproveStageGateCheck,
-  onRejectStageGateCheck
+  onRejectStageGateCheck,
+  onOpenDrawer
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSource, setSelectedSource] = useState('All');
   const [selectedOwner, setSelectedOwner] = useState('All');
   const [selectedStage, setSelectedStage] = useState('All');
+  const [quickLeadFilter, setQuickLeadFilter] = useState('All'); // 'All' | 'MyLeads' | 'Outbound' | 'Inbound' | 'New'
 
   // 3-Dots Menu & Action Modals State
   const [openMenuLeadId, setOpenMenuLeadId] = useState(null);
 
   // Modals for 3-dots actions
   const [activityModalLead, setActivityModalLead] = useState(null);
-
-  // Gate Check Modal State inside LeadsView
-  const [isGateModalOpen, setIsGateModalOpen] = useState(false);
-  const [gateCheckDeal, setGateCheckDeal] = useState(null);
-  const [gateCheckFromStage, setGateCheckFromStage] = useState(null);
-  const [gateCheckTargetStage, setGateCheckTargetStage] = useState(null);
 
   // Close 3-dots dropdown when clicking anywhere outside
   React.useEffect(() => {
@@ -90,6 +82,12 @@ export const LeadsView = ({
   // Filter RBAC
   const userLeads = filterByRole(leads, currentUser);
 
+  // Quick filter counts
+  const myLeadsCount = userLeads.filter(l => l.ownerId === currentUser.id).length;
+  const outboundCount = userLeads.filter(l => l.isOutbound).length;
+  const inboundCount = userLeads.filter(l => !l.isOutbound).length;
+  const newCount = userLeads.filter(l => l.status === 'New').length;
+
   // Filtered Leads
   const filteredLeads = userLeads.filter(l => {
     const matchesSearch =
@@ -108,7 +106,13 @@ export const LeadsView = ({
     const leadDeal = deals.find(d => d.leadId === l.id);
     const matchesStage = selectedStage === 'All' || (leadDeal && leadDeal.stageId === selectedStage);
 
-    return matchesSearch && matchesSource && matchesOwner && matchesStage;
+    if (!matchesSearch || !matchesSource || !matchesOwner || !matchesStage) return false;
+
+    if (quickLeadFilter === 'MyLeads') return l.ownerId === currentUser.id;
+    if (quickLeadFilter === 'Outbound') return l.isOutbound;
+    if (quickLeadFilter === 'Inbound') return !l.isOutbound;
+    if (quickLeadFilter === 'New') return l.status === 'New';
+    return true;
   });
 
   const handleToggleSelectAll = () => {
@@ -139,33 +143,6 @@ export const LeadsView = ({
   const handleOpenAddActivityModal = (lead) => {
     setOpenMenuLeadId(null);
     setActivityModalLead(lead);
-  };
-
-  const handleOpenLeadStageGate = (lead) => {
-    setOpenMenuLeadId(null);
-    const leadDeal = deals.find(d => d.leadId === lead.id);
-    const curStage = leadDeal ? stages.find(s => s.id === leadDeal.stageId) : sortedStages[0];
-    const curIdx = sortedStages.findIndex(s => s.id === curStage?.id);
-    const nextStg = (curIdx !== -1 && curIdx + 1 < sortedStages.length) ? sortedStages[curIdx + 1] : sortedStages[1];
-
-    const dealForGate = leadDeal || {
-      id: lead.id,
-      leadId: lead.id,
-      title: lead.title,
-      companyName: lead.companyName,
-      contactName: lead.contactName,
-      stageId: curStage?.id || sortedStages[0]?.id,
-      stageName: curStage?.name || sortedStages[0]?.name,
-      ownerId: lead.ownerId,
-      ownerName: lead.ownerName,
-      status: lead.status,
-      pendingGateCheck: lead.pendingGateCheck
-    };
-
-    setGateCheckDeal(dealForGate);
-    setGateCheckFromStage(curStage || sortedStages[0]);
-    setGateCheckTargetStage(nextStg);
-    setIsGateModalOpen(true);
   };
 
   const handleSubmitActivityFromModal = async (payload) => {
@@ -260,20 +237,6 @@ export const LeadsView = ({
     }
 
     setActivityModalLead(null);
-  };
-
-  const handleApproveLeadStage = async (dealOrLead) => {
-    const targetId = dealOrLead?.id || dealOrLead?.leadId;
-    if (targetId && onApproveStageGateCheck) {
-      await onApproveStageGateCheck(targetId, currentUser);
-    }
-  };
-
-  const handleRejectLeadStage = async (dealOrLead, reason) => {
-    const targetId = dealOrLead?.id || dealOrLead?.leadId;
-    if (targetId && onRejectStageGateCheck) {
-      await onRejectStageGateCheck(targetId, currentUser, reason || 'Criteria rejected by Manager');
-    }
   };
 
   const handleOpenAddModal = () => {
@@ -431,6 +394,34 @@ export const LeadsView = ({
 
       </div>
 
+      {/* Quick Filter Chips */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+        {[
+          { id: 'All', label: 'All Leads', count: userLeads.length },
+          { id: 'MyLeads', label: 'My Leads', count: myLeadsCount },
+          { id: 'Outbound', label: 'Outbound Leads', count: outboundCount },
+          { id: 'Inbound', label: 'Inbound Inquiries', count: inboundCount },
+          { id: 'New', label: 'New Uncontacted', count: newCount }
+        ].map(chip => (
+          <button
+            key={chip.id}
+            onClick={() => setQuickLeadFilter(chip.id)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 border ${
+              quickLeadFilter === chip.id
+                ? 'bg-[#1D4E63] text-white border-[#1D4E63] shadow-2xs'
+                : 'bg-[#FFFFFF] hover:bg-[#F6F7F8] text-[#5B6472] hover:text-[#12161C] border-[#E3E6EA]'
+            }`}
+          >
+            <span>{chip.label}</span>
+            <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-extrabold ${
+              quickLeadFilter === chip.id ? 'bg-white/20 text-white' : 'bg-[#F6F7F8] text-[#5B6472]'
+            }`}>
+              {chip.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* Responsive Mobile Cards View (< md) */}
       <div className="block md:hidden space-y-3">
         {filteredLeads.length === 0 ? (
@@ -500,22 +491,6 @@ export const LeadsView = ({
                             <Calendar className="w-3.5 h-3.5 text-[#3F7A5C]" />
                             <span>Add Activity</span>
                           </button>
-
-                          <button
-                            onClick={() => handleOpenChangeStageModal(lead)}
-                            className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                          >
-                            <ArrowRightLeft className="w-3.5 h-3.5 text-[#1D4E63]" />
-                            <span>Change Stage</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleOpenSendEmailModal(lead)}
-                            className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                          >
-                            <Mail className="w-3.5 h-3.5 text-[#C6790A]" />
-                            <span>Send Email</span>
-                          </button>
                         </div>
                       )}
                     </div>
@@ -584,8 +559,21 @@ export const LeadsView = ({
             <tbody className="divide-y divide-[#E3E6EA]">
               {filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-[#5B6472]">
-                    No leads found matching criteria.
+                  <td colSpan={8} className="px-4 py-12 text-center text-[#5B6472]">
+                    <div className="max-w-xs mx-auto space-y-2.5">
+                      <div className="w-10 h-10 rounded-2xl bg-[#EFF6F9] text-[#1D4E63] flex items-center justify-center mx-auto border border-[#D8E8EF]">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <p className="font-bold text-xs text-[#12161C]">No leads match your active filters</p>
+                      <p className="text-[11px] text-[#5B6472]">Try clearing search or switch to another filter chip.</p>
+                      <button
+                        onClick={handleOpenAddModal}
+                        className="mt-1 px-3 py-1.5 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Create New Lead</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -599,7 +587,12 @@ export const LeadsView = ({
                   return (
                     <tr
                       key={lead.id}
-                      className={`transition-colors ${isSelected ? 'bg-[#F6F7F8]' : 'hover:bg-[#F6F7F8]/60'}`}
+                      onClick={(e) => {
+                        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('a')) return;
+                        if (onOpenDrawer) onOpenDrawer('lead', lead);
+                        else handleOpenEditModal(lead);
+                      }}
+                      className={`transition-colors cursor-pointer ${isSelected ? 'bg-[#EFF6F9]' : 'hover:bg-[#EFF6F9]/50'}`}
                     >
                       {/* Select Checkbox */}
                       <td className="px-4 py-3.5">
@@ -734,13 +727,6 @@ export const LeadsView = ({
                                 >
                                   <Calendar className="w-3.5 h-3.5 text-[#3F7A5C]" />
                                   <span>Add Activity</span>
-                                </button>
-                                <button
-                                  onClick={() => handleOpenLeadStageGate(lead)}
-                                  className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                                >
-                                  <ShieldCheck className="w-3.5 h-3.5 text-[#1D4E63]" />
-                                  <span>Change Stage / Gate</span>
                                 </button>
                               </div>
                             )}
@@ -939,24 +925,6 @@ export const LeadsView = ({
         users={users}
         currentUser={currentUser}
         onSubmitActivity={handleSubmitActivityFromModal}
-      />
-
-
-
-
-
-      {/* Stage Gate Qualification Check Modal in LeadsView */}
-      <StageGateCheckModal
-        isOpen={isGateModalOpen}
-        onClose={() => setIsGateModalOpen(false)}
-        deal={gateCheckDeal}
-        fromStage={gateCheckFromStage}
-        targetStage={gateCheckTargetStage}
-        currentUser={currentUser}
-        onSubmitCheck={onSubmitStageGateCheck}
-        onApproveCheck={() => gateCheckDeal && handleApproveLeadStage(gateCheckDeal)}
-        onRejectCheck={(_, __, reason) => gateCheckDeal && handleRejectLeadStage(gateCheckDeal, reason)}
-        onSaveDraft={() => { }}
       />
 
     </div>

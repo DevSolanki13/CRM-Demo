@@ -21,7 +21,6 @@ import {
   transitionDealStage,
   closeLostDeal,
   createRebuyDeal,
-  fetchAuditLogs,
   triggerRenewalAutomation,
   createTask,
   updateTask,
@@ -47,8 +46,12 @@ import { EmployeesView } from './components/EmployeesView.jsx';
 import { ReportsView } from './components/ReportsView.jsx';
 import { SettingsView } from './components/SettingsView.jsx';
 import { ImportExportModal } from './components/ImportExportModal.jsx';
-import { GlobalSearchModal } from './components/GlobalSearchModal.jsx';
-import { Loader2 } from 'lucide-react';
+import { ErrorBoundary } from './components/ErrorBoundary.jsx';
+import { NotFoundView } from './components/NotFoundView.jsx';
+import { DetailDrawer } from './components/DetailDrawer.jsx';
+import { Toaster, toast } from 'sonner';
+
+const KNOWN_TABS = ['dashboard', 'leads', 'pipeline', 'contacts', 'companies', 'tasks', 'employees', 'reports', 'settings'];
 
 const OLD_HEX_MAP = {
   '#64748b': '#FFFFFF',
@@ -100,9 +103,33 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Modals
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // Modals & Drawer
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
+  const [drawerState, setDrawerState] = useState({
+    isOpen: false,
+    type: 'deal',
+    item: null
+  });
+
+  const handleOpenDrawer = (type, item) => {
+    setDrawerState({ isOpen: true, type, item });
+  };
+
+  const handleCloseDrawer = () => {
+    setDrawerState(prev => ({ ...prev, isOpen: false }));
+  };
+
+  // Global Keyboard Shortcuts (Cmd+K / Ctrl+K) focuses header search input
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        document.querySelector('header input')?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   // Initial Load
   useEffect(() => {
@@ -125,10 +152,40 @@ export default function App() {
 
   if (loading || !state || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#F6F7F8] text-[#12161C] flex items-center justify-center p-4">
-        <div className="text-center space-y-3 bg-[#FFFFFF] border border-[#E3E6EA] p-8 rounded-2xl shadow-xl">
-          <Loader2 className="w-8 h-8 text-[#1D4E63] animate-spin mx-auto" />
-          <p className="text-sm font-bold text-[#12161C] font-display">Loading NexusCRM Sales Console...</p>
+      <div className="min-h-screen bg-[#F6F7F8] text-[#12161C] flex flex-col font-sans select-none">
+        {/* Skeleton Topbar */}
+        <div className="bg-[#FFFFFF] border-b border-[#E3E6EA] px-6 py-3.5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#EFF6F9] animate-pulse" />
+            <div className="h-4 w-28 bg-[#E3E6EA] rounded-md animate-pulse" />
+          </div>
+          <div className="hidden md:block w-72 h-8 bg-[#F6F7F8] rounded-xl border border-[#E3E6EA] animate-pulse" />
+          <div className="flex items-center gap-2">
+            <div className="w-20 h-8 bg-[#F6F7F8] rounded-xl animate-pulse" />
+            <div className="w-8 h-8 rounded-full bg-[#E3E6EA] animate-pulse" />
+          </div>
+        </div>
+
+        {/* Skeleton Main Workspace */}
+        <div className="flex flex-1 overflow-hidden">
+          <div className="w-64 bg-[#FFFFFF] border-r border-[#E3E6EA] p-4 space-y-3 hidden lg:block">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="h-8 bg-[#F6F7F8] rounded-xl animate-pulse" />
+            ))}
+          </div>
+          <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+            <div className="h-28 bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-6 flex items-center justify-between animate-pulse">
+              <div className="space-y-2">
+                <div className="h-5 w-48 bg-[#E3E6EA] rounded-md" />
+                <div className="h-3 w-80 bg-[#F6F7F8] rounded-md" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="h-24 bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl animate-pulse" />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -311,9 +368,10 @@ export default function App() {
     try {
       const res = await transitionDealStage(dealId, payload);
       await reloadState();
+      toast.success("Deal stage updated successfully");
       return res;
     } catch (err) {
-      alert(err.message || 'Stage transition failed');
+      toast.error(err.message || 'Stage transition failed');
       throw err;
     }
   };
@@ -322,9 +380,10 @@ export default function App() {
     try {
       const res = await closeLostDeal(dealId, payload);
       await reloadState();
+      toast.info("Deal marked as Closed Lost");
       return res;
     } catch (err) {
-      alert(err.message || 'Close lost failed');
+      toast.error(err.message || 'Close lost failed');
       throw err;
     }
   };
@@ -333,9 +392,10 @@ export default function App() {
     try {
       const res = await createRebuyDeal(parentDealId, currentUser);
       await reloadState();
+      toast.success("Child rebuy opportunity generated");
       return res;
     } catch (err) {
-      alert(err.message || 'Failed to create rebuy deal');
+      toast.error(err.message || 'Failed to create rebuy deal');
       throw err;
     }
   };
@@ -362,8 +422,9 @@ export default function App() {
       };
       await createDeal(newDeal);
       await reloadState();
+      toast.success("Lead converted to Deal successfully");
     } catch (err) {
-      alert(err.message || 'Failed to convert lead to deal');
+      toast.error(err.message || 'Failed to convert lead to deal');
     }
   };
 
@@ -376,11 +437,18 @@ export default function App() {
   };
 
   // Global search result selection
-  const handleSelectSearchResult = (type, _item) => {
-    if (type === 'lead') setActiveTab('leads');
-    else if (type === 'deal') setActiveTab('pipeline');
-    else if (type === 'contact') setActiveTab('contacts');
-    else if (type === 'company') setActiveTab('companies');
+  const handleSelectSearchResult = (type, item) => {
+    if (type === 'lead') {
+      setActiveTab('leads');
+      if (item) setDrawerState({ isOpen: true, type: 'lead', item });
+    } else if (type === 'deal') {
+      setActiveTab('pipeline');
+      if (item) setDrawerState({ isOpen: true, type: 'deal', item });
+    } else if (type === 'contact') {
+      setActiveTab('contacts');
+    } else if (type === 'company') {
+      setActiveTab('companies');
+    }
   };
 
   // Pending Tasks and Renewals Count for badges
@@ -388,186 +456,224 @@ export default function App() {
   const renewalsDueCount = state.deals.filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again')).length;
 
   return (
-    <div className="h-screen w-screen bg-[#F6F7F8] text-[#12161C] flex flex-col font-sans antialiased selection:bg-[#1D4E63] selection:text-white overflow-hidden">
+    <ErrorBoundary onResetState={handleResetDemoData}>
+      <div className="h-screen w-screen bg-[#F6F7F8] text-[#12161C] flex flex-col font-sans antialiased selection:bg-[#1D4E63] selection:text-white overflow-hidden">
+        
+        {/* Toast Notification Container */}
+        <Toaster position="top-right" richColors closeButton />
 
-      {/* Top Header */}
-      <Header
-        branding={state.branding}
-        users={state.users}
-        currentUser={currentUser}
-        onSelectUser={setCurrentUser}
-        onOpenSearch={() => setIsSearchOpen(true)}
-        onOpenQuickAction={handleQuickAction}
-        onTriggerRenewalCheck={handleTriggerRenewalCheck}
-        renewalsDueCount={renewalsDueCount}
-      />
-
-      {/* Main Body: Sidebar + Content */}
-      <div className="flex-1 flex overflow-hidden">
-
-        {/* Navigation Sidebar */}
-        <Sidebar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          userRole={currentUser.role}
-          pendingTasksCount={pendingTasksCount}
+        {/* Top Header with Inline Anchored Search Dropdown */}
+        <Header
+          branding={state.branding}
+          users={state.users}
+          currentUser={currentUser}
+          state={state}
+          onSelectUser={setCurrentUser}
+          onSelectSearchResult={handleSelectSearchResult}
+          onNavigateTab={setActiveTab}
+          onOpenQuickAction={handleQuickAction}
+          onTriggerRenewalCheck={handleTriggerRenewalCheck}
           renewalsDueCount={renewalsDueCount}
-          onOpenImportExport={() => setIsImportExportOpen(true)}
         />
 
-        {/* Dynamic Tab Content View */}
-        <main className="flex-1 overflow-y-auto bg-[#F6F7F8]">
-          {activeTab === 'dashboard' && (
-            <DashboardView
-              state={state}
-              currentUser={currentUser}
-              onNavigateTab={setActiveTab}
-              onTriggerRenewalCheck={handleTriggerRenewalCheck}
-              onOpenLeadModal={() => setActiveTab('leads')}
-              onOpenDealModal={() => setActiveTab('pipeline')}
-            />
-          )}
+        {/* Main Body: Sidebar + Content */}
+        <div className="flex-1 flex overflow-hidden">
 
-          {activeTab === 'leads' && (
-            <LeadsView
-              leads={state.leads}
-              stages={state.stages}
-              deals={state.deals}
-              users={state.users}
-              currentUser={currentUser}
-              branding={state.branding}
-              onCreateLead={handleCreateLead}
-              onUpdateLead={handleUpdateLead}
-              onDeleteLead={handleDeleteLead}
-              onConvertToDeal={handleConvertToDeal}
-              onUpdateDeal={handleUpdateDeal}
-              onCreateActivity={handleCreateActivity}
-              onCreateTask={handleCreateTask}
-              onSubmitStageGateCheck={handleCreateStageGateCheck}
-              onApproveStageGateCheck={handleApproveStageGateCheck}
-              onRejectStageGateCheck={handleRejectStageGateCheck}
-            />
-          )}
+          {/* Navigation Sidebar */}
+          <Sidebar
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            userRole={currentUser.role}
+            pendingTasksCount={pendingTasksCount}
+            renewalsDueCount={renewalsDueCount}
+            onOpenImportExport={() => setIsImportExportOpen(true)}
+          />
 
-          {activeTab === 'pipeline' && (
-            <PipelineView
-              deals={state.deals}
-              stages={state.stages}
-              users={state.users}
-              companies={state.companies}
-              contacts={state.contacts}
-              currentUser={currentUser}
-              branding={state.branding}
-              onCreateDeal={handleCreateDeal}
-              onUpdateDeal={handleUpdateDeal}
-              onDeleteDeal={handleDeleteDeal}
-              onCreateActivity={handleCreateActivity}
-              onCreateTask={handleCreateTask}
-              onSubmitStageGateCheck={handleCreateStageGateCheck}
-              onApproveStageGateCheck={handleApproveStageGateCheck}
-              onRejectStageGateCheck={handleRejectStageGateCheck}
-              onSavePartialGateCheck={handleSavePartialGateCheck}
-              onOpenSettings={() => setActiveTab('settings')}
-              onTransitionDealStage={handleTransitionDealStage}
-              onCloseLostDeal={handleCloseLostDeal}
-              onCreateRebuyDeal={handleCreateRebuyDeal}
-            />
-          )}
+          {/* Dynamic Tab Content View */}
+          <main className="flex-1 overflow-y-auto bg-[#F6F7F8]">
+            {activeTab === 'dashboard' && (
+              <DashboardView
+                state={state}
+                currentUser={currentUser}
+                onNavigateTab={setActiveTab}
+                onTriggerRenewalCheck={handleTriggerRenewalCheck}
+                onOpenLeadModal={() => setActiveTab('leads')}
+                onOpenDealModal={() => setActiveTab('pipeline')}
+              />
+            )}
 
-          {activeTab === 'contacts' && (
-            <ContactsView
-              contacts={state.contacts}
-              companies={state.companies}
-              users={state.users}
-              stages={state.stages}
-              deals={state.deals}
-              notes={state.notes}
-              activities={state.activities}
-              currentUser={currentUser}
-              onCreateContact={handleCreateContact}
-              onUpdateContact={handleUpdateContact}
-              onDeleteContact={handleDeleteContact}
-              onCreateNote={handleCreateNote}
-              onCreateActivity={handleCreateActivity}
-              onCreateTask={handleCreateTask}
-              onUpdateDeal={handleUpdateDeal}
-            />
-          )}
+            {activeTab === 'leads' && (
+              <LeadsView
+                leads={state.leads}
+                stages={state.stages}
+                deals={state.deals}
+                users={state.users}
+                currentUser={currentUser}
+                branding={state.branding}
+                onCreateLead={handleCreateLead}
+                onUpdateLead={handleUpdateLead}
+                onDeleteLead={handleDeleteLead}
+                onConvertToDeal={handleConvertToDeal}
+                onUpdateDeal={handleUpdateDeal}
+                onCreateActivity={handleCreateActivity}
+                onCreateTask={handleCreateTask}
+                onSubmitStageGateCheck={handleCreateStageGateCheck}
+                onApproveStageGateCheck={handleApproveStageGateCheck}
+                onRejectStageGateCheck={handleRejectStageGateCheck}
+                onOpenDrawer={handleOpenDrawer}
+              />
+            )}
 
-          {activeTab === 'companies' && (
-            <CompaniesView
-              companies={state.companies}
-              contacts={state.contacts}
-              deals={state.deals}
-              onCreateCompany={handleCreateCompany}
-              onUpdateCompany={handleUpdateCompany}
-              onDeleteCompany={handleDeleteCompany}
-            />
-          )}
+            {activeTab === 'pipeline' && (
+              <PipelineView
+                deals={state.deals}
+                stages={state.stages}
+                users={state.users}
+                companies={state.companies}
+                contacts={state.contacts}
+                currentUser={currentUser}
+                branding={state.branding}
+                onCreateDeal={handleCreateDeal}
+                onUpdateDeal={handleUpdateDeal}
+                onDeleteDeal={handleDeleteDeal}
+                onCreateActivity={handleCreateActivity}
+                onCreateTask={handleCreateTask}
+                onSubmitStageGateCheck={handleCreateStageGateCheck}
+                onApproveStageGateCheck={handleApproveStageGateCheck}
+                onRejectStageGateCheck={handleRejectStageGateCheck}
+                onSavePartialGateCheck={handleSavePartialGateCheck}
+                onOpenSettings={() => setActiveTab('settings')}
+                onTransitionDealStage={handleTransitionDealStage}
+                onCloseLostDeal={handleCloseLostDeal}
+                onCreateRebuyDeal={handleCreateRebuyDeal}
+                onOpenDrawer={handleOpenDrawer}
+              />
+            )}
 
-          {activeTab === 'tasks' && (
-            <TasksView
-              tasks={state.tasks}
-              users={state.users}
-              leads={state.leads}
-              deals={state.deals}
-              stages={state.stages}
-              currentUser={currentUser}
-              onCreateTask={handleCreateTask}
-              onUpdateTask={handleUpdateTask}
-              onDeleteTask={handleDeleteTask}
-              onApproveStageGateCheck={handleApproveStageGateCheck}
-              onRejectStageGateCheck={handleRejectStageGateCheck}
-            />
-          )}
+            {activeTab === 'contacts' && (
+              <ContactsView
+                contacts={state.contacts}
+                companies={state.companies}
+                users={state.users}
+                stages={state.stages}
+                deals={state.deals}
+                notes={state.notes}
+                activities={state.activities}
+                currentUser={currentUser}
+                onCreateContact={handleCreateContact}
+                onUpdateContact={handleUpdateContact}
+                onDeleteContact={handleDeleteContact}
+                onCreateNote={handleCreateNote}
+                onCreateActivity={handleCreateActivity}
+                onCreateTask={handleCreateTask}
+                onUpdateDeal={handleUpdateDeal}
+              />
+            )}
 
-          {activeTab === 'employees' && (
-            <EmployeesView
-              users={state.users}
-              leads={state.leads}
-              deals={state.deals}
-              currentUser={currentUser}
-              onCreateUser={handleCreateUser}
-              onUpdateUser={handleUpdateUser}
-            />
-          )}
+            {activeTab === 'companies' && (
+              <CompaniesView
+                companies={state.companies}
+                contacts={state.contacts}
+                deals={state.deals}
+                onCreateCompany={handleCreateCompany}
+                onUpdateCompany={handleUpdateCompany}
+                onDeleteCompany={handleDeleteCompany}
+              />
+            )}
 
-          {activeTab === 'reports' && (
-            <ReportsView
-              state={state}
-              currentUser={currentUser}
-              onCreateDeal={handleCreateDeal}
-            />
-          )}
+            {activeTab === 'tasks' && (
+              <TasksView
+                tasks={state.tasks}
+                users={state.users}
+                leads={state.leads}
+                deals={state.deals}
+                stages={state.stages}
+                currentUser={currentUser}
+                onCreateTask={handleCreateTask}
+                onUpdateTask={handleUpdateTask}
+                onDeleteTask={handleDeleteTask}
+                onApproveStageGateCheck={handleApproveStageGateCheck}
+                onRejectStageGateCheck={handleRejectStageGateCheck}
+              />
+            )}
 
-          {activeTab === 'settings' && (
-            <SettingsView
-              branding={state.branding}
-              stages={state.stages}
-              onUpdateBranding={handleUpdateBranding}
-              onCreateStage={handleCreateStage}
-              onUpdateStage={handleUpdateStage}
-              onResetDemoData={handleResetDemoData}
-            />
-          )}
-        </main>
+            {activeTab === 'employees' && (
+              <EmployeesView
+                users={state.users}
+                leads={state.leads}
+                deals={state.deals}
+                currentUser={currentUser}
+                onCreateUser={handleCreateUser}
+                onUpdateUser={handleUpdateUser}
+              />
+            )}
+
+            {activeTab === 'reports' && (
+              <ReportsView
+                state={state}
+                currentUser={currentUser}
+                onCreateDeal={handleCreateDeal}
+              />
+            )}
+
+            {activeTab === 'settings' && (
+              <SettingsView
+                branding={state.branding}
+                stages={state.stages}
+                onUpdateBranding={handleUpdateBranding}
+                onCreateStage={handleCreateStage}
+                onUpdateStage={handleUpdateStage}
+                onResetDemoData={handleResetDemoData}
+              />
+            )}
+
+            {/* Custom 404 View for unrecognized module tabs */}
+            {!KNOWN_TABS.includes(activeTab) && (
+              <NotFoundView
+                requestedTab={activeTab}
+                onNavigateTab={setActiveTab}
+                onOpenSearch={() => document.querySelector('header input')?.focus()}
+              />
+            )}
+          </main>
+
+        </div>
+
+        {/* 360° Slide-Over Detail Drawer */}
+        <DetailDrawer
+          isOpen={drawerState.isOpen}
+          onClose={handleCloseDrawer}
+          deal={drawerState.type === 'deal' ? (state.deals.find(d => d.id === drawerState.item?.id) || drawerState.item) : null}
+          lead={drawerState.type === 'lead' ? (state.leads.find(l => l.id === drawerState.item?.id) || drawerState.item) : null}
+          type={drawerState.type}
+          stages={state.stages}
+          users={state.users}
+          companies={state.companies}
+          contacts={state.contacts}
+          tasks={state.tasks}
+          activities={state.activities}
+          currentUser={currentUser}
+          onUpdateDeal={handleUpdateDeal}
+          onUpdateLead={handleUpdateLead}
+          onCreateActivity={handleCreateActivity}
+          onCreateTask={handleCreateTask}
+          onUpdateTask={handleUpdateTask}
+          onOpenStageGateModal={() => {
+            setActiveTab('pipeline');
+            handleCloseDrawer();
+          }}
+          onCloseLostDeal={handleCloseLostDeal}
+          onCreateRebuyDeal={handleCreateRebuyDeal}
+        />
+
+        {/* Global Modals */}
+        <ImportExportModal
+          isOpen={isImportExportOpen}
+          onClose={() => setIsImportExportOpen(false)}
+          state={state}
+        />
 
       </div>
-
-      {/* Global Modals */}
-      <GlobalSearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        state={state}
-        onSelectResult={handleSelectSearchResult}
-      />
-
-      <ImportExportModal
-        isOpen={isImportExportOpen}
-        onClose={() => setIsImportExportOpen(false)}
-        state={state}
-      />
-
-    </div>
+    </ErrorBoundary>
   );
 }

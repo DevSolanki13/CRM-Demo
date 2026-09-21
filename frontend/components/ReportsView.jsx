@@ -7,14 +7,10 @@ import {
   Trophy,
   ShieldAlert,
   AlertTriangle,
-  FileCheck,
   CheckCircle2,
   XCircle,
-  Clock,
   ShieldCheck,
-  Building2,
-  ArrowRight,
-  Layers
+  Building2
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/crmHelpers.js';
 

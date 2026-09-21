@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -13,6 +12,7 @@ import {
   LogOut,
   Shield
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export const Sidebar = ({
   activeTab,
@@ -117,7 +117,7 @@ export const Sidebar = ({
         </div>
 
         <button 
-          onClick={() => alert("Sign out triggered (Demo)")}
+          onClick={() => toast.info("Sign out triggered (Demo mode)")}
           className="w-full flex items-center justify-center lg:justify-start gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-[#922D27] hover:bg-[#FDF2F1] transition-colors focus-visible:outline-2 focus-visible:outline-[#922D27]"
           title="Sign Out"
         >
