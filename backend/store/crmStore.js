@@ -1,3 +1,4 @@
+import { prisma } from '../prisma.js';
 import {
   initialBranding,
   initialUsers,
@@ -70,10 +71,11 @@ const OLD_HEX_MAP = {
 
 class CRMStore {
   constructor() {
-    this.resetState();
+    this.resetStateSync();
+    this.initFromDatabase().catch(err => console.warn('Database initialization note:', err.message));
   }
 
-  resetState() {
+  resetStateSync() {
     this.branding = JSON.parse(JSON.stringify(initialBranding));
     this.users = JSON.parse(JSON.stringify(initialUsers));
     this.stages = JSON.parse(JSON.stringify(initialStages));
@@ -86,10 +88,138 @@ class CRMStore {
     this.activities = JSON.parse(JSON.stringify(initialActivities));
     this.stageGateChecks = JSON.parse(JSON.stringify(initialStageGateChecks));
     this.auditLogs = JSON.parse(JSON.stringify(initialAuditLogs || []));
+  }
+
+  persist(table, action, args) {
+    if (!prisma || !prisma[table] || !prisma[table][action]) return;
+    prisma[table][action](args).catch(err => {
+      console.warn(`[Prisma DB ${table}.${action}]`, err.message);
+    });
+  }
+
+  async initFromDatabase() {
+    try {
+      const [
+        branding,
+        users,
+        stages,
+        companies,
+        contacts,
+        leads,
+        deals,
+        tasks,
+        notes,
+        activities,
+        stageGateChecks,
+        auditLogs
+      ] = await Promise.all([
+        prisma.branding.findUnique({ where: { id: 'default' } }),
+        prisma.user.findMany(),
+        prisma.stage.findMany({ orderBy: { order: 'asc' } }),
+        prisma.company.findMany(),
+        prisma.contact.findMany(),
+        prisma.lead.findMany(),
+        prisma.deal.findMany(),
+        prisma.task.findMany(),
+        prisma.note.findMany(),
+        prisma.activity.findMany(),
+        prisma.stageGateCheck.findMany(),
+        prisma.auditLog.findMany()
+      ]);
+
+      if (branding) this.branding = branding;
+      if (users?.length) this.users = users;
+      if (stages?.length) this.stages = stages;
+      if (companies?.length) this.companies = companies;
+      if (contacts?.length) this.contacts = contacts;
+      if (leads?.length) this.leads = leads;
+      if (deals?.length) this.deals = deals;
+      if (tasks?.length) this.tasks = tasks;
+      if (notes?.length) this.notes = notes;
+      if (activities?.length) this.activities = activities;
+      if (stageGateChecks?.length) this.stageGateChecks = stageGateChecks;
+      if (auditLogs?.length) this.auditLogs = auditLogs;
+      console.log('✅ CRMStore hydrated from Supabase PostgreSQL');
+    } catch (err) {
+      console.warn('Using local state, Supabase hydration fallback:', err.message);
+    }
+  }
+
+  async resetState() {
+    this.resetStateSync();
+    this.reseedDatabase().catch(err => console.error('Error reseeding Supabase:', err.message));
     return this.getState();
   }
 
-  getState() {
+  async reseedDatabase() {
+    try {
+      await prisma.branding.upsert({
+        where: { id: 'default' },
+        update: this.branding,
+        create: { id: 'default', ...this.branding }
+      });
+      for (const u of this.users) await prisma.user.upsert({ where: { id: u.id }, update: u, create: u });
+      for (const s of this.stages) await prisma.stage.upsert({ where: { id: s.id }, update: s, create: s });
+      for (const c of this.companies) await prisma.company.upsert({ where: { id: c.id }, update: c, create: c });
+      for (const cnt of this.contacts) await prisma.contact.upsert({ where: { id: cnt.id }, update: cnt, create: cnt });
+      for (const ld of this.leads) await prisma.lead.upsert({ where: { id: ld.id }, update: ld, create: ld });
+      for (const dl of this.deals) await prisma.deal.upsert({ where: { id: dl.id }, update: dl, create: dl });
+      for (const t of this.tasks) await prisma.task.upsert({ where: { id: t.id }, update: t, create: t });
+      for (const n of this.notes) await prisma.note.upsert({ where: { id: n.id }, update: n, create: n });
+      for (const a of this.activities) await prisma.activity.upsert({ where: { id: a.id }, update: a, create: a });
+      for (const sgc of this.stageGateChecks) await prisma.stageGateCheck.upsert({ where: { id: sgc.id }, update: sgc, create: sgc });
+      for (const aud of this.auditLogs) await prisma.auditLog.upsert({ where: { id: aud.id }, update: aud, create: aud });
+    } catch (err) {
+      console.error('Failed to reseed database:', err.message);
+    }
+  }
+
+  async getState() {
+    try {
+      const [
+        branding,
+        users,
+        stages,
+        companies,
+        contacts,
+        leads,
+        deals,
+        tasks,
+        notes,
+        activities,
+        stageGateChecks,
+        auditLogs
+      ] = await Promise.all([
+        prisma.branding.findUnique({ where: { id: 'default' } }),
+        prisma.user.findMany(),
+        prisma.stage.findMany({ orderBy: { order: 'asc' } }),
+        prisma.company.findMany(),
+        prisma.contact.findMany(),
+        prisma.lead.findMany(),
+        prisma.deal.findMany(),
+        prisma.task.findMany(),
+        prisma.note.findMany(),
+        prisma.activity.findMany(),
+        prisma.stageGateCheck.findMany(),
+        prisma.auditLog.findMany()
+      ]);
+
+      if (branding) this.branding = branding;
+      if (users?.length) this.users = users;
+      if (stages?.length) this.stages = stages;
+      if (companies?.length) this.companies = companies;
+      if (contacts?.length) this.contacts = contacts;
+      if (leads?.length) this.leads = leads;
+      if (deals?.length) this.deals = deals;
+      if (tasks?.length) this.tasks = tasks;
+      if (notes?.length) this.notes = notes;
+      if (activities?.length) this.activities = activities;
+      if (stageGateChecks?.length) this.stageGateChecks = stageGateChecks;
+      if (auditLogs?.length) this.auditLogs = auditLogs;
+    } catch (err) {
+      // fallback to memory
+    }
+
     if (this.stages) {
       this.stages = this.stages.map(stg => {
         if (OLD_HEX_MAP[stg.color]) {
@@ -117,9 +247,31 @@ class CRMStore {
     };
   }
 
+  getStateSync() {
+    return {
+      branding: this.branding,
+      users: this.users,
+      stages: this.stages,
+      companies: this.companies,
+      contacts: this.contacts,
+      leads: this.leads,
+      deals: this.deals,
+      tasks: this.tasks,
+      notes: this.notes,
+      activities: this.activities,
+      stageGateChecks: this.stageGateChecks,
+      auditLogs: this.auditLogs || [],
+    };
+  }
+
   // Branding & Settings
   updateBranding(partialBranding) {
     this.branding = { ...this.branding, ...partialBranding };
+    this.persist('branding', 'upsert', {
+      where: { id: 'default' },
+      update: this.branding,
+      create: { id: 'default', ...this.branding }
+    });
     return this.branding;
   }
 
@@ -140,6 +292,7 @@ class CRMStore {
       ...company,
     };
     this.companies.unshift(newComp);
+    this.persist('company', 'upsert', { where: { id: newComp.id }, update: newComp, create: newComp });
     return newComp;
   }
 
@@ -147,6 +300,7 @@ class CRMStore {
     const idx = this.companies.findIndex((c) => c.id === id);
     if (idx !== -1) {
       this.companies[idx] = { ...this.companies[idx], ...company };
+      this.persist('company', 'update', { where: { id }, data: this.companies[idx] });
       return this.companies[idx];
     }
     return null;
@@ -155,7 +309,11 @@ class CRMStore {
   deleteCompany(id) {
     const initialLen = this.companies.length;
     this.companies = this.companies.filter((c) => c.id !== id);
-    return this.companies.length < initialLen;
+    if (this.companies.length < initialLen) {
+      this.persist('company', 'delete', { where: { id } });
+      return true;
+    }
+    return false;
   }
 
   // Contacts
@@ -179,6 +337,7 @@ class CRMStore {
       ...contact,
     };
     this.contacts.unshift(newContact);
+    this.persist('contact', 'upsert', { where: { id: newContact.id }, update: newContact, create: newContact });
     return newContact;
   }
 
@@ -186,6 +345,7 @@ class CRMStore {
     const idx = this.contacts.findIndex((c) => c.id === id);
     if (idx !== -1) {
       this.contacts[idx] = { ...this.contacts[idx], ...contact };
+      this.persist('contact', 'update', { where: { id }, data: this.contacts[idx] });
       return this.contacts[idx];
     }
     return null;
@@ -194,7 +354,11 @@ class CRMStore {
   deleteContact(id) {
     const initialLen = this.contacts.length;
     this.contacts = this.contacts.filter((c) => c.id !== id);
-    return this.contacts.length < initialLen;
+    if (this.contacts.length < initialLen) {
+      this.persist('contact', 'delete', { where: { id } });
+      return true;
+    }
+    return false;
   }
 
   // Leads
@@ -226,6 +390,7 @@ class CRMStore {
       title: title
     };
     this.leads.unshift(newLead);
+    this.persist('lead', 'upsert', { where: { id: newLead.id }, update: newLead, create: newLead });
 
     // Section 5 & 22: Automatically create first-contact task when a lead is created
     const tomorrowStr = getLocalDateStringAfterDays(1);
@@ -268,6 +433,7 @@ class CRMStore {
         updatedLead.title = title;
       }
       this.leads[idx] = updatedLead;
+      this.persist('lead', 'update', { where: { id }, data: updatedLead });
       return this.leads[idx];
     }
     return null;
@@ -276,7 +442,11 @@ class CRMStore {
   deleteLead(id) {
     const initialLen = this.leads.length;
     this.leads = this.leads.filter((l) => l.id !== id);
-    return this.leads.length < initialLen;
+    if (this.leads.length < initialLen) {
+      this.persist('lead', 'delete', { where: { id } });
+      return true;
+    }
+    return false;
   }
 
   // Stages
@@ -294,6 +464,7 @@ class CRMStore {
       ...stage,
     };
     this.stages.push(newStage);
+    this.persist('stage', 'upsert', { where: { id: newStage.id }, update: newStage, create: newStage });
     return newStage;
   }
 
@@ -301,6 +472,7 @@ class CRMStore {
     const idx = this.stages.findIndex((s) => s.id === id);
     if (idx !== -1) {
       this.stages[idx] = { ...this.stages[idx], ...stage };
+      this.persist('stage', 'update', { where: { id }, data: this.stages[idx] });
       return this.stages[idx];
     }
     return null;
@@ -347,6 +519,7 @@ class CRMStore {
     };
 
     this.deals.unshift(newDeal);
+    this.persist('deal', 'upsert', { where: { id: newDeal.id }, update: newDeal, create: newDeal });
 
     // If deal is tied to a lead, update lead status to 'Converted'
     if (newDeal.leadId) {
@@ -354,6 +527,7 @@ class CRMStore {
       if (leadIdx !== -1) {
         this.leads[leadIdx].status = 'Converted';
         this.leads[leadIdx].lastActivityDate = todayStr;
+        this.persist('lead', 'update', { where: { id: newDeal.leadId }, data: this.leads[leadIdx] });
       }
     }
 
@@ -406,6 +580,7 @@ class CRMStore {
         valueHistory,
         updatedAt: todayStr,
       };
+      this.persist('deal', 'update', { where: { id }, data: this.deals[idx] });
       return this.deals[idx];
     }
     return null;
@@ -414,7 +589,11 @@ class CRMStore {
   deleteDeal(id) {
     const initialLen = this.deals.length;
     this.deals = this.deals.filter((d) => d.id !== id);
-    return this.deals.length < initialLen;
+    if (this.deals.length < initialLen) {
+      this.persist('deal', 'delete', { where: { id } });
+      return true;
+    }
+    return false;
   }
 
   // Section 11 & 28: Dedicated Rebuy Creation Engine
@@ -464,6 +643,7 @@ class CRMStore {
     };
 
     this.deals.unshift(newRebuyDeal);
+    this.persist('deal', 'upsert', { where: { id: newRebuyDeal.id }, update: newRebuyDeal, create: newRebuyDeal });
 
     // Section 22: Proactive automated task for rebuy outreach
     const threeDaysStr = getLocalDateStringAfterDays(3);
@@ -525,7 +705,7 @@ class CRMStore {
       }
     });
 
-    return { flippedCount: createdCount, state: this.getState() };
+    return { flippedCount: createdCount, state: this.getStateSync() };
   }
 
   // Section 14 & 31: Backend Stage Transition Validation Engine
@@ -748,6 +928,7 @@ class CRMStore {
     };
     if (!this.auditLogs) this.auditLogs = [];
     this.auditLogs.unshift(logEntry);
+    this.persist('auditLog', 'create', { data: logEntry });
     return logEntry;
   }
 
@@ -776,6 +957,7 @@ class CRMStore {
       ...task,
     };
     this.tasks.unshift(newTask);
+    this.persist('task', 'upsert', { where: { id: newTask.id }, update: newTask, create: newTask });
     return newTask;
   }
 
@@ -783,6 +965,7 @@ class CRMStore {
     const idx = this.tasks.findIndex((t) => t.id === id);
     if (idx !== -1) {
       this.tasks[idx] = { ...this.tasks[idx], ...task };
+      this.persist('task', 'update', { where: { id }, data: this.tasks[idx] });
       return this.tasks[idx];
     }
     return null;
@@ -791,7 +974,11 @@ class CRMStore {
   deleteTask(id) {
     const initialLen = this.tasks.length;
     this.tasks = this.tasks.filter((t) => t.id !== id);
-    return this.tasks.length < initialLen;
+    if (this.tasks.length < initialLen) {
+      this.persist('task', 'delete', { where: { id } });
+      return true;
+    }
+    return false;
   }
 
   // Notes
@@ -811,6 +998,7 @@ class CRMStore {
       ...note,
     };
     this.notes.unshift(newNote);
+    this.persist('note', 'create', { data: newNote });
     return newNote;
   }
 
@@ -834,6 +1022,7 @@ class CRMStore {
       ...activity,
     };
     this.activities.unshift(newActivity);
+    this.persist('activity', 'create', { data: newActivity });
     return newActivity;
   }
 
@@ -846,13 +1035,14 @@ class CRMStore {
     const newUser = {
       id: `u-${Date.now()}`,
       name: user.name || 'New Staff Member',
-      email: user.email || 'user@nexuscrm.io',
+      email: user.email || 'user@salescrm.io',
       role: user.role || 'Sales Rep',
       active: true,
       avatarUrl: user.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
       ...user,
     };
     this.users.push(newUser);
+    this.persist('user', 'upsert', { where: { id: newUser.id }, update: newUser, create: newUser });
     return newUser;
   }
 
@@ -860,6 +1050,7 @@ class CRMStore {
     const idx = this.users.findIndex((u) => u.id === id);
     if (idx !== -1) {
       this.users[idx] = { ...this.users[idx], ...user };
+      this.persist('user', 'update', { where: { id }, data: this.users[idx] });
       return this.users[idx];
     }
     return null;
@@ -878,6 +1069,7 @@ class CRMStore {
       ...check,
     };
     this.stageGateChecks.unshift(newCheck);
+    this.persist('stageGateCheck', 'upsert', { where: { id: newCheck.id }, update: newCheck, create: newCheck });
 
     // If check status is approved_and_executed directly (e.g. submitted by Admin or auto-approved)
     if (newCheck.status === 'approved_and_executed') {
@@ -923,6 +1115,7 @@ class CRMStore {
       if (newCheck.status === 'pending_review') {
         deal.status = 'Pending Review';
       }
+      this.persist('deal', 'update', { where: { id: deal.id }, data: deal });
     }
 
     // Save pending review state on lead
@@ -931,6 +1124,7 @@ class CRMStore {
       if (newCheck.status === 'pending_review') {
         lead.status = 'Pending Review';
       }
+      this.persist('lead', 'update', { where: { id: lead.id }, data: lead });
     }
 
     // If pending review, automatically generate approval task for Manager & Admin users
@@ -948,7 +1142,7 @@ class CRMStore {
           t.ownerId === rev.id
         );
         if (!existingTask) {
-          this.tasks.unshift({
+          const apprTask = {
             id: `tsk-appr-${Date.now()}-${rev.id}`,
             title: `[Stage Approval Required] ${entityTitle}: ${newCheck.fromStageName || 'Current Stage'} ➔ ${newCheck.targetStageName || 'Target Stage'}`,
             dueDate: todayStr,
@@ -968,7 +1162,9 @@ class CRMStore {
             fromStageName: newCheck.fromStageName || '',
             targetStageName: newCheck.targetStageName || '',
             createdAt: todayStr,
-          });
+          };
+          this.tasks.unshift(apprTask);
+          this.persist('task', 'upsert', { where: { id: apprTask.id }, update: apprTask, create: apprTask });
         }
       });
 
@@ -1029,6 +1225,7 @@ class CRMStore {
         status: 'pending_review'
       };
       this.stageGateChecks.unshift(check);
+      this.persist('stageGateCheck', 'upsert', { where: { id: check.id }, update: check, create: check });
     }
 
     if (check) {
@@ -1036,18 +1233,21 @@ class CRMStore {
       check.reviewedBy = reviewer?.id || 'u-1';
       check.reviewedByName = reviewer?.name || 'Alex Vance';
       check.reviewedAt = new Date().toISOString();
+      this.persist('stageGateCheck', 'update', { where: { id: check.id }, data: check });
 
       // Update associated approval tasks to completed
       this.tasks = this.tasks.map(t => {
         const matchesCheck = t.stageGateCheckId === check.id;
         const matchesEntity = (t.linkedId === check.dealId || t.linkedId === check.leadId || t.linkedId === cleanId) && t.type === 'Approval';
         if (matchesCheck || matchesEntity) {
-          return {
+          const updatedT = {
             ...t,
             status: 'done',
             reviewedByName: reviewer?.name || 'Alex Vance',
             resolution: 'Approved'
           };
+          this.persist('task', 'update', { where: { id: t.id }, data: updatedT });
+          return updatedT;
         }
         return t;
       });
@@ -1073,10 +1273,12 @@ class CRMStore {
     if (dealObj) {
       delete dealObj.pendingGateCheck;
       dealObj.status = 'Active';
+      this.persist('deal', 'update', { where: { id: dealObj.id }, data: dealObj });
     }
     if (leadObj) {
       delete leadObj.pendingGateCheck;
       leadObj.status = 'Qualified';
+      this.persist('lead', 'update', { where: { id: leadObj.id }, data: leadObj });
     }
 
     return { success: true, id: cleanId };
@@ -1096,6 +1298,7 @@ class CRMStore {
     if (dealIdx !== -1) {
       delete this.deals[dealIdx].pendingGateCheck;
       this.deals[dealIdx].status = 'Follow up';
+      this.persist('deal', 'update', { where: { id: this.deals[dealIdx].id }, data: this.deals[dealIdx] });
       
       const targetLeadId = this.deals[dealIdx].leadId;
       if (targetLeadId) {
@@ -1103,6 +1306,7 @@ class CRMStore {
         if (leadIdx !== -1) {
           delete this.leads[leadIdx].pendingGateCheck;
           this.leads[leadIdx].status = 'Follow up';
+          this.persist('lead', 'update', { where: { id: this.leads[leadIdx].id }, data: this.leads[leadIdx] });
         }
       }
     }
@@ -1111,6 +1315,7 @@ class CRMStore {
     if (leadIdx !== -1) {
       delete this.leads[leadIdx].pendingGateCheck;
       this.leads[leadIdx].status = 'Follow up';
+      this.persist('lead', 'update', { where: { id: this.leads[leadIdx].id }, data: this.leads[leadIdx] });
     }
 
     if (check) {
@@ -1118,6 +1323,7 @@ class CRMStore {
       check.reviewedBy = reviewer?.id || 'u-1';
       check.reviewedByName = reviewer?.name || 'Alex Vance';
       check.rejectionReason = reason || 'Requirements not met';
+      this.persist('stageGateCheck', 'update', { where: { id: check.id }, data: check });
     }
 
     // Update associated approval tasks
@@ -1125,13 +1331,15 @@ class CRMStore {
       const matchesCheck = check && t.stageGateCheckId === check.id;
       const matchesEntity = (t.linkedId === cleanId || (check && (t.linkedId === check.dealId || t.linkedId === check.leadId))) && t.type === 'Approval';
       if (matchesCheck || matchesEntity) {
-        return {
+        const updatedT = {
           ...t,
           status: 'done',
           reviewedByName: reviewer?.name || 'Alex Vance',
           resolution: 'Rejected',
           rejectionReason: reason || 'Requirements not met'
         };
+        this.persist('task', 'update', { where: { id: t.id }, data: updatedT });
+        return updatedT;
       }
       return t;
     });
@@ -1188,6 +1396,7 @@ class CRMStore {
           this.leads[leadIdx].status = check.targetStageName === 'Closed Won' ? 'Converted' : 'Qualified';
           this.leads[leadIdx].lastActivityDate = todayStr;
           delete this.leads[leadIdx].pendingGateCheck;
+          this.persist('lead', 'update', { where: { id: this.leads[leadIdx].id }, data: this.leads[leadIdx] });
         }
 
         this.createActivity({
@@ -1212,6 +1421,7 @@ class CRMStore {
           this.leads[leadIdx].status = 'Unqualified';
           this.leads[leadIdx].lastActivityDate = todayStr;
           delete this.leads[leadIdx].pendingGateCheck;
+          this.persist('lead', 'update', { where: { id: this.leads[leadIdx].id }, data: this.leads[leadIdx] });
         }
 
         this.createActivity({
@@ -1242,6 +1452,7 @@ class CRMStore {
           isOutbound: false,
         });
       }
+      this.persist('deal', 'update', { where: { id: deal.id }, data: deal });
     } else if (leadIdx !== -1) {
       // Direct lead transition without separate deal
       const lead = this.leads[leadIdx];
@@ -1277,6 +1488,7 @@ class CRMStore {
           isOutbound: false,
         });
       }
+      this.persist('lead', 'update', { where: { id: lead.id }, data: lead });
     }
   }
 
@@ -1296,6 +1508,9 @@ class CRMStore {
       createdAt: getLocalDateString(),
     }));
     this.contacts.unshift(...created);
+    for (const c of created) {
+      this.persist('contact', 'upsert', { where: { id: c.id }, update: c, create: c });
+    }
     return created;
   }
 }

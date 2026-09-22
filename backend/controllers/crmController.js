@@ -4,13 +4,22 @@ export const getHealth = (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 };
 
-export const getState = (_req, res) => {
-  res.json(crmStore.getState());
+export const getState = async (_req, res) => {
+  try {
+    const state = await crmStore.getState();
+    res.json(state);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
 
-export const resetState = (_req, res) => {
-  const newState = crmStore.resetState();
-  res.json({ success: true, state: newState });
+export const resetState = async (_req, res) => {
+  try {
+    const newState = await crmStore.resetState();
+    res.json({ success: true, state: newState });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
 
 export const updateBranding = (req, res) => {

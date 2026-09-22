@@ -1,0 +1,212 @@
+// Prisma schema file for Sales CRM
+// Configured for PostgreSQL (Supabase) with Prisma 7
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. White-label branding & system configuration
+model Branding {
+  id                    String   @id @default("default")
+  appName               String   @default("Sales CRM")
+  tagline               String   @default("Customizable B2B Sales & Recurring Order Platform")
+  logoIcon              String   @default("Building2")
+  primaryColor          String   @default("#2563eb")
+  accentColor           String   @default("#10b981")
+  defaultRecurrenceDays Int      @default(60)
+  customFields          Json?
+  updatedAt             DateTime @updatedAt
+}
+
+// 2. Staff & Users
+model User {
+  id        String   @id
+  name      String
+  email     String   @unique
+  role      String   @default("Sales Rep")
+  active    Boolean  @default(true)
+  avatarUrl String?
+}
+
+// 3. Pipeline Stages
+model Stage {
+  id       String @id
+  name     String @unique
+  order    Int
+  category String
+  color    String @default("#FFFFFF")
+}
+
+// 4. Accounts / Companies
+model Company {
+  id        String  @id
+  name      String
+  industry  String?
+  website   String?
+  address   String?
+  notes     String?
+  createdAt String?
+}
+
+// 5. Contacts
+model Contact {
+  id           String  @id
+  name         String
+  email        String?
+  phone        String?
+  jobTitle     String?
+  companyId    String?
+  companyName  String?
+  ownerId      String?
+  ownerName    String?
+  customFields Json?
+  createdAt    String?
+}
+
+// 6. Leads
+model Lead {
+  id               String  @id
+  title            String
+  contactName      String?
+  contactEmail     String?
+  contactPhone     String?
+  companyName      String?
+  source           String?
+  isOutbound       Boolean @default(false)
+  status           String  @default("New")
+  ownerId          String?
+  ownerName        String?
+  createdAt        String?
+  lastActivityDate String?
+  pendingGateCheck Json?
+}
+
+// 7. Deals / Pipeline Opportunities
+model Deal {
+  id                 String  @id
+  parentDealId       String?
+  leadId             String?
+  title              String
+  value              Float   @default(0)
+  currency           String  @default("INR")
+  stageId            String
+  stageName          String
+  expectedCloseDate  String?
+  actualCloseDate    String?
+  contactId          String?
+  contactName        String?
+  companyId          String?
+  companyName        String?
+  ownerId            String?
+  ownerName          String?
+  isRecurring        Boolean @default(false)
+  isRebuy            Boolean @default(false)
+  recurrenceDays     Int     @default(60)
+  status             String  @default("Active")
+  createdAt          String?
+  updatedAt          String?
+  lastActivityDate   String?
+  daysInStage        Int     @default(0)
+  valueHistory       Json?
+  reason             String?
+  lostReason         String?
+  lostReasonNote     String?
+  proposalExpiryDate String?
+  pendingGateCheck   Json?
+  partialGateState   Json?
+}
+
+// 8. Follow-up Tasks & Manager Approval Ledgers
+model Task {
+  id               String  @id
+  title            String
+  dueDate          String?
+  type             String  @default("Call")
+  linkedType       String?
+  linkedId         String?
+  linkedTitle      String?
+  ownerId          String?
+  ownerName        String?
+  status           String  @default("pending")
+  stageGateCheckId String?
+  answers          Json?
+  repObservations  String?
+  submittedBy      String?
+  submittedByName  String?
+  submittedAt      String?
+  reviewedByName   String?
+  resolution       String?
+  note             String?
+  fromStageName    String?
+  targetStageName  String?
+  createdAt        String?
+}
+
+// 9. Notes
+model Note {
+  id         String  @id
+  text       String
+  timestamp  String?
+  authorId   String?
+  authorName String?
+  linkedType String?
+  linkedId   String?
+  createdAt  String?
+}
+
+// 10. Activity Timeline Logs
+model Activity {
+  id          String   @id
+  type        String
+  description String
+  timestamp   String?
+  linkedType  String?
+  linkedId    String?
+  linkedTitle String?
+  authorId    String?
+  authorName  String?
+  isOutbound  Boolean? @default(false)
+  createdAt   String?
+}
+
+// 11. Stage Gate Qualification Checks
+model StageGateCheck {
+  id              String  @id
+  dealId          String
+  dealTitle       String?
+  fromStageId     String?
+  fromStageName   String?
+  targetStageId   String?
+  targetStageName String?
+  submittedBy     String?
+  submittedByName String?
+  reviewedBy      String?
+  reviewedByName  String?
+  status          String  @default("pending")
+  answers         Json?
+  outcome         String?
+  lostReason      String?
+  note            String?
+  timestamp       String?
+  createdAt       String?
+}
+
+// 12. Permanent Audit Trail
+model AuditLog {
+  id          String  @id
+  timestamp   String
+  actorId     String
+  actorName   String
+  action      String
+  entityType  String
+  entityId    String
+  entityTitle String?
+  fromStage   String?
+  toStage     String?
+  reason      String?
+  metadata    Json?
+}

@@ -176,7 +176,7 @@ export const Header = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-display font-extrabold text-lg tracking-tight text-[#12161C]">
-                {branding?.appName || 'NexusCRM'}
+                {branding?.appName || 'Sales CRM'}
               </span>
               <span className="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded-md font-semibold bg-[#EFF6F9] text-[#1D4E63] border border-[#D8E8EF]">
                 Sales Console

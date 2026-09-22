@@ -1,5 +1,5 @@
 export const initialBranding = {
-  appName: 'NexusCRM',
+  appName: 'Sales CRM',
   tagline: 'Customizable B2B Sales & Recurring Order Platform',
   logoIcon: 'Building2',
   primaryColor: '#2563eb', // Indigo / Modern SaaS Blue
@@ -15,7 +15,7 @@ export const initialUsers = [
   {
     id: 'u-1',
     name: 'Alex Vance',
-    email: 'alex.vance@nexuscrm.io',
+    email: 'alex.vance@salescrm.io',
     role: 'Admin',
     active: true,
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
@@ -23,7 +23,7 @@ export const initialUsers = [
   {
     id: 'u-2',
     name: 'Sarah Jenkins',
-    email: 'sarah.j@nexuscrm.io',
+    email: 'sarah.j@salescrm.io',
     role: 'Manager',
     active: true,
     avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
@@ -31,7 +31,7 @@ export const initialUsers = [
   {
     id: 'u-3',
     name: 'Marcus Vance',
-    email: 'marcus.v@nexuscrm.io',
+    email: 'marcus.v@salescrm.io',
     role: 'Sales Rep',
     active: true,
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
@@ -39,7 +39,7 @@ export const initialUsers = [
   {
     id: 'u-4',
     name: 'Elena Rostova',
-    email: 'elena.r@nexuscrm.io',
+    email: 'elena.r@salescrm.io',
     role: 'Sales Rep',
     active: true,
     avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
