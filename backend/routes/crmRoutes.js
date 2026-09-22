@@ -1,5 +1,19 @@
 import { Router } from 'express';
 import * as crmController from '../controllers/crmController.js';
+import {
+  validateBody,
+  companySchema,
+  updateCompanySchema,
+  contactSchema,
+  updateContactSchema,
+  leadSchema,
+  updateLeadSchema,
+  dealSchema,
+  updateDealSchema,
+  dealTransitionSchema,
+  taskSchema,
+  updateTaskSchema,
+} from '../middleware/validation.js';
 
 export const crmRouter = Router();
 
@@ -13,20 +27,20 @@ crmRouter.put('/branding', crmController.updateBranding);
 
 // Companies
 crmRouter.get('/companies', crmController.getCompanies);
-crmRouter.post('/companies', crmController.createCompany);
-crmRouter.put('/companies/:id', crmController.updateCompany);
+crmRouter.post('/companies', validateBody(companySchema), crmController.createCompany);
+crmRouter.put('/companies/:id', validateBody(updateCompanySchema), crmController.updateCompany);
 crmRouter.delete('/companies/:id', crmController.deleteCompany);
 
 // Contacts
 crmRouter.get('/contacts', crmController.getContacts);
-crmRouter.post('/contacts', crmController.createContact);
-crmRouter.put('/contacts/:id', crmController.updateContact);
+crmRouter.post('/contacts', validateBody(contactSchema), crmController.createContact);
+crmRouter.put('/contacts/:id', validateBody(updateContactSchema), crmController.updateContact);
 crmRouter.delete('/contacts/:id', crmController.deleteContact);
 
 // Leads
 crmRouter.get('/leads', crmController.getLeads);
-crmRouter.post('/leads', crmController.createLead);
-crmRouter.put('/leads/:id', crmController.updateLead);
+crmRouter.post('/leads', validateBody(leadSchema), crmController.createLead);
+crmRouter.put('/leads/:id', validateBody(updateLeadSchema), crmController.updateLead);
 crmRouter.delete('/leads/:id', crmController.deleteLead);
 
 // Pipeline Stages
@@ -36,11 +50,11 @@ crmRouter.put('/stages/:id', crmController.updateStage);
 
 // Deals
 crmRouter.get('/deals', crmController.getDeals);
-crmRouter.post('/deals', crmController.createDeal);
-crmRouter.put('/deals/:id', crmController.updateDeal);
+crmRouter.post('/deals', validateBody(dealSchema), crmController.createDeal);
+crmRouter.put('/deals/:id', validateBody(updateDealSchema), crmController.updateDeal);
 crmRouter.delete('/deals/:id', crmController.deleteDeal);
 crmRouter.post('/deals/check-renewals', crmController.checkRenewals);
-crmRouter.post('/deals/:id/stage-transition', crmController.transitionDealStage);
+crmRouter.post('/deals/:id/stage-transition', validateBody(dealTransitionSchema), crmController.transitionDealStage);
 crmRouter.post('/deals/:id/close-lost', crmController.closeLostDeal);
 crmRouter.post('/deals/:id/create-rebuy', crmController.createRebuyDeal);
 
@@ -49,8 +63,8 @@ crmRouter.get('/audit-logs', crmController.getAuditLogs);
 
 // Tasks
 crmRouter.get('/tasks', crmController.getTasks);
-crmRouter.post('/tasks', crmController.createTask);
-crmRouter.put('/tasks/:id', crmController.updateTask);
+crmRouter.post('/tasks', validateBody(taskSchema), crmController.createTask);
+crmRouter.put('/tasks/:id', validateBody(updateTaskSchema), crmController.updateTask);
 crmRouter.delete('/tasks/:id', crmController.deleteTask);
 
 // Notes & Activity Logs

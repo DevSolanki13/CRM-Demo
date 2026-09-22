@@ -15,6 +15,16 @@ app.all("/api/*", (req, res) => {
   res.status(404).json({ error: `API endpoint '${req.originalUrl}' not found`, statusCode: 404 });
 });
 
+// Global API error handler
+app.use((err, _req, res, _next) => {
+  console.error('[API Error]', err.message || err);
+  const status = err.statusCode || err.status || 500;
+  res.status(status).json({
+    error: err.message || 'Internal server error',
+    statusCode: status,
+  });
+});
+
 // Vite / Static file serving
 if (process.env.NODE_ENV !== "production") {
   async function setupViteDevServer() {

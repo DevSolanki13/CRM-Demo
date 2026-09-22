@@ -51,49 +51,16 @@ import { NotFoundView } from './components/NotFoundView.jsx';
 import { DetailDrawer } from './components/DetailDrawer.jsx';
 import { Toaster, toast } from 'sonner';
 
+import { normalizeStageColor } from '../backend/constants/stageConstants.js';
+
 const KNOWN_TABS = ['dashboard', 'leads', 'pipeline', 'contacts', 'companies', 'tasks', 'employees', 'reports', 'settings'];
-
-const OLD_HEX_MAP = {
-  '#64748b': '#FFFFFF',
-  '#0284c7': '#A7F3D0',
-  '#8b5cf6': '#6EE7B7',
-  '#eab308': '#34D399',
-  '#f97316': '#10B981',
-  '#10b981': '#16A34A',
-  '#ec4899': '#EAB308',
-  '#ef4444': '#DC2626',
-  '#B9D4DE': '#FFFFFF',
-  '#93BECC': '#A7F3D0',
-  '#3E7C93': '#6EE7B7',
-  '#2A6580': '#34D399',
-  '#1D4E63': '#10B981',
-  '#3F7A5C': '#16A34A',
-  '#C6790A': '#EAB308',
-  '#B5423A': '#DC2626',
-};
-
-const DEFAULT_STAGE_COLORS = {
-  'New Lead': '#FFFFFF',
-  'Contacted': '#A7F3D0',
-  'Sample Sent': '#6EE7B7',
-  'Proposal Sent': '#34D399',
-  'Negotiation': '#10B981',
-  'Closed Won': '#16A34A',
-  'Buy Again (Renewal)': '#EAB308',
-  'Closed Lost': '#DC2626',
-};
 
 const normalizeStateStages = (data) => {
   if (!data || !data.stages) return data;
-  const normalizedStages = data.stages.map(stg => {
-    if (OLD_HEX_MAP[stg.color]) {
-      return { ...stg, color: OLD_HEX_MAP[stg.color] };
-    }
-    if (DEFAULT_STAGE_COLORS[stg.name] && OLD_HEX_MAP[stg.color]) {
-      return { ...stg, color: DEFAULT_STAGE_COLORS[stg.name] };
-    }
-    return stg;
-  });
+  const normalizedStages = data.stages.map(stg => ({
+    ...stg,
+    color: normalizeStageColor(stg.color, stg.name)
+  }));
   return { ...data, stages: normalizedStages };
 };
 
