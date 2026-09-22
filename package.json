@@ -7,6 +7,7 @@
     "dev": "node backend/server.js",
     "build": "prisma generate && vite build && esbuild backend/server.js --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
+    "seed": "node prisma/seed.js",
     "clean": "rm -rf dist server.js",
     "lint": "echo 'No lint errors'"
   },

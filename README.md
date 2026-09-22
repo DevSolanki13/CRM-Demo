@@ -82,7 +82,9 @@ Closed Lost  Closed Lost   Closed Lost     Closed Lost       Closed Lost   Rebuy
 |:---|:---|
 | **Frontend** | React 19, JavaScript (JSX), Vite, Lucide Icons, Sonner (Toasts), Vanilla CSS |
 | **Backend** | Node.js, Express.js (REST API Server) |
-| **Tooling & Build** | Vite, Esbuild |
+| **Database** | PostgreSQL (Supabase / Neon), Connection Pooling |
+| **ORM** | Prisma ORM 7 (`@prisma/client`, `@prisma/adapter-pg`, `pg`) |
+| **Tooling & Build** | Vite, Esbuild, Prisma Studio |
 | **Styling** | 60-30-10 surface elevation system with WCAG AA-compliant contrast |
 
 ---
@@ -92,8 +94,9 @@ Closed Lost  Closed Lost   Closed Lost     Closed Lost       Closed Lost   Rebuy
 ### Prerequisites
 - **Node.js**: `v18.0.0` or higher
 - **npm**: `v9.0.0` or higher
+- **PostgreSQL Database**: Free cloud instance from [Supabase](https://supabase.com) or [Neon](https://neon.tech)
 
-### Installation
+### 1. Installation
 
 ```bash
 # Clone the repository
@@ -104,7 +107,34 @@ cd CRM-Demo
 npm install
 ```
 
-### Running Locally
+### 2. Environment Configuration
+
+Create your `.env` file from the provided template:
+
+```bash
+cp .env.example .env
+```
+
+Add your Supabase or PostgreSQL connection strings to `.env`:
+
+```env
+DATABASE_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres"
+```
+
+### 3. Database Sync & Seeding
+
+Synchronize the 12 Prisma models to your database and seed all demo data (Users, Stages, Companies, Contacts, Leads, Deals, Tasks, Notes, Activities, Gate Checks, Audit Logs):
+
+```bash
+# Push Prisma schema to your PostgreSQL database
+npx prisma db push
+
+# Seed sample CRM data
+npm run seed
+```
+
+### 4. Running Locally
 
 ```bash
 # Start backend Express server and Vite development server
@@ -113,10 +143,20 @@ npm run dev
 
 The application will be accessible at `http://localhost:3000`.
 
-### Production Build
+### 5. Inspecting Database (Prisma Studio)
+
+Launch Prisma Studio to visually browse, query, and edit data in your PostgreSQL database:
 
 ```bash
-# Build frontend bundle and server distribution
+npx prisma studio
+```
+
+Studio will open in your browser at `http://localhost:5555`.
+
+### 6. Production Build
+
+```bash
+# Generate Prisma Client and bundle frontend + backend
 npm run build
 
 # Start production server
@@ -130,6 +170,8 @@ npm run start
 | Method | Endpoint | Description |
 |:---|:---|:---|
 | `GET` | `/api/health` | Service health status check |
+| `GET` | `/api/state` | Hydrate entire CRM state from PostgreSQL |
+| `POST` | `/api/state/reset` | Reseed and reset state to defaults |
 | `GET` / `POST` | `/api/leads` | List all leads / create a new lead |
 | `PUT` / `DELETE` | `/api/leads/:id` | Update lead details / delete lead |
 | `GET` / `POST` | `/api/deals` | List all deals / create a new deal |
@@ -157,8 +199,13 @@ customizable-crm-demo/
 │   ├── routes/
 │   │   └── crmRoutes.js            # Express REST route endpoints
 │   ├── store/
-│   │   └── crmStore.js             # State management, stage transitions & audit logs
+│   │   └── crmStore.js             # Dual-layer state store, stage transitions & persistence
+│   ├── prisma.js                   # Prisma Client singleton with PostgreSQL adapter
 │   └── server.js                   # Express server entry point & Vite middleware
+├── prisma/
+│   ├── schema.prisma               # Prisma 7 schema definition (12 models)
+│   └── seed.js                     # Seed script populating Supabase database
+├── prisma7.config.ts               # Prisma 7 configuration file
 ├── frontend/
 │   ├── api/
 │   │   └── crmClient.js            # Frontend HTTP API client
@@ -184,6 +231,7 @@ customizable-crm-demo/
 │   ├── App.jsx                     # Top-level application component & routing
 │   ├── index.css                   # Global stylesheet & design token system
 │   └── main.jsx                    # React application entry point
+├── .env.example                    # Template environment variables (Database URL)
 ├── package.json                    # Project configuration & npm scripts
 └── vite.config.ts                  # Vite build & plugin configuration
 ```
