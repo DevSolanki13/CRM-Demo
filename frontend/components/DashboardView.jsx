@@ -38,7 +38,7 @@ const getStageBarColor = (stageName, category) => {
   if (name.includes('Contacted') || cat === 'Contacted') return '#A7F3D0';
   if (name.includes('Buy Again') || cat === 'Buy Again') return '#EAB308';
   if (name.includes('Closed Lost') || cat === 'Lost') return '#DC2626';
-  return 'var(--primary-300)';
+  return '#FFFFFF';
 };
 
 export const DashboardView = ({
@@ -495,9 +495,10 @@ export const DashboardView = ({
                           <div className="w-full flex flex-col items-center justify-end h-full">
                             {(() => {
                               const barColor = getStageBarColor(stage.name, stage.category);
+                              const isWhite = barColor === '#FFFFFF';
                               return (
                                 <div
-                                  className="w-full rounded-lg transition-all duration-500 shadow-2xs"
+                                  className={`w-full rounded-lg transition-all duration-500 shadow-2xs ${isWhite ? 'border border-[#D1D5DB]' : ''}`}
                                   style={{
                                     height: `${Math.max(heightPct, 10)}%`,
                                     backgroundColor: barColor
