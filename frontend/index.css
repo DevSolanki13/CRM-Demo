@@ -2,7 +2,12 @@
 @import "tailwindcss";
 
 :root {
-  /* Tonal Primary Scale (Base Hue H201 S55%) */
+  /* Tonal Primary Scale (Base Hue H201 S55% - Signature Deep Petroleum Teal) */
+  --primary: #1D4E63;
+  --primary-hover: #153B4B;
+  --primary-subtle: #EFF6F9;
+  --primary-border: #D8E8EF;
+
   --primary-50: #EFF6F9;
   --primary-100: #D8E8EF;
   --primary-200: #AFD3E1;
@@ -18,22 +23,47 @@
   --canvas: #F6F7F8;
   --surface: #FFFFFF;
   --surface-tint: #FAFCFD;
+  --surface-muted: #F6F7F8;
   --border: #E3E6EA;
+  --border-subtle: #EEF0F3;
   --ink: #12161C;
   --ink-muted: #5B6472;
 
-  /* Semantic Hues (WCAG AA Compliant Text & Tint Pairs) */
+  /* Semantic Hues - Amber / Warning / Due / Stale */
+  --warning: #965700;
+  --warning-text: #965700;
+  --warning-bg: #FEF8EC;
+  --warning-subtle: #FEF8EC;
+  --warning-border: #F5DDA9;
   --amber-bg: #FEF8EC;
   --amber-border: #F5DDA9;
   --amber-text: #965700;
 
+  /* Semantic Hues - Green / Success / Won / Active */
+  --success: #255B40;
+  --success-text: #255B40;
+  --success-bg: #F0F7F3;
+  --success-subtle: #F0F7F3;
+  --success-border: #BCDBC9;
   --green-bg: #F0F7F3;
   --green-border: #BCDBC9;
   --green-text: #255B40;
 
+  /* Semantic Hues - Red / Danger / Lost / Overdue */
+  --danger: #922D27;
+  --danger-text: #922D27;
+  --danger-bg: #FDF2F1;
+  --danger-subtle: #FDF2F1;
+  --danger-border: #F4C4C1;
   --red-bg: #FDF2F1;
   --red-border: #F4C4C1;
   --red-text: #922D27;
+
+  /* Semantic Hues - Info / Blue-Teal */
+  --info: #1D4E63;
+  --info-text: #1D4E63;
+  --info-bg: #EFF6F9;
+  --info-border: #D8E8EF;
 }
 
 body {

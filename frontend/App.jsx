@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { getLocalDateInputValueAfterDays } from './utils/crmHelpers.js';
 import {
   fetchCRMState,
@@ -117,39 +117,48 @@ export default function App() {
     loadData();
   }, []);
 
+  // Memoized Pending Tasks and Renewals Count for badges (placed before any early return)
+  const pendingTasksCount = useMemo(() => {
+    return (state?.tasks || []).filter(t => t.status === 'pending' && t.ownerId === currentUser?.id).length;
+  }, [state?.tasks, currentUser?.id]);
+
+  const renewalsDueCount = useMemo(() => {
+    return (state?.deals || []).filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again')).length;
+  }, [state?.deals]);
+
   if (loading || !state || !currentUser) {
     return (
-      <div className="min-h-screen bg-[#F6F7F8] text-[#12161C] flex flex-col font-sans select-none">
+      <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)] flex flex-col font-sans select-none" aria-busy="true" aria-label="Loading CRM Workspace">
         {/* Skeleton Topbar */}
-        <div className="bg-[#FFFFFF] border-b border-[#E3E6EA] px-6 py-3.5 flex items-center justify-between">
+        <div className="bg-[var(--surface)] border-b border-[var(--border)] px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-[#EFF6F9] animate-pulse" />
-            <div className="h-4 w-28 bg-[#E3E6EA] rounded-md animate-pulse" />
+            <div className="w-8 h-8 rounded-xl bg-[var(--primary-subtle)] animate-pulse" />
+            <div className="h-4 w-28 bg-[var(--border)] rounded-md animate-pulse" />
           </div>
-          <div className="hidden md:block w-72 h-8 bg-[#F6F7F8] rounded-xl border border-[#E3E6EA] animate-pulse" />
+          <div className="hidden md:block w-72 h-8 bg-[var(--surface-muted)] rounded-xl border border-[var(--border)] animate-pulse" />
           <div className="flex items-center gap-2">
-            <div className="w-20 h-8 bg-[#F6F7F8] rounded-xl animate-pulse" />
-            <div className="w-8 h-8 rounded-full bg-[#E3E6EA] animate-pulse" />
+            <div className="w-20 h-8 bg-[var(--surface-muted)] rounded-xl animate-pulse" />
+            <div className="w-8 h-8 rounded-full bg-[var(--border)] animate-pulse" />
           </div>
         </div>
 
         {/* Skeleton Main Workspace */}
         <div className="flex flex-1 overflow-hidden">
-          <div className="w-64 bg-[#FFFFFF] border-r border-[#E3E6EA] p-4 space-y-3 hidden lg:block">
+          <div className="w-64 bg-[var(--surface)] border-r border-[var(--border)] p-4 space-y-3 hidden lg:block">
             {[1, 2, 3, 4, 5, 6].map(i => (
-              <div key={i} className="h-8 bg-[#F6F7F8] rounded-xl animate-pulse" />
+              <div key={i} className="h-8 bg-[var(--surface-muted)] rounded-xl animate-pulse" />
             ))}
           </div>
-          <div className="flex-1 p-6 space-y-6 overflow-y-auto">
-            <div className="h-28 bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-6 flex items-center justify-between animate-pulse">
+          <div className="flex-1 p-6 space-y-6 overflow-y-auto bg-[var(--canvas)]">
+            <div className="h-28 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 flex items-center justify-between animate-pulse">
               <div className="space-y-2">
-                <div className="h-5 w-48 bg-[#E3E6EA] rounded-md" />
-                <div className="h-3 w-80 bg-[#F6F7F8] rounded-md" />
+                <div className="h-5 w-48 bg-[var(--border)] rounded-md" />
+                <div className="h-3 w-80 bg-[var(--surface-muted)] rounded-md" />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-24 bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl animate-pulse" />
+                <div key={i} className="h-24 bg-[var(--surface)] border border-[var(--border)] rounded-2xl animate-pulse" />
               ))}
             </div>
           </div>
@@ -180,68 +189,163 @@ export default function App() {
     setState(prev => prev ? { ...prev, branding: updated } : prev);
   };
 
-  // Companies CRUD
+  // Companies CRUD with targeted local state updates
   const handleCreateCompany = async (comp) => {
-    await createCompany(comp);
-    await reloadState();
+    try {
+      const created = await createCompany(comp);
+      setState(prev => prev ? { ...prev, companies: [created, ...(prev.companies || [])] } : prev);
+      toast.success("Company created successfully");
+    } catch (err) {
+      console.error("Error creating company", err);
+      await reloadState();
+    }
   };
 
   const handleUpdateCompany = async (id, comp) => {
-    await updateCompany(id, comp);
-    await reloadState();
+    try {
+      const updated = await updateCompany(id, comp);
+      setState(prev => prev ? {
+        ...prev,
+        companies: (prev.companies || []).map(c => c.id === id ? { ...c, ...updated } : c)
+      } : prev);
+      toast.success("Company updated");
+    } catch (err) {
+      console.error("Error updating company", err);
+      await reloadState();
+    }
   };
 
   const handleDeleteCompany = async (id) => {
-    await deleteCompany(id);
-    await reloadState();
+    try {
+      await deleteCompany(id);
+      setState(prev => prev ? {
+        ...prev,
+        companies: (prev.companies || []).filter(c => c.id !== id)
+      } : prev);
+      toast.info("Company deleted");
+    } catch (err) {
+      console.error("Error deleting company", err);
+      await reloadState();
+    }
   };
 
-  // Contacts CRUD
+  // Contacts CRUD with targeted local state updates
   const handleCreateContact = async (cnt) => {
-    await createContact(cnt);
-    await reloadState();
+    try {
+      const created = await createContact(cnt);
+      setState(prev => prev ? { ...prev, contacts: [created, ...(prev.contacts || [])] } : prev);
+      toast.success("Contact created");
+    } catch (err) {
+      console.error("Error creating contact", err);
+      await reloadState();
+    }
   };
 
   const handleUpdateContact = async (id, cnt) => {
-    await updateContact(id, cnt);
-    await reloadState();
+    try {
+      const updated = await updateContact(id, cnt);
+      setState(prev => prev ? {
+        ...prev,
+        contacts: (prev.contacts || []).map(c => c.id === id ? { ...c, ...updated } : c)
+      } : prev);
+      toast.success("Contact updated");
+    } catch (err) {
+      console.error("Error updating contact", err);
+      await reloadState();
+    }
   };
 
   const handleDeleteContact = async (id) => {
-    await deleteContact(id);
-    await reloadState();
+    try {
+      await deleteContact(id);
+      setState(prev => prev ? {
+        ...prev,
+        contacts: (prev.contacts || []).filter(c => c.id !== id)
+      } : prev);
+      toast.info("Contact deleted");
+    } catch (err) {
+      console.error("Error deleting contact", err);
+      await reloadState();
+    }
   };
 
-  // Leads CRUD
+  // Leads CRUD with targeted local state updates
   const handleCreateLead = async (lead) => {
-    await createLead(lead);
-    await reloadState();
+    try {
+      const created = await createLead(lead);
+      setState(prev => prev ? { ...prev, leads: [created, ...(prev.leads || [])] } : prev);
+      toast.success("Lead created");
+    } catch (err) {
+      console.error("Error creating lead", err);
+      await reloadState();
+    }
   };
 
   const handleUpdateLead = async (id, lead) => {
-    await updateLead(id, lead);
-    await reloadState();
+    try {
+      const updated = await updateLead(id, lead);
+      setState(prev => prev ? {
+        ...prev,
+        leads: (prev.leads || []).map(l => l.id === id ? { ...l, ...updated } : l)
+      } : prev);
+      toast.success("Lead updated");
+    } catch (err) {
+      console.error("Error updating lead", err);
+      await reloadState();
+    }
   };
 
   const handleDeleteLead = async (id) => {
-    await deleteLead(id);
-    await reloadState();
+    try {
+      await deleteLead(id);
+      setState(prev => prev ? {
+        ...prev,
+        leads: (prev.leads || []).filter(l => l.id !== id)
+      } : prev);
+      toast.info("Lead deleted");
+    } catch (err) {
+      console.error("Error deleting lead", err);
+      await reloadState();
+    }
   };
 
-  // Deals CRUD
+  // Deals Basic CRUD with targeted local state updates
   const handleCreateDeal = async (deal) => {
-    await createDeal(deal);
-    await reloadState();
+    try {
+      const created = await createDeal(deal);
+      setState(prev => prev ? { ...prev, deals: [created, ...(prev.deals || [])] } : prev);
+      toast.success("Opportunity created");
+    } catch (err) {
+      console.error("Error creating deal", err);
+      await reloadState();
+    }
   };
 
   const handleUpdateDeal = async (id, deal) => {
-    await updateDeal(id, deal);
-    await reloadState();
+    try {
+      const updated = await updateDeal(id, deal);
+      setState(prev => prev ? {
+        ...prev,
+        deals: (prev.deals || []).map(d => d.id === id ? { ...d, ...updated } : d)
+      } : prev);
+    } catch (err) {
+      console.error("Error updating deal", err);
+      await reloadState();
+    }
   };
 
   const handleDeleteDeal = async (id) => {
-    await deleteDeal(id);
-    await reloadState();
+    try {
+      await deleteDeal(id);
+      setState(prev => prev ? {
+        ...prev,
+        deals: (prev.deals || []).filter(d => d.id !== id)
+      } : prev);
+      toast.info("Deal deleted");
+    } catch (err) {
+      console.error("Error deleting deal", err);
+      await reloadState();
+    }
   };
 
   // Stages CRUD
@@ -255,42 +359,91 @@ export default function App() {
     await reloadState();
   };
 
-  // Tasks CRUD
+  // Tasks CRUD with targeted local state updates
   const handleCreateTask = async (task) => {
-    await createTask(task);
-    await reloadState();
+    try {
+      const created = await createTask(task);
+      setState(prev => prev ? { ...prev, tasks: [created, ...(prev.tasks || [])] } : prev);
+      toast.success("Task created");
+    } catch (err) {
+      console.error("Error creating task", err);
+      await reloadState();
+    }
   };
 
   const handleUpdateTask = async (id, task) => {
-    await updateTask(id, task);
-    await reloadState();
+    try {
+      const updated = await updateTask(id, task);
+      setState(prev => prev ? {
+        ...prev,
+        tasks: (prev.tasks || []).map(t => t.id === id ? { ...t, ...updated } : t)
+      } : prev);
+    } catch (err) {
+      console.error("Error updating task", err);
+      await reloadState();
+    }
   };
 
   const handleDeleteTask = async (id) => {
-    await deleteTask(id);
-    await reloadState();
+    try {
+      await deleteTask(id);
+      setState(prev => prev ? {
+        ...prev,
+        tasks: (prev.tasks || []).filter(t => t.id !== id)
+      } : prev);
+      toast.info("Task removed");
+    } catch (err) {
+      console.error("Error deleting task", err);
+      await reloadState();
+    }
   };
 
-  // Notes & Activities
+  // Notes & Activities with targeted local state updates
   const handleCreateNote = async (note) => {
-    await createNote(note);
-    await reloadState();
+    try {
+      const created = await createNote(note);
+      setState(prev => prev ? { ...prev, notes: [created, ...(prev.notes || [])] } : prev);
+      toast.success("Note saved");
+    } catch (err) {
+      console.error("Error creating note", err);
+      await reloadState();
+    }
   };
 
   const handleCreateActivity = async (act) => {
-    await createActivity(act);
-    await reloadState();
+    try {
+      const created = await createActivity(act);
+      setState(prev => prev ? { ...prev, activities: [created, ...(prev.activities || [])] } : prev);
+    } catch (err) {
+      console.error("Error creating activity", err);
+      await reloadState();
+    }
   };
 
-  // Users
+  // Users with targeted local state updates
   const handleCreateUser = async (u) => {
-    await createUser(u);
-    await reloadState();
+    try {
+      const created = await createUser(u);
+      setState(prev => prev ? { ...prev, users: [...(prev.users || []), created] } : prev);
+      toast.success("Team member added");
+    } catch (err) {
+      console.error("Error creating user", err);
+      await reloadState();
+    }
   };
 
   const handleUpdateUser = async (id, u) => {
-    await updateUser(id, u);
-    await reloadState();
+    try {
+      const updated = await updateUser(id, u);
+      setState(prev => prev ? {
+        ...prev,
+        users: (prev.users || []).map(user => user.id === id ? { ...user, ...updated } : user)
+      } : prev);
+      toast.success("User profile updated");
+    } catch (err) {
+      console.error("Error updating user", err);
+      await reloadState();
+    }
   };
 
   // CSV Import
@@ -418,13 +571,9 @@ export default function App() {
     }
   };
 
-  // Pending Tasks and Renewals Count for badges
-  const pendingTasksCount = state.tasks.filter(t => t.status === 'pending' && t.ownerId === currentUser.id).length;
-  const renewalsDueCount = state.deals.filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again')).length;
-
   return (
     <ErrorBoundary onResetState={handleResetDemoData}>
-      <div className="h-screen w-screen bg-[#F6F7F8] text-[#12161C] flex flex-col font-sans antialiased selection:bg-[#1D4E63] selection:text-white overflow-hidden">
+      <div className="h-screen w-screen bg-[var(--canvas)] text-[var(--ink)] flex flex-col font-sans antialiased selection:bg-[var(--primary)] selection:text-white overflow-hidden">
         
         {/* Toast Notification Container */}
         <Toaster position="top-right" richColors closeButton />
@@ -457,7 +606,7 @@ export default function App() {
           />
 
           {/* Dynamic Tab Content View */}
-          <main className="flex-1 overflow-y-auto bg-[#F6F7F8]">
+          <main className="flex-1 overflow-y-auto bg-[var(--canvas)]">
             {activeTab === 'dashboard' && (
               <DashboardView
                 state={state}
