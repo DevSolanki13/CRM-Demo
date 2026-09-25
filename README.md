@@ -1,8 +1,35 @@
+<p align="center">
+  <b>📖 Overview</b> &nbsp;|&nbsp;
+  <a href="features.md">✨ Features</a> &nbsp;|&nbsp;
+  <a href="flow.md">🔄 Flow</a> &nbsp;|&nbsp;
+  <a href="architecture.md">🏗️ Architecture</a> &nbsp;|&nbsp;
+  <a href="db.md">🗄️ Database</a> &nbsp;|&nbsp;
+  <a href="api.md">🔌 API</a> &nbsp;|&nbsp;
+  <a href="setup-guide.md">🚀 Setup Guide</a>
+</p>
+
+---
+
 # Sales CRM — B2B Sales Pipeline & Recurring Order Management
 
 Sales CRM is a full-stack, customizable B2B Sales Customer Relationship Management (CRM) application engineered for pipeline governance, stage-gate qualification workflows, manager approval ledgers, and repeat purchase management.
 
 ![Sales Console](images/WebSite/Screenshot%202026-09-22%20004657.png)
+
+---
+
+## 📚 Project Documentation
+
+Explore the detailed architecture, database specifications, workflows, and API guides:
+
+| Document | Description |
+|:---|:---|
+| 📖 **[Features Guide](features.md)** | Complete breakdown of stage-gate governance, approval ledger, rebuy architecture, and UX |
+| 🔄 **[System Flows](flow.md)** | Step-by-step process workflows, sequence diagrams, and lifecycle state machines |
+| 🏛️ **[Architecture](architecture.md)** | System components, frontend/backend architecture, state management, and RBAC |
+| 🗄️ **[Database & Schema](db.md)** | PostgreSQL database specs, 12 Prisma models, Mermaid ERD, and JSON column schemas |
+| 🔌 **[REST API Reference](api.md)** | Endpoint definitions, request/response payloads, status codes, and Zod schemas |
+| 🚀 **[Setup & Deployment](setup-guide.md)** | Installation, Supabase/Neon PostgreSQL setup, seeding, testing, and Vercel deploy |
 
 ---
 
