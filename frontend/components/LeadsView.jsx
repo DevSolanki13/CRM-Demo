@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Users,
   Search,
@@ -79,41 +79,50 @@ export const LeadsView = ({
     notes: ''
   });
 
-  // Filter RBAC
-  const userLeads = filterByRole(leads, currentUser);
+  // Filter RBAC with useMemo
+  const userLeads = useMemo(() => {
+    return filterByRole(leads, currentUser);
+  }, [leads, currentUser]);
 
   // Quick filter counts
-  const myLeadsCount = userLeads.filter(l => l.ownerId === currentUser.id).length;
-  const outboundCount = userLeads.filter(l => l.isOutbound).length;
-  const inboundCount = userLeads.filter(l => !l.isOutbound).length;
-  const newCount = userLeads.filter(l => l.status === 'New').length;
+  const { myLeadsCount, outboundCount, inboundCount, newCount } = useMemo(() => {
+    return {
+      myLeadsCount: userLeads.filter(l => l.ownerId === currentUser.id).length,
+      outboundCount: userLeads.filter(l => l.isOutbound).length,
+      inboundCount: userLeads.filter(l => !l.isOutbound).length,
+      newCount: userLeads.filter(l => l.status === 'New').length
+    };
+  }, [userLeads, currentUser]);
 
-  // Filtered Leads
-  const filteredLeads = userLeads.filter(l => {
-    const matchesSearch =
-      l.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      l.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      l.companyName.toLowerCase().includes(searchQuery.toLowerCase());
+  // Filtered Leads with useMemo
+  const filteredLeads = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return userLeads.filter(l => {
+      const matchesSearch = !q ||
+        (l.title && l.title.toLowerCase().includes(q)) ||
+        (l.contactName && l.contactName.toLowerCase().includes(q)) ||
+        (l.companyName && l.companyName.toLowerCase().includes(q));
 
-    const matchesSource = selectedSource === 'All'
-      ? true
-      : selectedSource === 'Outbound' ? l.isOutbound
-        : selectedSource === 'Inbound' ? !l.isOutbound
-          : l.source === selectedSource;
+      const matchesSource = selectedSource === 'All'
+        ? true
+        : selectedSource === 'Outbound' ? l.isOutbound
+          : selectedSource === 'Inbound' ? !l.isOutbound
+            : l.source === selectedSource;
 
-    const matchesOwner = selectedOwner === 'All' || l.ownerId === selectedOwner;
+      const matchesOwner = selectedOwner === 'All' || l.ownerId === selectedOwner;
 
-    const leadDeal = deals.find(d => d.leadId === l.id);
-    const matchesStage = selectedStage === 'All' || (leadDeal && leadDeal.stageId === selectedStage);
+      const leadDeal = deals.find(d => d.leadId === l.id);
+      const matchesStage = selectedStage === 'All' || (leadDeal && leadDeal.stageId === selectedStage);
 
-    if (!matchesSearch || !matchesSource || !matchesOwner || !matchesStage) return false;
+      if (!matchesSearch || !matchesSource || !matchesOwner || !matchesStage) return false;
 
-    if (quickLeadFilter === 'MyLeads') return l.ownerId === currentUser.id;
-    if (quickLeadFilter === 'Outbound') return l.isOutbound;
-    if (quickLeadFilter === 'Inbound') return !l.isOutbound;
-    if (quickLeadFilter === 'New') return l.status === 'New';
-    return true;
-  });
+      if (quickLeadFilter === 'MyLeads') return l.ownerId === currentUser.id;
+      if (quickLeadFilter === 'Outbound') return l.isOutbound;
+      if (quickLeadFilter === 'Inbound') return !l.isOutbound;
+      if (quickLeadFilter === 'New') return l.status === 'New';
+      return true;
+    });
+  }, [userLeads, searchQuery, selectedSource, selectedOwner, selectedStage, quickLeadFilter, deals, currentUser]);
 
   const handleToggleSelectAll = () => {
     if (selectedLeadIds.length === filteredLeads.length && filteredLeads.length > 0) {
@@ -534,29 +543,30 @@ export const LeadsView = ({
       </div>
 
       {/* Desktop Leads Table (>= md) */}
-      <div className="hidden md:block bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl shadow-2xs">
-        <div className="overflow-x-auto min-h-[340px] pb-10">
-          <table className="w-full text-left text-xs text-[#12161C]">
-            <thead className="bg-[#F6F7F8] text-[#5B6472] uppercase font-mono font-bold text-[10px] tracking-wider border-b border-[#E3E6EA]">
+      <div className="hidden md:block bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm">
+        <div className="overflow-x-auto max-h-[640px] overflow-y-auto no-scrollbar pb-10">
+          <table className="w-full text-left text-xs text-[var(--ink)]">
+            <thead className="sticky top-0 z-10 bg-[var(--canvas)] text-[var(--ink-muted)] uppercase font-mono font-bold text-[10px] tracking-wider border-b border-[var(--border)] shadow-xs">
               <tr>
-                <th className="px-4 py-3.5 w-10">
+                <th scope="col" className="px-4 py-3.5 w-10">
                   <input
                     type="checkbox"
                     checked={filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length}
                     onChange={handleToggleSelectAll}
-                    className="w-4 h-4 rounded border-[#E3E6EA] bg-[#FFFFFF] text-[#1D4E63] focus:ring-0 cursor-pointer"
+                    aria-label="Select all leads"
+                    className="w-4 h-4 rounded border-[var(--border)] bg-[var(--surface)] text-[var(--primary-700)] focus:ring-0 cursor-pointer"
                   />
                 </th>
-                <th className="px-4 py-3.5">Lead / Company</th>
-                <th className="px-4 py-3.5">Pipeline Stage</th>
-                <th className="px-4 py-3.5">Contact</th>
-                <th className="px-4 py-3.5">Source & Effort</th>
-                <th className="px-4 py-3.5">Assigned Owner</th>
-                <th className="px-4 py-3.5">Last Activity</th>
-                <th className="px-4 py-3.5 text-right">Actions</th>
+                <th scope="col" className="px-4 py-3.5">Lead / Company</th>
+                <th scope="col" className="px-4 py-3.5">Pipeline Stage</th>
+                <th scope="col" className="px-4 py-3.5">Contact</th>
+                <th scope="col" className="px-4 py-3.5">Source & Effort</th>
+                <th scope="col" className="px-4 py-3.5">Assigned Owner</th>
+                <th scope="col" className="px-4 py-3.5">Last Activity</th>
+                <th scope="col" className="px-4 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E3E6EA]">
+            <tbody className="divide-y divide-[var(--border)]">
               {filteredLeads.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-12 text-center text-[#5B6472]">

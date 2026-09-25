@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Contact as ContactIcon, 
   Search, 
@@ -13,17 +13,17 @@ import {
   PhoneCall, 
   Briefcase 
 } from 'lucide-react';
-import { formatDate, filterByRole, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
+import { formatDate, filterByRole, getLocalDateInputValueAfterDays, formatCurrency } from '../utils/crmHelpers.js';
 import { AddActivityModal } from './AddActivityModal.jsx';
 
 export const ContactsView = ({
-  contacts,
-  companies,
-  users,
+  contacts = [],
+  companies = [],
+  users = [],
   stages = [],
-  deals,
-  notes,
-  activities,
+  deals = [],
+  notes = [],
+  activities = [],
   currentUser,
   onCreateContact,
   onUpdateContact,
@@ -86,20 +86,26 @@ export const ContactsView = ({
     phone: '',
     jobTitle: '',
     companyId: companies[0]?.id || '',
-    ownerId: currentUser.id
+    ownerId: currentUser?.id || ''
   });
 
-  const userContacts = filterByRole(contacts, currentUser);
+  // Selective Memoization of Filtered Contacts
+  const userContacts = useMemo(() => {
+    return filterByRole(contacts, currentUser);
+  }, [contacts, currentUser]);
 
-  const filteredContacts = userContacts.filter(c => {
-    const matchesSearch = 
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.companyName && c.companyName.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredContacts = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return userContacts.filter(c => {
+      const matchesSearch = !q ||
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.email && c.email.toLowerCase().includes(q)) ||
+        (c.companyName && c.companyName.toLowerCase().includes(q));
 
-    const matchesCompany = selectedCompanyId === 'All' || c.companyId === selectedCompanyId;
-    return matchesSearch && matchesCompany;
-  });
+      const matchesCompany = selectedCompanyId === 'All' || c.companyId === selectedCompanyId;
+      return matchesSearch && matchesCompany;
+    });
+  }, [userContacts, searchQuery, selectedCompanyId]);
 
   const handleOpenAdd = () => {
     setEditingContact(null);
@@ -109,14 +115,14 @@ export const ContactsView = ({
       phone: '',
       jobTitle: '',
       companyId: companies[0]?.id || '',
-      ownerId: currentUser.id
+      ownerId: currentUser?.id || ''
     });
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (contact) => {
-    setEditingContact(contact);
-    setFormData({ ...contact });
+  const handleOpenEdit = (cnt) => {
+    setEditingContact(cnt);
+    setFormData({ ...cnt });
     setIsModalOpen(true);
   };
 
@@ -134,44 +140,35 @@ export const ContactsView = ({
 
   const handleAddNote = async (e) => {
     e.preventDefault();
-    if (!selectedContact || !newNoteText.trim()) return;
+    if (!newNoteText.trim() || !selectedContact) return;
 
     await onCreateNote({
       text: newNoteText,
       linkedType: 'Contact',
       linkedId: selectedContact.id,
-      authorId: currentUser.id,
-      authorName: currentUser.name
+      authorId: currentUser?.id,
+      authorName: currentUser?.name
     });
 
     setNewNoteText('');
   };
 
-  const handleLogCall = async (isOutbound) => {
-    if (!selectedContact) return;
-    await onCreateActivity({
-      type: isOutbound ? 'Outbound Call' : 'Inbound Call',
-      description: `Logged ${isOutbound ? 'outbound' : 'inbound'} call with ${selectedContact.name}`,
-      linkedType: 'Contact',
-      linkedId: selectedContact.id,
-      linkedTitle: selectedContact.name,
-      authorId: currentUser.id,
-      authorName: currentUser.name,
-      isOutbound
-    });
-  };
+  const contactDeals = useMemo(() => {
+    return selectedContact ? deals.filter(d => d.contactId === selectedContact.id) : [];
+  }, [selectedContact, deals]);
 
-  const contactDeals = selectedContact ? deals.filter(d => d.contactId === selectedContact.id) : [];
-  const contactNotes = selectedContact ? notes.filter(n => n.linkedType === 'Contact' && n.linkedId === selectedContact.id) : [];
+  const contactNotes = useMemo(() => {
+    return selectedContact ? notes.filter(n => n.linkedType === 'Contact' && n.linkedId === selectedContact.id) : [];
+  }, [selectedContact, notes]);
 
   return (
     <div className="p-6 md:p-8 space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl shadow-sm">
         <div>
           <h1 className="font-display text-2xl font-extrabold text-[#12161C] flex items-center gap-2">
-            <ContactIcon className="w-5 h-5 text-[#1D4E63]" />
+            <ContactIcon className="w-5 h-5 text-[#1D4E63]" aria-hidden="true" />
             <span>Contacts & Client Directory</span>
           </h1>
           <p className="text-xs text-[#5B6472] mt-1 font-medium">
@@ -181,19 +178,21 @@ export const ContactsView = ({
 
         <button
           onClick={handleOpenAdd}
-          className="px-4 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-colors shadow-2xs"
+          aria-label="Add new contact"
+          className="px-4 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-colors shadow-2xs focus-visible:outline-2 focus-visible:outline-[#1D4E63]"
         >
-          <Plus className="w-4 h-4 text-white" />
+          <Plus className="w-4 h-4 text-white" aria-hidden="true" />
           <span>Add Contact</span>
         </button>
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-4 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center gap-3 shadow-2xs">
+      <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-4 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center gap-3 shadow-sm">
         <div className="w-full sm:w-64 relative shrink-0">
-          <Search className="w-4 h-4 text-[#5B6472] absolute left-3.5 top-2.5" />
+          <Search className="w-4 h-4 text-[#5B6472] absolute left-3.5 top-2.5" aria-hidden="true" />
           <input
             type="text"
+            aria-label="Search contacts by name, email, or company"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search name, email, company..."
@@ -204,6 +203,7 @@ export const ContactsView = ({
         <div className="flex items-center gap-2">
           <span className="text-xs text-[#5B6472] font-semibold">Filter Company:</span>
           <select
+            aria-label="Filter contacts by company"
             value={selectedCompanyId}
             onChange={(e) => setSelectedCompanyId(e.target.value)}
             className="bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
@@ -219,78 +219,90 @@ export const ContactsView = ({
       {/* Contacts Table & Drawer Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Table Column */}
-        <div className={`${selectedContact ? 'lg:col-span-2' : 'lg:col-span-3'} bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl overflow-hidden shadow-2xs`}>
-          <div className="overflow-x-auto">
+        {/* Table Column with Sticky Header */}
+        <div className={`${selectedContact ? 'lg:col-span-2' : 'lg:col-span-3'} bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl overflow-hidden shadow-sm`}>
+          <div className="overflow-x-auto max-h-[640px] overflow-y-auto no-scrollbar">
             <table className="w-full text-left text-xs text-[#12161C]">
-              <thead className="bg-[#F6F7F8] text-[#5B6472] uppercase font-mono font-bold text-[10px] tracking-wider border-b border-[#E3E6EA]">
+              <thead className="sticky top-0 z-10 bg-[#F6F7F8] text-[#5B6472] uppercase font-mono font-bold text-[10px] tracking-wider border-b border-[#E3E6EA] shadow-xs">
                 <tr>
-                  <th className="px-4 py-3.5">Contact Name</th>
-                  <th className="px-4 py-3.5">Job Title & Company</th>
-                  <th className="px-4 py-3.5">Contact Info</th>
-                  <th className="px-4 py-3.5">Owner</th>
-                  <th className="px-4 py-3.5 text-right">Actions</th>
+                  <th scope="col" className="px-4 py-3.5">Contact Name</th>
+                  <th scope="col" className="px-4 py-3.5">Job Title & Company</th>
+                  <th scope="col" className="px-4 py-3.5">Contact Info</th>
+                  <th scope="col" className="px-4 py-3.5">Owner</th>
+                  <th scope="col" className="px-4 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E3E6EA]">
-                {filteredContacts.map(cnt => (
-                  <tr 
-                    key={cnt.id} 
-                    onClick={() => setSelectedContact(cnt)}
-                    className={`cursor-pointer transition-colors ${
-                      selectedContact?.id === cnt.id ? 'bg-[#F6F7F8] border-l-4 border-[#1D4E63]' : 'hover:bg-[#F6F7F8]/60'
-                    }`}
-                  >
-                    <td className="px-4 py-3.5">
-                      <div className="font-display font-bold text-[#12161C] flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-[#1D4E63] text-white font-mono font-extrabold flex items-center justify-center text-xs">
-                          {cnt.name.charAt(0)}
-                        </div>
-                        <span>{cnt.name}</span>
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3.5">
-                      <div className="font-bold text-[#12161C]">{cnt.jobTitle || 'Representative'}</div>
-                      <div className="text-[11px] text-[#5B6472] flex items-center gap-1 mt-0.5">
-                        <Building2 className="w-3 h-3 text-[#5B6472]" />
-                        <span>{cnt.companyName || 'Unlinked'}</span>
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3.5 font-mono">
-                      <div className="text-[11px] text-[#12161C] flex items-center gap-1">
-                        <Mail className="w-3 h-3 text-[#5B6472]" />
-                        <span>{cnt.email}</span>
-                      </div>
-                      <div className="text-[10px] text-[#5B6472] flex items-center gap-1 mt-0.5">
-                        <Phone className="w-3 h-3 text-[#5B6472]" />
-                        <span>{cnt.phone}</span>
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3.5 text-[#12161C] font-semibold">
-                      {cnt.ownerName || 'Unassigned'}
-                    </td>
-
-                    <td className="px-4 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => handleOpenEdit(cnt)}
-                          className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => onDeleteContact(cnt.id)}
-                          className="p-1.5 text-[#B5423A] hover:bg-[#FDF2F1] rounded-lg"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                {filteredContacts.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-12 text-center text-[#5B6472]">
+                      <p className="font-semibold text-xs">No contacts found matching your search.</p>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredContacts.map(cnt => (
+                    <tr 
+                      key={cnt.id} 
+                      onClick={() => setSelectedContact(cnt)}
+                      className={`cursor-pointer transition-colors ${
+                        selectedContact?.id === cnt.id ? 'bg-[#EFF6F9] font-semibold border-l-2 border-[#1D4E63]' : 'hover:bg-[#F6F7F8]'
+                      }`}
+                    >
+                      <td className="px-4 py-3.5">
+                        <div className="font-display font-bold text-[#12161C] flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-[#1D4E63] text-white font-mono font-extrabold flex items-center justify-center text-xs shrink-0 shadow-2xs">
+                            {cnt.name.charAt(0)}
+                          </div>
+                          <span>{cnt.name}</span>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <div className="font-bold text-[#12161C]">{cnt.jobTitle || 'Representative'}</div>
+                        <div className="text-[11px] text-[#5B6472] flex items-center gap-1 mt-0.5">
+                          <Building2 className="w-3 h-3 text-[#5B6472]" aria-hidden="true" />
+                          <span>{cnt.companyName || 'Unlinked'}</span>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 font-mono">
+                        <div className="text-[11px] text-[#12161C] flex items-center gap-1">
+                          <Mail className="w-3 h-3 text-[#1D4E63]" aria-hidden="true" />
+                          <span>{cnt.email}</span>
+                        </div>
+                        <div className="text-[11px] text-[#5B6472] flex items-center gap-1 mt-0.5">
+                          <Phone className="w-3 h-3 text-[#5B6472]" aria-hidden="true" />
+                          <span>{cnt.phone}</span>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-[#12161C] font-semibold">
+                        <span className="bg-[#F6F7F8] px-2 py-0.5 rounded-md border border-[#E3E6EA]">
+                          {cnt.ownerName || 'Unassigned'}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => handleOpenEdit(cnt)}
+                            aria-label={`Edit ${cnt.name}`}
+                            className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg transition-colors"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" aria-hidden="true" />
+                          </button>
+                          <button
+                            onClick={() => onDeleteContact(cnt.id)}
+                            aria-label={`Delete ${cnt.name}`}
+                            className="p-1.5 text-[#922D27] hover:bg-[#FDF2F1] rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -298,7 +310,7 @@ export const ContactsView = ({
 
         {/* Selected Contact Detail Drawer Pane */}
         {selectedContact && (
-          <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-5 space-y-4 shadow-2xs text-[#12161C]">
+          <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-5 space-y-4 shadow-sm text-[#12161C]">
             <div className="flex items-start justify-between border-b border-[#E3E6EA] pb-3">
               <div>
                 <h3 className="font-display font-bold text-sm text-[#12161C]">{selectedContact.name}</h3>
@@ -306,9 +318,10 @@ export const ContactsView = ({
               </div>
               <button 
                 onClick={() => setSelectedContact(null)}
-                className="text-[#5B6472] hover:text-[#12161C] p-1"
+                aria-label="Close detail pane"
+                className="text-[#5B6472] hover:text-[#12161C] p-1 rounded-lg"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
 
@@ -318,7 +331,7 @@ export const ContactsView = ({
                 onClick={() => setActivityModalContact(selectedContact)}
                 className="w-full p-2.5 bg-[#EFF6F9] hover:bg-[#D8E8EF] border border-[#D8E8EF] rounded-xl text-xs text-[#1D4E63] font-bold flex items-center justify-center gap-2 transition-colors shadow-2xs"
               >
-                <PhoneCall className="w-4 h-4 text-[#1D4E63]" />
+                <PhoneCall className="w-4 h-4 text-[#1D4E63]" aria-hidden="true" />
                 <span>Log Activity & Stage Qualification</span>
               </button>
             </div>
@@ -326,7 +339,7 @@ export const ContactsView = ({
             {/* Linked Deals */}
             <div className="space-y-2">
               <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
-                <Briefcase className="w-3.5 h-3.5 text-[#5B6472]" />
+                <Briefcase className="w-3.5 h-3.5 text-[#5B6472]" aria-hidden="true" />
                 <span>Linked Opportunities ({contactDeals.length})</span>
               </h4>
               {contactDeals.length === 0 ? (
@@ -349,7 +362,7 @@ export const ContactsView = ({
             {/* Notes Section */}
             <div className="space-y-2 pt-2 border-t border-[#E3E6EA]">
               <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
-                <MessageSquare className="w-3.5 h-3.5 text-[#5B6472]" />
+                <MessageSquare className="w-3.5 h-3.5 text-[#5B6472]" aria-hidden="true" />
                 <span>Notes ({contactNotes.length})</span>
               </h4>
 
@@ -359,7 +372,7 @@ export const ContactsView = ({
                   value={newNoteText}
                   onChange={(e) => setNewNoteText(e.target.value)}
                   placeholder="Add note for this client..."
-                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-xs text-[#12161C] placeholder-[#5B6472] focus:outline-none focus:border-[#1D4E63] resize-none"
+                  className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2.5 text-xs text-[#12161C] placeholder-[#5B6472] focus:outline-none focus:border-[#1D4E63] resize-none"
                 />
                 <button
                   type="submit"
@@ -395,8 +408,8 @@ export const ContactsView = ({
               <h2 className="font-display text-sm font-bold text-[#12161C]">
                 {editingContact ? 'Edit Contact' : 'Create Contact'}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-[#5B6472] hover:text-[#12161C] p-1">
-                <X className="w-4 h-4" />
+              <button onClick={() => setIsModalOpen(false)} aria-label="Close modal" className="text-[#5B6472] hover:text-[#12161C] p-1 rounded-lg">
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
 
@@ -480,6 +493,7 @@ export const ContactsView = ({
           </div>
         </div>
       )}
+
       {/* Add Activity Modal */}
       <AddActivityModal
         isOpen={Boolean(activityModalContact)}
