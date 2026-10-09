@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Users,
   Trophy,
@@ -15,8 +15,15 @@ import {
   ArrowRight,
   ShieldCheck,
   Clock,
-  Sparkles
+  Sparkles,
+  Zap,
+  AlertCircle,
+  CheckCircle2,
+  CheckSquare,
+  Check,
+  RotateCcw
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   formatCurrency,
   formatDate,
@@ -24,7 +31,8 @@ import {
   isDealStale,
   getStageAgingStatus,
   isCloseDateOverdue,
-  getLocalDateInputValue
+  getLocalDateInputValue,
+  getLocalDateInputValueAfterDays
 } from '../utils/crmHelpers.js';
 import { ManifestStrip } from './ManifestStrip.jsx';
 
@@ -41,18 +49,59 @@ const getStageBarColor = (stageName, category) => {
   return '#FFFFFF';
 };
 
+const getItemIcon = (type) => {
+  switch (type) {
+    case 'overdue':
+      return <AlertCircle className="w-3.5 h-3.5 text-[#922D27]" aria-hidden="true" />;
+    case 'approval':
+      return <ShieldCheck className="w-3.5 h-3.5 text-[#5B21B6]" aria-hidden="true" />;
+    case 'closing':
+      return <Calendar className="w-3.5 h-3.5 text-[#965700]" aria-hidden="true" />;
+    case 'renewal':
+      return <RefreshCw className="w-3.5 h-3.5 text-[#166534]" aria-hidden="true" />;
+    case 'stale':
+      return <Clock className="w-3.5 h-3.5 text-[#9F1239]" aria-hidden="true" />;
+    default:
+      return <Zap className="w-3.5 h-3.5 text-[#1D4E63]" aria-hidden="true" />;
+  }
+};
+
+const getBadgeStyle = (type) => {
+  switch (type) {
+    case 'overdue':
+      return 'bg-[#FDF2F1] text-[#922D27] border-[#F4C4C1]';
+    case 'approval':
+      return 'bg-[#F5F3FF] text-[#5B21B6] border-[#DDD6FE]';
+    case 'closing':
+      return 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]';
+    case 'renewal':
+      return 'bg-[#F0FDF4] text-[#166534] border-[#BBF7D0]';
+    case 'stale':
+      return 'bg-[#FFF1F2] text-[#9F1239] border-[#FECDD3]';
+    default:
+      return 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]';
+  }
+};
+
 export const DashboardView = ({
   state,
   currentUser,
   onNavigateTab,
   onTriggerRenewalCheck,
   onOpenLeadModal,
-  onOpenDealModal
+  onOpenDealModal,
+  onOpenDrawer,
+  onUpdateTask,
+  onApproveStageGateCheck
 }) => {
   const { leads = [], deals = [], tasks = [], activities = [], stages = [] } = state || {};
   const todayStr = getLocalDateInputValue();
 
-  // --- Selective Memoization of Key Executive Metrics ---
+  const [activeQueueFilter, setActiveQueueFilter] = useState('all');
+  const [activeViewMode, setActiveViewMode] = useState('queue'); // 'queue' | 'activity'
+  const [actionInProgressId, setActionInProgressId] = useState(null);
+
+  // --- Selective Memoization of Key Executive Metrics & Action Queues ---
   const {
     userLeads,
     userDeals,
@@ -71,7 +120,14 @@ export const DashboardView = ({
     outboundEmails,
     samplesSent,
     stageBreakdown,
-    maxStageVal
+    maxStageVal,
+    overdueTasks,
+    approvalTasks,
+    closingSoonDeals,
+    renewalsDueQueue,
+    inactiveDealsQueue,
+    allWorkQueueItems,
+    workQueueCounts
   } = useMemo(() => {
     const rbacLeads = filterByRole(leads, currentUser);
     const rbacDeals = filterByRole(deals, currentUser);
@@ -127,6 +183,140 @@ export const DashboardView = ({
 
     const maxVal = Math.max(...breakdown.map(s => s.value), 1);
 
+    // --- Action-Oriented Work Queues ---
+    // 1. Overdue follow-up tasks
+    const overdueList = rbacTasks.filter(t =>
+      t.status === 'pending' && t.dueDate && t.dueDate.split('T')[0] < todayStr
+    ).map(t => {
+      const due = t.dueDate.split('T')[0];
+      const daysOverdue = Math.max(1, Math.round((new Date(todayStr) - new Date(due)) / 86400000));
+      return {
+        id: t.id,
+        type: 'overdue',
+        categoryLabel: 'Overdue Follow-Up',
+        title: t.title,
+        subtitle: t.linkedTitle ? `Linked: ${t.linkedTitle}` : (t.type ? `Type: ${t.type}` : 'General Outreach'),
+        meta: `${daysOverdue}d overdue`,
+        metaFull: `${daysOverdue}d overdue (Due ${formatDate(t.dueDate)})`,
+        raw: t,
+        daysOverdue,
+        urgency: 'high',
+        targetTab: 'tasks',
+        entityType: t.linkedType,
+        entityId: t.linkedId
+      };
+    }).sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+    // 2. Pending stage gate approval tasks
+    const isManagerOrAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Manager';
+    const approvalsList = (isManagerOrAdmin
+      ? (tasks || [])
+      : (tasks || []).filter(t => t.submittedBy === currentUser?.id || t.ownerId === currentUser?.id)
+    ).filter(t => t.type === 'Approval' && t.status === 'pending')
+    .map(t => ({
+      id: t.id,
+      type: 'approval',
+      categoryLabel: 'Pending Approval',
+      title: t.title,
+      subtitle: t.submittedByName ? `Submitted by: ${t.submittedByName}` : (t.ownerName ? `Assignee: ${t.ownerName}` : 'Manager Approval'),
+      meta: 'Awaiting Sign-off',
+      metaFull: t.createdAt ? `Submitted ${formatDate(t.createdAt)}` : 'Awaiting Sign-off',
+      raw: t,
+      urgency: 'high',
+      targetTab: 'tasks',
+      entityType: t.linkedType,
+      entityId: t.linkedId
+    }));
+
+    // 3. Deals closing soon (next 7 days)
+    const closingSoonList = rbacDeals.filter(d => {
+      if (d.status !== 'Active' || !d.expectedCloseDate) return false;
+      const daysLeft = Math.ceil((new Date(d.expectedCloseDate.split('T')[0]) - new Date(todayStr)) / 86400000);
+      return daysLeft >= 0 && daysLeft <= 7;
+    }).map(d => {
+      const daysLeft = Math.ceil((new Date(d.expectedCloseDate.split('T')[0]) - new Date(todayStr)) / 86400000);
+      return {
+        id: d.id,
+        type: 'closing',
+        categoryLabel: 'Closing Soon',
+        title: d.title,
+        subtitle: `${formatCurrency(d.value)} • ${d.stageName || 'Pipeline'}`,
+        meta: daysLeft === 0 ? 'Closes Today' : `${daysLeft}d left`,
+        metaFull: daysLeft === 0 ? 'Target close date is today' : `Expected close in ${daysLeft} days`,
+        raw: d,
+        daysLeft,
+        urgency: daysLeft <= 2 ? 'high' : 'medium',
+        targetTab: 'pipeline',
+        entityType: 'Deal',
+        entityId: d.id
+      };
+    }).sort((a, b) => a.daysLeft - b.daysLeft);
+
+    // 4. Renewals due
+    const renewalsList = rbacDeals.filter(d =>
+      d.status === 'Renewal Due' || d.stageName?.includes('Buy Again')
+    ).map(d => ({
+      id: d.id,
+      type: 'renewal',
+      categoryLabel: 'Renewal Due',
+      title: d.title,
+      subtitle: `${formatCurrency(d.value)} • ${d.companyName || 'B2B Client'}`,
+      meta: 'Cycle Mature',
+      metaFull: d.recurrenceDays ? `${d.recurrenceDays}d replenishment cycle` : 'Repeat order cycle due',
+      raw: d,
+      urgency: 'medium',
+      targetTab: 'pipeline',
+      entityType: 'Deal',
+      entityId: d.id
+    }));
+
+    // 5. Deals with no recent activity
+    const staleList = rbacDeals.filter(d => {
+      if (d.status !== 'Active') return false;
+      return isDealStale(d.lastActivityDate);
+    }).map(d => {
+      let daysInactive = 10;
+      if (d.lastActivityDate) {
+        daysInactive = Math.max(10, Math.round((new Date(todayStr) - new Date(d.lastActivityDate.split('T')[0])) / 86400000));
+      }
+      return {
+        id: d.id,
+        type: 'stale',
+        categoryLabel: 'No Recent Activity',
+        title: d.title,
+        subtitle: `${formatCurrency(d.value)} • ${d.stageName || 'In Pipeline'}`,
+        meta: `${daysInactive}d no touch`,
+        metaFull: `No customer touchpoint for ${daysInactive} days`,
+        raw: d,
+        daysInactive,
+        urgency: 'medium',
+        targetTab: 'pipeline',
+        entityType: 'Deal',
+        entityId: d.id
+      };
+    }).sort((a, b) => b.daysInactive - a.daysInactive);
+
+    const allWorkItems = [
+      ...overdueList,
+      ...approvalsList,
+      ...closingSoonList,
+      ...renewalsList,
+      ...staleList
+    ].sort((a, b) => {
+      if (a.urgency === 'high' && b.urgency !== 'high') return -1;
+      if (b.urgency === 'high' && a.urgency !== 'high') return 1;
+      return 0;
+    });
+
+    const counts = {
+      all: allWorkItems.length,
+      overdue: overdueList.length,
+      approvals: approvalsList.length,
+      closing: closingSoonList.length,
+      renewals: renewalsList.length,
+      stale: staleList.length
+    };
+
     return {
       userLeads: rbacLeads,
       userDeals: rbacDeals,
@@ -145,9 +335,114 @@ export const DashboardView = ({
       outboundEmails: obEmails,
       samplesSent: samples,
       stageBreakdown: breakdown,
-      maxStageVal: maxVal
+      maxStageVal: maxVal,
+      overdueTasks: overdueList,
+      approvalTasks: approvalsList,
+      closingSoonDeals: closingSoonList,
+      renewalsDueQueue: renewalsList,
+      inactiveDealsQueue: staleList,
+      allWorkQueueItems: allWorkItems,
+      workQueueCounts: counts
     };
   }, [leads, deals, tasks, activities, stages, currentUser, todayStr]);
+
+  const displayedQueueItems = useMemo(() => {
+    switch (activeQueueFilter) {
+      case 'overdue':
+        return overdueTasks;
+      case 'approvals':
+        return approvalTasks;
+      case 'closing':
+        return closingSoonDeals;
+      case 'renewals':
+        return renewalsDueQueue;
+      case 'stale':
+        return inactiveDealsQueue;
+      case 'all':
+      default:
+        return allWorkQueueItems;
+    }
+  }, [activeQueueFilter, overdueTasks, approvalTasks, closingSoonDeals, renewalsDueQueue, inactiveDealsQueue, allWorkQueueItems]);
+
+  const handleItemClick = (item) => {
+    if (item.type === 'overdue' || item.type === 'approval') {
+      if (onOpenDrawer && item.raw?.linkedType && item.raw?.linkedId) {
+        if (item.raw.linkedType === 'Deal') {
+          const deal = deals.find(d => d.id === item.raw.linkedId);
+          if (deal) {
+            onOpenDrawer('deal', deal);
+            return;
+          }
+        } else if (item.raw.linkedType === 'Lead') {
+          const lead = leads.find(l => l.id === item.raw.linkedId);
+          if (lead) {
+            onOpenDrawer('lead', lead);
+            return;
+          }
+        }
+      }
+      onNavigateTab('tasks');
+    } else if (item.type === 'closing' || item.type === 'renewal' || item.type === 'stale') {
+      if (onOpenDrawer) {
+        onOpenDrawer('deal', item.raw);
+      } else {
+        onNavigateTab('pipeline');
+      }
+    }
+  };
+
+  // 1-Click Inline Action: Mark task complete directly from queue
+  const handleQuickCompleteTask = async (e, item) => {
+    e.stopPropagation();
+    if (!onUpdateTask || !item.id) return;
+    try {
+      setActionInProgressId(item.id);
+      await onUpdateTask(item.id, { status: 'completed' });
+      toast.success(`Completed: ${item.title}`);
+    } catch (err) {
+      console.error('Error completing task:', err);
+      toast.error('Failed to complete task');
+    } finally {
+      setActionInProgressId(null);
+    }
+  };
+
+  // 1-Click Inline Action: Snooze/reschedule task +2 days
+  const handleQuickSnoozeTask = async (e, item) => {
+    e.stopPropagation();
+    if (!onUpdateTask || !item.id) return;
+    try {
+      setActionInProgressId(item.id);
+      const newDueDate = getLocalDateInputValueAfterDays(2);
+      await onUpdateTask(item.id, { dueDate: newDueDate });
+      toast.info(`Rescheduled for ${formatDate(newDueDate)}`);
+    } catch (err) {
+      console.error('Error rescheduling task:', err);
+      toast.error('Failed to reschedule task');
+    } finally {
+      setActionInProgressId(null);
+    }
+  };
+
+  // 1-Click Inline Action: Sign off approval directly
+  const handleQuickApproveTask = async (e, item) => {
+    e.stopPropagation();
+    try {
+      setActionInProgressId(item.id);
+      if (onApproveStageGateCheck && item.raw?.stageGateCheckId) {
+        await onApproveStageGateCheck(item.raw.stageGateCheckId, currentUser?.name || 'Reviewer');
+        toast.success(`Approved gate check for ${item.title}`);
+      } else if (onUpdateTask) {
+        await onUpdateTask(item.id, { status: 'completed' });
+        toast.success(`Approval task completed`);
+      }
+    } catch (err) {
+      console.error('Error approving task:', err);
+      toast.error('Failed to approve check');
+    } finally {
+      setActionInProgressId(null);
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F6F7F8] text-[#12161C]">
@@ -268,16 +563,27 @@ export const DashboardView = ({
             </div>
           </div>
 
-          {/* Tasks Due Today */}
-          <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-5 rounded-2xl hover:border-[#F5DDA9] transition-all shadow-sm">
+          {/* Tasks Due Today & Overdue Follow-ups */}
+          <div
+            onClick={() => onNavigateTab('tasks')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onNavigateTab('tasks'); }}
+            className="bg-[#FFFFFF] border border-[#E3E6EA] p-5 rounded-2xl hover:border-[#965700] transition-all shadow-sm cursor-pointer group focus-visible:outline-2 focus-visible:outline-[#965700]"
+          >
             <div className="flex items-center justify-between">
-              <span className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider">TASKS DUE TODAY</span>
-              <div className="p-2 rounded-xl bg-[#FEF8EC] text-[#965700] border border-[#F5DDA9]">
+              <span className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider group-hover:text-[#1D4E63] transition-colors">TASKS DUE TODAY</span>
+              <div className="p-2 rounded-xl bg-[#FEF8EC] text-[#965700] border border-[#F5DDA9] group-hover:bg-[#F5DDA9] transition-colors">
                 <Calendar className="w-4 h-4" aria-hidden="true" />
               </div>
             </div>
-            <div className="font-mono text-2xl lg:text-3xl font-extrabold text-[#12161C] mt-2">
-              {pendingTasksToday.length}
+            <div className="font-mono text-2xl lg:text-3xl font-extrabold text-[#12161C] mt-2 flex items-baseline justify-between">
+              <span>{pendingTasksToday.length}</span>
+              {overdueTasks.length > 0 && (
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#FDF2F1] text-[#922D27] border border-[#F4C4C1] font-bold">
+                  {overdueTasks.length} overdue
+                </span>
+              )}
             </div>
             <div className={`text-[11px] mt-1 font-medium font-mono ${pendingTasksToday.length > 0 ? 'text-[#965700] font-bold' : 'text-[#5B6472]'}`}>
               {pendingTasksToday.length > 0 ? 'Requires immediate rep action' : 'All scheduled tasks clear'}
@@ -286,103 +592,242 @@ export const DashboardView = ({
 
         </div>
 
-        {/* --- AT-RISK DEALS RADAR (EXECUTIVE ACTION CENTER) --- */}
+        {/* --- FULL-WIDTH PRIORITIZED WORK QUEUE (IN PLACE OF AT-RISK RADAR) --- */}
         <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E3E6EA] pb-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2.5 rounded-xl border ${
-                staleOrAtRiskDeals.length > 0 
-                  ? 'bg-[#FDF2F1] text-[#922D27] border-[#F4C4C1]' 
-                  : 'bg-[#F0F7F3] text-[#255B40] border-[#BCDBC9]'
-              }`}>
-                {staleOrAtRiskDeals.length > 0 ? (
-                  <AlertTriangle className="w-5 h-5 text-[#922D27]" aria-hidden="true" />
-                ) : (
-                  <ShieldCheck className="w-5 h-5 text-[#255B40]" aria-hidden="true" />
-                )}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="font-display text-base font-extrabold text-[#12161C]">
-                    At-Risk Opportunities Radar
-                  </h2>
-                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold border ${
-                    staleOrAtRiskDeals.length > 0
-                      ? 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
-                      : 'bg-[#F0F7F3] text-[#255B40] border-[#BCDBC9]'
-                  }`}>
-                    {staleOrAtRiskDeals.length} At-Risk ({formatCurrency(totalAtRiskValue)})
-                  </span>
-                </div>
-                <p className="text-xs text-[#5B6472] mt-0.5">
-                  Flags deals stagnant &gt;14 days in stage, past expected close date, or lacking customer activity.
-                </p>
-              </div>
+          
+          {/* Header Bar: Dot + Title + Actions Pill + Mode Switcher */}
+          <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-3 gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#5B6472]/60" aria-hidden="true" />
+              <h2 className="font-display text-base font-extrabold text-[#12161C] tracking-tight">
+                Prioritized Work Queue
+              </h2>
+              <span className="bg-[#EFF6F9] text-[#1D4E63] border border-[#D8E8EF] text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full">
+                {allWorkQueueItems.length} Actions
+              </span>
             </div>
 
+            {/* View Switcher: Queue vs Live Feed */}
+            <div className="flex items-center gap-1 bg-[#F6F7F8] p-0.5 rounded-lg border border-[#E3E6EA] text-xs font-semibold">
+              <button
+                onClick={() => setActiveViewMode('queue')}
+                className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+                  activeViewMode === 'queue'
+                    ? 'bg-[#FFFFFF] text-[#1D4E63] shadow-2xs font-bold'
+                    : 'text-[#5B6472] hover:text-[#12161C]'
+                }`}
+              >
+                <Zap className="w-3 h-3 text-[#1D4E63]" aria-hidden="true" />
+                <span>Queue</span>
+                {allWorkQueueItems.length > 0 && (
+                  <span className="bg-[#922D27] text-white text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold">
+                    {allWorkQueueItems.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveViewMode('activity')}
+                className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1 ${
+                  activeViewMode === 'activity'
+                    ? 'bg-[#FFFFFF] text-[#1D4E63] shadow-2xs font-bold'
+                    : 'text-[#5B6472] hover:text-[#12161C]'
+                }`}
+              >
+                <span>Live Feed</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Filter Chips Bar (in Queue mode) */}
+          {activeViewMode === 'queue' && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+              {[
+                { id: 'all', label: 'All', count: workQueueCounts.all },
+                { id: 'overdue', label: 'Overdue', count: workQueueCounts.overdue, badgeBg: 'bg-[#FDF2F1] text-[#922D27] border-[#F4C4C1]' },
+                { id: 'approvals', label: 'Approvals', count: workQueueCounts.approvals, badgeBg: 'bg-[#F5F3FF] text-[#5B21B6] border-[#DDD6FE]' },
+                { id: 'closing', label: 'Closing Soon', count: workQueueCounts.closing, badgeBg: 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]' },
+                { id: 'renewals', label: 'Renewals', count: workQueueCounts.renewals, badgeBg: 'bg-[#F0FDF4] text-[#166534] border-[#BBF7D0]' },
+                { id: 'stale', label: 'No Touch', count: workQueueCounts.stale, badgeBg: 'bg-[#FFF1F2] text-[#9F1239] border-[#FECDD3]' },
+              ].map(tab => {
+                const isActive = activeQueueFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveQueueFilter(tab.id)}
+                    className={`px-2.5 py-1.5 rounded-lg font-medium whitespace-nowrap transition-all flex items-center gap-1.5 border text-xs focus-visible:outline-2 focus-visible:outline-[#1D4E63] ${
+                      isActive
+                        ? 'bg-[#1D4E63] text-white border-[#1D4E63] font-bold shadow-2xs'
+                        : 'bg-[#F6F7F8] text-[#5B6472] border-[#E3E6EA] hover:bg-[#EEF0F3] hover:text-[#12161C]'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold border ${
+                      isActive
+                        ? 'bg-white/20 text-white border-transparent'
+                        : (tab.badgeBg || 'bg-[#FFFFFF] text-[#5B6472] border-[#E3E6EA]')
+                    }`}>
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* List Content */}
+          {activeViewMode === 'queue' ? (
+            <div className="space-y-3 pt-1">
+              {displayedQueueItems.length === 0 ? (
+                <div className="p-8 text-center bg-[#FAFCFD] border border-dashed border-[#BCDBC9] rounded-xl space-y-2">
+                  <div className="w-10 h-10 rounded-full bg-[#F0F7F3] border border-[#BCDBC9] flex items-center justify-center mx-auto text-[#255B40]">
+                    <ShieldCheck className="w-5 h-5 text-[#255B40]" aria-hidden="true" />
+                  </div>
+                  <h4 className="font-display text-xs font-bold text-[#12161C]">
+                    All Clear in This Queue
+                  </h4>
+                  <p className="text-[11px] text-[#5B6472] max-w-[280px] mx-auto leading-relaxed">
+                    {activeQueueFilter === 'overdue' && 'Zero overdue follow-up tasks. Outreach schedule is on track.'}
+                    {activeQueueFilter === 'approvals' && 'Zero pending approvals awaiting sign-off.'}
+                    {activeQueueFilter === 'closing' && 'No deals closing within the next 7 days.'}
+                    {activeQueueFilter === 'renewals' && 'No renewal contracts due for replenishment.'}
+                    {activeQueueFilter === 'stale' && 'All deals have received recent customer interaction.'}
+                    {activeQueueFilter === 'all' && 'No urgent tasks or deals require immediate action.'}
+                  </p>
+                </div>
+              ) : (
+                displayedQueueItems.map(item => {
+                  const isBusy = actionInProgressId === item.id;
+
+                  return (
+                    <div
+                      key={`${item.type}-${item.id}`}
+                      onClick={() => handleItemClick(item)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleItemClick(item); }}
+                      className="p-4 bg-[#FAFCFD] hover:bg-[#F2F7FA] border border-[#E3E6EA] hover:border-[#1D4E63] rounded-xl space-y-2 transition-all text-xs cursor-pointer group shadow-2xs focus-visible:outline-2 focus-visible:outline-[#1D4E63]"
+                    >
+                      {/* Top line: Badge + Meta */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${getBadgeStyle(item.type)}`}>
+                          {getItemIcon(item.type)}
+                          <span>{item.categoryLabel}</span>
+                        </span>
+                        <span className="text-xs font-mono text-[#5B6472] font-semibold truncate max-w-[170px]" title={item.metaFull}>
+                          {item.meta}
+                        </span>
+                      </div>
+
+                      {/* Middle line: Title + Subtitle */}
+                      <div>
+                        <h4 className="font-bold text-sm text-[#12161C] group-hover:text-[#1D4E63] transition-colors truncate">
+                          {item.title}
+                        </h4>
+                        <p className="text-xs text-[#5B6472] truncate mt-0.5 font-medium">
+                          {item.subtitle}
+                        </p>
+                      </div>
+
+                      {/* Bottom line: Inline Actions Toolbar + Inspect Trigger */}
+                      <div className="flex items-center justify-between pt-2 border-t border-[#E3E6EA]/70 gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {item.type === 'overdue' && onUpdateTask && (
+                            <>
+                              <button
+                                onClick={(e) => handleQuickCompleteTask(e, item)}
+                                disabled={isBusy}
+                                className="px-2.5 py-1 bg-[#F0F7F3] hover:bg-[#DDF0E6] text-[#255B40] border border-[#BCDBC9] rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors"
+                                title="Mark task completed"
+                              >
+                                <Check className="w-3 h-3 text-[#255B40]" />
+                                <span>Done</span>
+                              </button>
+                              <button
+                                onClick={(e) => handleQuickSnoozeTask(e, item)}
+                                disabled={isBusy}
+                                className="px-2.5 py-1 bg-[#FAFCFD] hover:bg-[#EEF2F6] text-[#5B6472] hover:text-[#12161C] border border-[#E3E6EA] rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                                title="Reschedule +2 days"
+                              >
+                                <RotateCcw className="w-3 h-3 text-[#5B6472]" />
+                                <span>+2d</span>
+                              </button>
+                            </>
+                          )}
+
+                          {item.type === 'approval' && (
+                            <button
+                              onClick={(e) => handleQuickApproveTask(e, item)}
+                              disabled={isBusy}
+                              className="px-2.5 py-1 bg-[#F5F3FF] hover:bg-[#EDE9FE] text-[#5B21B6] border border-[#DDD6FE] rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors"
+                              title="Approve stage-gate check"
+                            >
+                              <ShieldCheck className="w-3 h-3 text-[#5B21B6]" />
+                              <span>Approve</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Inspect on Right */}
+                        <div className="flex items-center gap-1 text-[#1D4E63] font-bold text-xs group-hover:translate-x-0.5 transition-transform">
+                          <span>Inspect</span>
+                          <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : (
+            /* Live Activity Feed view inside work queue container */
+            <div className="space-y-3 pt-1">
+              {activities?.length === 0 ? (
+                <div className="p-8 text-center text-xs text-[#5B6472]">
+                  No activity logs recorded yet.
+                </div>
+              ) : (
+                activities.slice(0, 8).map(act => (
+                  <div key={act.id} className="p-3.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        act.isOutbound
+                          ? 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
+                          : 'bg-[#F0F7F3] text-[#255B40] border-[#BCDBC9]'
+                      }`}>
+                        {act.type}
+                      </span>
+                      <span className="text-[11px] text-[#5B6472] font-mono">{formatDate(act.timestamp)}</span>
+                    </div>
+                    <p className="text-[#12161C] font-medium leading-relaxed">{act.description}</p>
+                    <div className="text-[11px] text-[#5B6472] flex items-center justify-between pt-1 border-t border-[#E3E6EA]/60 font-mono">
+                      <span>Rep: {act.authorName}</span>
+                      {act.linkedTitle && <span className="text-[#1D4E63] truncate max-w-[140px] font-bold">{act.linkedTitle}</span>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Footer: Manage All Follow-ups & Tasks >  on left, Open Kanban Board > on right */}
+          <div className="border-t border-[#E3E6EA] pt-3 flex items-center justify-between text-xs">
+            <button
+              onClick={() => onNavigateTab('tasks')}
+              className="text-[#1D4E63] hover:text-[#153B4B] font-bold flex items-center gap-1 transition-colors"
+            >
+              <span>Manage All Follow-ups & Tasks</span>
+              <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
             <button
               onClick={() => onNavigateTab('pipeline')}
-              className="text-xs font-bold text-[#1D4E63] hover:text-[#153B4B] flex items-center gap-1.5 self-start sm:self-center transition-colors"
+              className="text-[#5B6472] hover:text-[#12161C] font-semibold flex items-center gap-1 transition-colors"
             >
-              <span>Manage in Pipeline</span>
-              <ArrowRight className="w-4 h-4" aria-hidden="true" />
+              <span>Open Kanban Board</span>
+              <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
 
-          {staleOrAtRiskDeals.length === 0 ? (
-            <div className="p-6 bg-[#FAFCFD] border border-[#BCDBC9] rounded-xl flex items-center gap-3 text-xs text-[#255B40]">
-              <ShieldCheck className="w-5 h-5 text-[#255B40] shrink-0" aria-hidden="true" />
-              <span>
-                <strong>Pipeline Velocity Optimal:</strong> All active deals have recent customer activity and healthy stage progression.
-              </span>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
-              {staleOrAtRiskDeals.map(deal => (
-                <div
-                  key={deal.id}
-                  className="p-4 bg-[#FAFCFD] border border-[#E3E6EA] hover:border-[#F4C4C1] rounded-xl space-y-2.5 transition-all text-xs shadow-2xs group"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="font-bold text-[#12161C] truncate max-w-[190px] group-hover:text-[#1D4E63] transition-colors">
-                        {deal.title}
-                      </h4>
-                      <p className="text-[11px] text-[#5B6472] truncate">
-                        {deal.companyName || 'B2B Account'} &bull; Rep: {deal.ownerName}
-                      </p>
-                    </div>
-                    <span className="font-mono font-bold text-xs text-[#255B40] shrink-0">
-                      {formatCurrency(deal.value)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#E3E6EA]">
-                    <span className="font-medium text-[#5B6472]">Stage: <strong className="text-[#12161C]">{deal.stageName}</strong></span>
-                    <button
-                      onClick={() => onNavigateTab('pipeline')}
-                      className="text-[#1D4E63] hover:underline font-semibold flex items-center gap-1 text-[11px]"
-                    >
-                      <span>Inspect</span>
-                      <ChevronRight className="w-3 h-3" aria-hidden="true" />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                    {deal.reasons?.map((reason, idx) => (
-                      <span
-                        key={idx}
-                        className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#FDF2F1] text-[#922D27] border border-[#F4C4C1] font-bold flex items-center gap-1"
-                      >
-                        <Clock className="w-3 h-3 text-[#922D27]" aria-hidden="true" />
-                        <span>{reason}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Outbound Sales Activity Metrics Highlight */}
@@ -433,7 +878,7 @@ export const DashboardView = ({
           </div>
         </div>
 
-        {/* Main Visual Section: Pipeline Stage Breakdown & Activity Feed */}
+        {/* Main Visual Section: Pipeline Stage Breakdown & Recent Activity Log */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Pipeline Stage Column Chart Cards (2 Cols) */}
@@ -518,8 +963,8 @@ export const DashboardView = ({
 
           </div>
 
-          {/* Recent Activity Feed (1 Col) */}
-          <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl space-y-4 shadow-sm">
+          {/* Recent Activity Log (1 Col) */}
+          <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl space-y-4 shadow-sm flex flex-col justify-between">
             <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-3">
               <h2 className="font-display text-sm font-bold text-[#12161C]">Recent Activity Log</h2>
               <span className="text-[11px] text-[#255B40] bg-[#F0F7F3] border border-[#BCDBC9] px-2 py-0.5 rounded-full font-bold">
@@ -527,26 +972,44 @@ export const DashboardView = ({
               </span>
             </div>
 
-            <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1 no-scrollbar">
-              {activities?.slice(0, 7).map(act => (
-                <div key={act.id} className="p-3 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl space-y-1 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                      act.isOutbound
-                        ? 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
-                        : 'bg-[#F0F7F3] text-[#255B40] border-[#BCDBC9]'
-                    }`}>
-                      {act.type}
-                    </span>
-                    <span className="text-[11px] text-[#5B6472] font-mono">{formatDate(act.timestamp)}</span>
-                  </div>
-                  <p className="text-[#12161C] line-clamp-2 font-medium">{act.description}</p>
-                  <div className="text-[11px] text-[#5B6472] flex items-center justify-between pt-1 font-mono">
-                    <span>Rep: {act.authorName}</span>
-                    {act.linkedTitle && <span className="text-[#1D4E63] truncate max-w-[120px] font-bold">{act.linkedTitle}</span>}
-                  </div>
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 no-scrollbar flex-1">
+              {activities?.length === 0 ? (
+                <div className="p-6 text-center text-xs text-[#5B6472]">
+                  No activity logs recorded yet.
                 </div>
-              ))}
+              ) : (
+                activities?.slice(0, 8).map(act => (
+                  <div key={act.id} className="p-3 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        act.isOutbound
+                          ? 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
+                          : 'bg-[#F0F7F3] text-[#255B40] border-[#BCDBC9]'
+                      }`}>
+                        {act.type}
+                      </span>
+                      <span className="text-[11px] text-[#5B6472] font-mono">{formatDate(act.timestamp)}</span>
+                    </div>
+                    <p className="text-[#12161C] line-clamp-2 font-medium">{act.description}</p>
+                    <div className="text-[11px] text-[#5B6472] flex items-center justify-between pt-1 font-mono">
+                      <span>Rep: {act.authorName}</span>
+                      {act.linkedTitle && <span className="text-[#1D4E63] truncate max-w-[120px] font-bold">{act.linkedTitle}</span>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer Quick Link */}
+            <div className="border-t border-[#E3E6EA] pt-3 flex items-center justify-between text-[11px]">
+              <span className="text-[#5B6472] font-medium font-mono">Proactive customer touchpoints</span>
+              <button
+                onClick={() => onNavigateTab('pipeline')}
+                className="text-[#1D4E63] hover:text-[#153B4B] font-bold flex items-center gap-1 transition-colors"
+              >
+                <span>Pipeline Board</span>
+                <ChevronRight className="w-3 h-3" aria-hidden="true" />
+              </button>
             </div>
           </div>
 
