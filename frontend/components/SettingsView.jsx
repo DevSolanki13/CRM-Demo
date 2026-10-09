@@ -1,12 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
   Palette, 
   Kanban, 
   Save, 
   RotateCcw, 
-  Check 
+  Check,
+  Sparkles,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  Play,
+  ToggleLeft,
+  ToggleRight,
+  RefreshCw
 } from 'lucide-react';
+import { fetchAutomationRules, updateAutomationRules } from '../api/crmClient.js';
+import { toast } from 'sonner';
 
 export const SettingsView = ({
   branding,
@@ -17,17 +27,40 @@ export const SettingsView = ({
   onResetDemoData
 }) => {
   const [brandingForm, setBrandingForm] = useState({ ...branding });
-  const [activeTab, setActiveTab] = useState('branding');
+  const [activeTab, setActiveTab] = useState('branding'); // 'branding' | 'stages' | 'automation' | 'reset'
   
   const [newStageName, setNewStageName] = useState('');
   const [newStageColor, setNewStageColor] = useState('#FFFFFF');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  // Automation Rules State
+  const [rules, setRules] = useState([]);
+  const [loadingRules, setLoadingRules] = useState(false);
+  const [savingRules, setSavingRules] = useState(false);
+
+  useEffect(() => {
+    async function loadRules() {
+      setLoadingRules(true);
+      try {
+        const data = await fetchAutomationRules();
+        setRules(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.warn('Could not load automation rules:', err);
+      } finally {
+        setLoadingRules(false);
+      }
+    }
+    if (activeTab === 'automation') {
+      loadRules();
+    }
+  }, [activeTab]);
+
   const handleSaveBranding = async (e) => {
     e.preventDefault();
     await onUpdateBranding(brandingForm);
     setSavedSuccess(true);
+    toast.success('Branding settings saved successfully');
     setTimeout(() => setSavedSuccess(false), 2000);
   };
 
@@ -40,10 +73,27 @@ export const SettingsView = ({
       order: stages.length + 1
     });
     setNewStageName('');
+    toast.success('New pipeline stage added');
   };
 
   const handleUpdateStageName = async (id, name) => {
     await onUpdateStage(id, { name });
+  };
+
+  const handleRuleChange = (ruleId, field, value) => {
+    setRules(prev => prev.map(r => r.id === ruleId ? { ...r, [field]: value } : r));
+  };
+
+  const handleSaveRules = async () => {
+    setSavingRules(true);
+    try {
+      await updateAutomationRules(rules);
+      toast.success('Automatic follow-up rules updated successfully');
+    } catch (err) {
+      toast.error(err.message || 'Failed to save automation rules');
+    } finally {
+      setSavingRules(false);
+    }
   };
 
   return (
@@ -57,16 +107,16 @@ export const SettingsView = ({
             <span>Customization Hub (Admin Console)</span>
           </h1>
           <p className="text-xs text-[#5B6472] mt-1 font-medium">
-            Re-brand CRM (Logo, colors, terminology, custom pipeline stages, repeat cycle)
+            Re-brand CRM (Logo, colors, pipeline stages, automatic follow-up engine, repeat cycles)
           </p>
         </div>
       </div>
 
       {/* Settings Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-[#E3E6EA] pb-2">
+      <div className="flex items-center gap-2 border-b border-[#E3E6EA] pb-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab('branding')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
             activeTab === 'branding' ? 'bg-[#FFFFFF] text-[#1D4E63] border border-[#E3E6EA] shadow-2xs' : 'text-[#5B6472] hover:text-[#12161C]'
           }`}
         >
@@ -74,15 +124,24 @@ export const SettingsView = ({
         </button>
         <button
           onClick={() => setActiveTab('stages')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
             activeTab === 'stages' ? 'bg-[#FFFFFF] text-[#1D4E63] border border-[#E3E6EA] shadow-2xs' : 'text-[#5B6472] hover:text-[#12161C]'
           }`}
         >
           Pipeline Stage Customizer
         </button>
         <button
+          onClick={() => setActiveTab('automation')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+            activeTab === 'automation' ? 'bg-[#FFFFFF] text-[#1D4E63] border border-[#E3E6EA] shadow-2xs' : 'text-[#5B6472] hover:text-[#12161C]'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-[#1D4E63]" />
+          <span>Automatic Follow-Up Engine</span>
+        </button>
+        <button
           onClick={() => setActiveTab('reset')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
             activeTab === 'reset' ? 'bg-[#FDF2F1] text-[#922D27] border border-[#F4C4C1]' : 'text-[#5B6472] hover:text-[#12161C]'
           }`}
         >
@@ -228,6 +287,141 @@ export const SettingsView = ({
               Add Stage
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Automatic Follow-up Rules Tab */}
+      {activeTab === 'automation' && (
+        <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl max-w-3xl space-y-5 text-xs text-[#12161C] shadow-[0_1px_2px_rgba(18,22,28,0.06)]">
+          <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-3">
+            <div>
+              <h3 className="font-display font-bold text-sm text-[#12161C] flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#1D4E63]" />
+                <span>Automatic Follow-Up Engine Configuration</span>
+              </h3>
+              <p className="text-[#5B6472] mt-1 font-medium">
+                Configure auto-task rules triggered when leads are created, samples sent, proposals submitted, or renewals approach.
+              </p>
+            </div>
+
+            <button
+              onClick={handleSaveRules}
+              disabled={savingRules}
+              className="px-4 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold rounded-full text-xs shadow-2xs flex items-center gap-2 transition-colors disabled:opacity-50"
+            >
+              {savingRules ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              <span>Save Rules</span>
+            </button>
+          </div>
+
+          {loadingRules ? (
+            <div className="p-8 text-center text-[#5B6472] space-y-2">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#1D4E63]" />
+              <p>Loading follow-up rules...</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {rules.map((rule) => (
+                <div 
+                  key={rule.id}
+                  className={`p-4 rounded-2xl border transition-all space-y-3 ${
+                    rule.isActive 
+                      ? 'bg-[#FAFCFD] border-[#CAD2DB] shadow-2xs' 
+                      : 'bg-[#F6F7F8] border-[#E3E6EA] opacity-60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-display font-bold text-sm text-[#12161C]">{rule.name}</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#EFF6F9] text-[#1D4E63] border border-[#D8E8EF]">
+                          Trigger: {rule.triggerEvent}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#5B6472]">{rule.description}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRuleChange(rule.id, 'isActive', !rule.isActive)}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors ${
+                        rule.isActive
+                          ? 'bg-[#F0F7F3] text-[#255B40] border border-[#BCDBC9]'
+                          : 'bg-[#F6F7F8] text-[#5B6472] border border-[#E3E6EA]'
+                      }`}
+                    >
+                      {rule.isActive ? <ToggleRight className="w-4 h-4 text-[#255B40]" /> : <ToggleLeft className="w-4 h-4 text-[#5B6472]" />}
+                      <span>{rule.isActive ? 'Active' : 'Disabled'}</span>
+                    </button>
+                  </div>
+
+                  {rule.isActive && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-[#E3E6EA]/60">
+                      <div>
+                        <label className="block text-[11px] font-bold text-[#5B6472] mb-1">
+                          Due Date Offset (Days)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="90"
+                          value={rule.offsetDays}
+                          onChange={(e) => handleRuleChange(rule.id, 'offsetDays', Number(e.target.value))}
+                          className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2 text-xs font-mono font-bold text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-[#5B6472] mb-1">
+                          Task Type
+                        </label>
+                        <select
+                          value={rule.taskType}
+                          onChange={(e) => handleRuleChange(rule.id, 'taskType', e.target.value)}
+                          className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                        >
+                          <option value="Call">Call</option>
+                          <option value="Meeting">Meeting</option>
+                          <option value="Email">Email</option>
+                          <option value="Sample Follow-up">Sample Follow-up</option>
+                          <option value="Proposal Review">Proposal Review</option>
+                          <option value="Renewal Check-in">Renewal Check-in</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-[#5B6472] mb-1">
+                          Task Priority
+                        </label>
+                        <select
+                          value={rule.priority}
+                          onChange={(e) => handleRuleChange(rule.id, 'priority', e.target.value)}
+                          className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                        >
+                          <option value="Urgent">Urgent</option>
+                          <option value="High">High</option>
+                          <option value="Medium">Medium</option>
+                          <option value="Low">Low</option>
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-3">
+                        <label className="block text-[11px] font-bold text-[#5B6472] mb-1">
+                          Task Title Template <span className="text-[10px] font-normal font-mono">(Placeholders: &#123;&#123;entityName&#125;&#125;, &#123;&#123;contactName&#125;&#125;, &#123;&#123;companyName&#125;&#125;)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={rule.taskTitleTemplate}
+                          onChange={(e) => handleRuleChange(rule.id, 'taskTitleTemplate', e.target.value)}
+                          className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -189,11 +189,11 @@ export default function App() {
     setState(prev => prev ? { ...prev, branding: updated } : prev);
   };
 
-  // Companies CRUD with targeted local state updates
+  // Companies CRUD with full state reload
   const handleCreateCompany = async (comp) => {
     try {
-      const created = await createCompany(comp);
-      setState(prev => prev ? { ...prev, companies: [created, ...(prev.companies || [])] } : prev);
+      await createCompany(comp);
+      await reloadState();
       toast.success("Company created successfully");
     } catch (err) {
       console.error("Error creating company", err);
@@ -203,11 +203,8 @@ export default function App() {
 
   const handleUpdateCompany = async (id, comp) => {
     try {
-      const updated = await updateCompany(id, comp);
-      setState(prev => prev ? {
-        ...prev,
-        companies: (prev.companies || []).map(c => c.id === id ? { ...c, ...updated } : c)
-      } : prev);
+      await updateCompany(id, comp);
+      await reloadState();
       toast.success("Company updated");
     } catch (err) {
       console.error("Error updating company", err);
@@ -218,10 +215,7 @@ export default function App() {
   const handleDeleteCompany = async (id) => {
     try {
       await deleteCompany(id);
-      setState(prev => prev ? {
-        ...prev,
-        companies: (prev.companies || []).filter(c => c.id !== id)
-      } : prev);
+      await reloadState();
       toast.info("Company deleted");
     } catch (err) {
       console.error("Error deleting company", err);
@@ -229,11 +223,11 @@ export default function App() {
     }
   };
 
-  // Contacts CRUD with targeted local state updates
+  // Contacts CRUD with full state reload
   const handleCreateContact = async (cnt) => {
     try {
-      const created = await createContact(cnt);
-      setState(prev => prev ? { ...prev, contacts: [created, ...(prev.contacts || [])] } : prev);
+      await createContact(cnt);
+      await reloadState();
       toast.success("Contact created");
     } catch (err) {
       console.error("Error creating contact", err);
@@ -243,11 +237,8 @@ export default function App() {
 
   const handleUpdateContact = async (id, cnt) => {
     try {
-      const updated = await updateContact(id, cnt);
-      setState(prev => prev ? {
-        ...prev,
-        contacts: (prev.contacts || []).map(c => c.id === id ? { ...c, ...updated } : c)
-      } : prev);
+      await updateContact(id, cnt);
+      await reloadState();
       toast.success("Contact updated");
     } catch (err) {
       console.error("Error updating contact", err);
@@ -258,10 +249,7 @@ export default function App() {
   const handleDeleteContact = async (id) => {
     try {
       await deleteContact(id);
-      setState(prev => prev ? {
-        ...prev,
-        contacts: (prev.contacts || []).filter(c => c.id !== id)
-      } : prev);
+      await reloadState();
       toast.info("Contact deleted");
     } catch (err) {
       console.error("Error deleting contact", err);
@@ -272,8 +260,8 @@ export default function App() {
   // Leads CRUD with targeted local state updates
   const handleCreateLead = async (lead) => {
     try {
-      const created = await createLead(lead);
-      setState(prev => prev ? { ...prev, leads: [created, ...(prev.leads || [])] } : prev);
+      await createLead(lead);
+      await reloadState();
       toast.success("Lead created");
     } catch (err) {
       console.error("Error creating lead", err);
@@ -309,11 +297,11 @@ export default function App() {
     }
   };
 
-  // Deals Basic CRUD with targeted local state updates
+  // Deals Basic CRUD with state reload for complete data synchronization
   const handleCreateDeal = async (deal) => {
     try {
-      const created = await createDeal(deal);
-      setState(prev => prev ? { ...prev, deals: [created, ...(prev.deals || [])] } : prev);
+      await createDeal(deal);
+      await reloadState();
       toast.success("Opportunity created");
     } catch (err) {
       console.error("Error creating deal", err);
@@ -323,11 +311,9 @@ export default function App() {
 
   const handleUpdateDeal = async (id, deal) => {
     try {
-      const updated = await updateDeal(id, deal);
-      setState(prev => prev ? {
-        ...prev,
-        deals: (prev.deals || []).map(d => d.id === id ? { ...d, ...updated } : d)
-      } : prev);
+      await updateDeal(id, deal);
+      await reloadState();
+      toast.success("Deal updated");
     } catch (err) {
       console.error("Error updating deal", err);
       await reloadState();
@@ -337,10 +323,7 @@ export default function App() {
   const handleDeleteDeal = async (id) => {
     try {
       await deleteDeal(id);
-      setState(prev => prev ? {
-        ...prev,
-        deals: (prev.deals || []).filter(d => d.id !== id)
-      } : prev);
+      await reloadState();
       toast.info("Deal deleted");
     } catch (err) {
       console.error("Error deleting deal", err);
@@ -359,11 +342,11 @@ export default function App() {
     await reloadState();
   };
 
-  // Tasks CRUD with targeted local state updates
+  // Tasks CRUD with full state reload
   const handleCreateTask = async (task) => {
     try {
-      const created = await createTask(task);
-      setState(prev => prev ? { ...prev, tasks: [created, ...(prev.tasks || [])] } : prev);
+      await createTask(task);
+      await reloadState();
       toast.success("Task created");
     } catch (err) {
       console.error("Error creating task", err);
@@ -373,11 +356,8 @@ export default function App() {
 
   const handleUpdateTask = async (id, task) => {
     try {
-      const updated = await updateTask(id, task);
-      setState(prev => prev ? {
-        ...prev,
-        tasks: (prev.tasks || []).map(t => t.id === id ? { ...t, ...updated } : t)
-      } : prev);
+      await updateTask(id, task);
+      await reloadState();
     } catch (err) {
       console.error("Error updating task", err);
       await reloadState();
@@ -387,10 +367,7 @@ export default function App() {
   const handleDeleteTask = async (id) => {
     try {
       await deleteTask(id);
-      setState(prev => prev ? {
-        ...prev,
-        tasks: (prev.tasks || []).filter(t => t.id !== id)
-      } : prev);
+      await reloadState();
       toast.info("Task removed");
     } catch (err) {
       console.error("Error deleting task", err);
@@ -398,11 +375,11 @@ export default function App() {
     }
   };
 
-  // Notes & Activities with targeted local state updates
+  // Notes & Activities with full state reload
   const handleCreateNote = async (note) => {
     try {
-      const created = await createNote(note);
-      setState(prev => prev ? { ...prev, notes: [created, ...(prev.notes || [])] } : prev);
+      await createNote(note);
+      await reloadState();
       toast.success("Note saved");
     } catch (err) {
       console.error("Error creating note", err);
@@ -412,19 +389,19 @@ export default function App() {
 
   const handleCreateActivity = async (act) => {
     try {
-      const created = await createActivity(act);
-      setState(prev => prev ? { ...prev, activities: [created, ...(prev.activities || [])] } : prev);
+      await createActivity(act);
+      await reloadState();
     } catch (err) {
       console.error("Error creating activity", err);
       await reloadState();
     }
   };
 
-  // Users with targeted local state updates
+  // Users with full state reload
   const handleCreateUser = async (u) => {
     try {
-      const created = await createUser(u);
-      setState(prev => prev ? { ...prev, users: [...(prev.users || []), created] } : prev);
+      await createUser(u);
+      await reloadState();
       toast.success("Team member added");
     } catch (err) {
       console.error("Error creating user", err);
@@ -434,11 +411,8 @@ export default function App() {
 
   const handleUpdateUser = async (id, u) => {
     try {
-      const updated = await updateUser(id, u);
-      setState(prev => prev ? {
-        ...prev,
-        users: (prev.users || []).map(user => user.id === id ? { ...user, ...updated } : user)
-      } : prev);
+      await updateUser(id, u);
+      await reloadState();
       toast.success("User profile updated");
     } catch (err) {
       console.error("Error updating user", err);
@@ -615,6 +589,9 @@ export default function App() {
                 onTriggerRenewalCheck={handleTriggerRenewalCheck}
                 onOpenLeadModal={() => setActiveTab('leads')}
                 onOpenDealModal={() => setActiveTab('pipeline')}
+                onOpenDrawer={handleOpenDrawer}
+                onUpdateTask={handleUpdateTask}
+                onApproveStageGateCheck={handleApproveStageGateCheck}
               />
             )}
 
@@ -691,9 +668,11 @@ export default function App() {
                 companies={state.companies}
                 contacts={state.contacts}
                 deals={state.deals}
+                currentUser={currentUser}
                 onCreateCompany={handleCreateCompany}
                 onUpdateCompany={handleUpdateCompany}
                 onDeleteCompany={handleDeleteCompany}
+                onCreateActivity={handleCreateActivity}
               />
             )}
 

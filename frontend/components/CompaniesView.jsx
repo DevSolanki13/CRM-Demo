@@ -9,20 +9,26 @@ import {
   Edit3, 
   Trash2, 
   X, 
-  Briefcase 
+  Briefcase,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 import { formatCurrency } from '../utils/crmHelpers.js';
+import { UnifiedTimeline } from './UnifiedTimeline.jsx';
 
 export const CompaniesView = ({
   companies = [],
   contacts = [],
   deals = [],
+  currentUser,
   onCreateCompany,
   onUpdateCompany,
-  onDeleteCompany
+  onDeleteCompany,
+  onCreateActivity
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompany, setSelectedCompany] = useState(null);
+  const [companyDrawerTab, setCompanyDrawerTab] = useState('overview'); // 'overview' | 'timeline'
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -233,57 +239,98 @@ export const CompaniesView = ({
               </button>
             </div>
 
-            <div className="text-xs text-[#12161C] space-y-1 bg-[#F6F7F8] p-3.5 rounded-xl border border-[#E3E6EA]">
-              <div><span className="text-[#5B6472] font-semibold">Address:</span> {selectedCompany.address || 'Not specified'}</div>
-              <div><span className="text-[#5B6472] font-semibold font-mono">Website:</span> {selectedCompany.website || 'Not specified'}</div>
-              {selectedCompany.notes && <div><span className="text-[#5B6472] font-semibold">Notes:</span> {selectedCompany.notes}</div>}
+            {/* Tab switch */}
+            <div className="flex items-center gap-1 bg-[#F6F7F8] p-1 rounded-xl border border-[#E3E6EA]">
+              <button
+                type="button"
+                onClick={() => setCompanyDrawerTab('overview')}
+                className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition-all ${
+                  companyDrawerTab === 'overview'
+                    ? 'bg-[#FFFFFF] text-[#1D4E63] shadow-2xs border border-[#D8E8EF]'
+                    : 'text-[#5B6472] hover:text-[#12161C]'
+                }`}
+              >
+                Overview & Links
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompanyDrawerTab('timeline')}
+                className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  companyDrawerTab === 'timeline'
+                    ? 'bg-[#FFFFFF] text-[#1D4E63] shadow-2xs border border-[#D8E8EF]'
+                    : 'text-[#5B6472] hover:text-[#12161C]'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 text-[#1D4E63]" />
+                <span>360° Timeline</span>
+              </button>
             </div>
 
-            {/* Linked Contacts */}
-            <div className="space-y-2">
-              <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-[#1D4E63]" aria-hidden="true" />
-                <span>Contacts ({linkedContacts.length})</span>
-              </h4>
-              <div className="space-y-1.5">
-                {linkedContacts.length === 0 ? (
-                  <p className="text-[11px] text-[#5B6472] italic">No contacts registered for this account.</p>
-                ) : (
-                  linkedContacts.map(c => (
-                    <div key={c.id} className="p-2.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl text-xs flex justify-between">
-                      <div>
-                        <div className="font-bold text-[#12161C]">{c.name}</div>
-                        <div className="text-[10px] text-[#5B6472]">{c.jobTitle}</div>
-                      </div>
-                      <div className="text-[10px] text-[#1D4E63] font-mono">{c.email}</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            {companyDrawerTab === 'overview' ? (
+              <div className="space-y-4">
+                <div className="text-xs text-[#12161C] space-y-1 bg-[#F6F7F8] p-3.5 rounded-xl border border-[#E3E6EA]">
+                  <div><span className="text-[#5B6472] font-semibold">Address:</span> {selectedCompany.address || 'Not specified'}</div>
+                  <div><span className="text-[#5B6472] font-semibold font-mono">Website:</span> {selectedCompany.website || 'Not specified'}</div>
+                  {selectedCompany.notes && <div><span className="text-[#5B6472] font-semibold">Notes:</span> {selectedCompany.notes}</div>}
+                </div>
 
-            {/* Linked Deals */}
-            <div className="space-y-2 pt-2 border-t border-[#E3E6EA]">
-              <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
-                <Briefcase className="w-3.5 h-3.5 text-[#1D4E63]" aria-hidden="true" />
-                <span>Deals ({linkedDeals.length})</span>
-              </h4>
-              <div className="space-y-1.5 font-mono">
-                {linkedDeals.length === 0 ? (
-                  <p className="text-[11px] text-[#5B6472] italic font-sans">No deals linked to this account.</p>
-                ) : (
-                  linkedDeals.map(d => (
-                    <div key={d.id} className="p-2.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl text-xs flex justify-between items-center">
-                      <div>
-                        <div className="font-bold text-[#12161C] font-sans">{d.title}</div>
-                        <div className="text-[10px] text-[#5B6472]">{d.stageName}</div>
-                      </div>
-                      <div className="font-bold text-[#255B40]">{formatCurrency(d.value)}</div>
-                    </div>
-                  ))
-                )}
+                {/* Linked Contacts */}
+                <div className="space-y-2">
+                  <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-[#1D4E63]" aria-hidden="true" />
+                    <span>Contacts ({linkedContacts.length})</span>
+                  </h4>
+                  <div className="space-y-1.5">
+                    {linkedContacts.length === 0 ? (
+                      <p className="text-[11px] text-[#5B6472] italic">No contacts registered for this account.</p>
+                    ) : (
+                      linkedContacts.map(c => (
+                        <div key={c.id} className="p-2.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl text-xs flex justify-between">
+                          <div>
+                            <div className="font-bold text-[#12161C]">{c.name}</div>
+                            <div className="text-[10px] text-[#5B6472]">{c.jobTitle}</div>
+                          </div>
+                          <div className="text-[10px] text-[#1D4E63] font-mono">{c.email}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Linked Deals */}
+                <div className="space-y-2 pt-2 border-t border-[#E3E6EA]">
+                  <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5 text-[#1D4E63]" aria-hidden="true" />
+                    <span>Deals ({linkedDeals.length})</span>
+                  </h4>
+                  <div className="space-y-1.5 font-mono">
+                    {linkedDeals.length === 0 ? (
+                      <p className="text-[11px] text-[#5B6472] italic font-sans">No deals linked to this account.</p>
+                    ) : (
+                      linkedDeals.map(d => (
+                        <div key={d.id} className="p-2.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl text-xs flex justify-between items-center">
+                          <div>
+                            <div className="font-bold text-[#12161C] font-sans">{d.title}</div>
+                            <div className="text-[10px] text-[#5B6472]">{d.stageName}</div>
+                          </div>
+                          <div className="font-bold text-[#255B40]">{formatCurrency(d.value)}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="pt-1">
+                <UnifiedTimeline
+                  entityType="Company"
+                  entityId={selectedCompany.id}
+                  entityTitle={selectedCompany.name}
+                  currentUser={currentUser}
+                  onActivityCreated={onCreateActivity}
+                />
+              </div>
+            )}
 
           </div>
         )}

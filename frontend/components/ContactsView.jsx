@@ -11,10 +11,13 @@ import {
   X, 
   MessageSquare, 
   PhoneCall, 
-  Briefcase 
+  Briefcase,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 import { formatDate, filterByRole, getLocalDateInputValueAfterDays, formatCurrency } from '../utils/crmHelpers.js';
 import { AddActivityModal } from './AddActivityModal.jsx';
+import { UnifiedTimeline } from './UnifiedTimeline.jsx';
 
 export const ContactsView = ({
   contacts = [],
@@ -39,6 +42,7 @@ export const ContactsView = ({
   // Drawer / Detail state
   const [selectedContact, setSelectedContact] = useState(null);
   const [newNoteText, setNewNoteText] = useState('');
+  const [contactDrawerTab, setContactDrawerTab] = useState('overview'); // 'overview' | 'timeline'
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -325,75 +329,116 @@ export const ContactsView = ({
               </button>
             </div>
 
-            {/* Quick Action Controls */}
-            <div>
+            {/* Tab switch */}
+            <div className="flex items-center gap-1 bg-[#F6F7F8] p-1 rounded-xl border border-[#E3E6EA]">
               <button
-                onClick={() => setActivityModalContact(selectedContact)}
-                className="w-full p-2.5 bg-[#EFF6F9] hover:bg-[#D8E8EF] border border-[#D8E8EF] rounded-xl text-xs text-[#1D4E63] font-bold flex items-center justify-center gap-2 transition-colors shadow-2xs"
+                type="button"
+                onClick={() => setContactDrawerTab('overview')}
+                className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition-all ${
+                  contactDrawerTab === 'overview'
+                    ? 'bg-[#FFFFFF] text-[#1D4E63] shadow-2xs border border-[#D8E8EF]'
+                    : 'text-[#5B6472] hover:text-[#12161C]'
+                }`}
               >
-                <PhoneCall className="w-4 h-4 text-[#1D4E63]" aria-hidden="true" />
-                <span>Log Activity & Stage Qualification</span>
+                Overview & Deals
+              </button>
+              <button
+                type="button"
+                onClick={() => setContactDrawerTab('timeline')}
+                className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  contactDrawerTab === 'timeline'
+                    ? 'bg-[#FFFFFF] text-[#1D4E63] shadow-2xs border border-[#D8E8EF]'
+                    : 'text-[#5B6472] hover:text-[#12161C]'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 text-[#1D4E63]" />
+                <span>360° Timeline</span>
               </button>
             </div>
 
-            {/* Linked Deals */}
-            <div className="space-y-2">
-              <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
-                <Briefcase className="w-3.5 h-3.5 text-[#5B6472]" aria-hidden="true" />
-                <span>Linked Opportunities ({contactDeals.length})</span>
-              </h4>
-              {contactDeals.length === 0 ? (
-                <p className="text-[11px] text-[#5B6472] italic">No deals linked to this contact.</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {contactDeals.map(d => (
-                    <div key={d.id} className="p-2.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl text-xs flex justify-between items-center font-mono">
-                      <div>
-                        <div className="font-bold text-[#12161C] font-sans">{d.title}</div>
-                        <div className="text-[10px] text-[#5B6472]">{d.stageName}</div>
-                      </div>
-                      <div className="font-bold text-[#255B40]">{formatCurrency(d.value)}</div>
-                    </div>
-                  ))}
+            {contactDrawerTab === 'overview' ? (
+              <div className="space-y-4">
+                {/* Quick Action Controls */}
+                <div>
+                  <button
+                    onClick={() => setActivityModalContact(selectedContact)}
+                    className="w-full p-2.5 bg-[#EFF6F9] hover:bg-[#D8E8EF] border border-[#D8E8EF] rounded-xl text-xs text-[#1D4E63] font-bold flex items-center justify-center gap-2 transition-colors shadow-2xs"
+                  >
+                    <PhoneCall className="w-4 h-4 text-[#1D4E63]" aria-hidden="true" />
+                    <span>Log Activity & Stage Qualification</span>
+                  </button>
                 </div>
-              )}
-            </div>
 
-            {/* Notes Section */}
-            <div className="space-y-2 pt-2 border-t border-[#E3E6EA]">
-              <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
-                <MessageSquare className="w-3.5 h-3.5 text-[#5B6472]" aria-hidden="true" />
-                <span>Notes ({contactNotes.length})</span>
-              </h4>
-
-              <form onSubmit={handleAddNote} className="space-y-2">
-                <textarea
-                  rows={2}
-                  value={newNoteText}
-                  onChange={(e) => setNewNoteText(e.target.value)}
-                  placeholder="Add note for this client..."
-                  className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2.5 text-xs text-[#12161C] placeholder-[#5B6472] focus:outline-none focus:border-[#1D4E63] resize-none"
-                />
-                <button
-                  type="submit"
-                  className="w-full py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold text-xs rounded-full shadow-2xs transition-colors"
-                >
-                  Save Note
-                </button>
-              </form>
-
-              <div className="space-y-2 max-h-40 overflow-y-auto pt-1 no-scrollbar">
-                {contactNotes.map(n => (
-                  <div key={n.id} className="p-2.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl text-xs space-y-1">
-                    <p className="text-[#12161C]">{n.text}</p>
-                    <div className="text-[10px] text-[#5B6472] flex justify-between font-mono">
-                      <span>{n.authorName}</span>
-                      <span>{formatDate(n.timestamp)}</span>
+                {/* Linked Deals */}
+                <div className="space-y-2">
+                  <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5 text-[#5B6472]" aria-hidden="true" />
+                    <span>Linked Opportunities ({contactDeals.length})</span>
+                  </h4>
+                  {contactDeals.length === 0 ? (
+                    <p className="text-[11px] text-[#5B6472] italic">No deals linked to this contact.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {contactDeals.map(d => (
+                        <div key={d.id} className="p-2.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl text-xs flex justify-between items-center font-mono">
+                          <div>
+                            <div className="font-bold text-[#12161C] font-sans">{d.title}</div>
+                            <div className="text-[10px] text-[#5B6472]">{d.stageName}</div>
+                          </div>
+                          <div className="font-bold text-[#255B40]">{formatCurrency(d.value)}</div>
+                        </div>
+                      ))}
                     </div>
+                  )}
+                </div>
+
+                {/* Notes Section */}
+                <div className="space-y-2 pt-2 border-t border-[#E3E6EA]">
+                  <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-[#5B6472]" aria-hidden="true" />
+                    <span>Notes ({contactNotes.length})</span>
+                  </h4>
+
+                  <form onSubmit={handleAddNote} className="space-y-2">
+                    <textarea
+                      rows={2}
+                      value={newNoteText}
+                      onChange={(e) => setNewNoteText(e.target.value)}
+                      placeholder="Add note for this client..."
+                      className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2.5 text-xs text-[#12161C] placeholder-[#5B6472] focus:outline-none focus:border-[#1D4E63] resize-none"
+                    />
+                    <button
+                      type="submit"
+                      className="w-full py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold text-xs rounded-full shadow-2xs transition-colors"
+                    >
+                      Save Note
+                    </button>
+                  </form>
+
+                  <div className="space-y-2 max-h-40 overflow-y-auto pt-1 no-scrollbar">
+                    {contactNotes.map(n => (
+                      <div key={n.id} className="p-2.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl text-xs space-y-1">
+                        <p className="text-[#12161C]">{n.text}</p>
+                        <div className="text-[10px] text-[#5B6472] flex justify-between font-mono">
+                          <span>{n.authorName}</span>
+                          <span>{formatDate(n.timestamp)}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="pt-1">
+                <UnifiedTimeline
+                  entityType="Contact"
+                  entityId={selectedContact.id}
+                  entityTitle={selectedContact.name}
+                  currentUser={currentUser}
+                  onActivityCreated={onCreateActivity}
+                />
+              </div>
+            )}
 
           </div>
         )}
