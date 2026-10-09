@@ -50,16 +50,43 @@ export const getActivities = async () => {
 };
 
 export const createActivity = async (activity) => {
+  const todayStr = new Date().toISOString().split('T')[0];
   const newActivity = {
     id: activity.id || `act-${Date.now()}`,
     type: activity.type || 'Note',
-    description: activity.description || 'Logged CRM activity',
-    timestamp: new Date().toISOString(),
-    actorId: activity.actorId || 'u-1',
-    actorName: activity.actorName || 'Alex Vance',
-    linkedType: activity.linkedType || 'Deal',
-    linkedId: activity.linkedId || '',
+    description: activity.description || activity.notes || 'Logged CRM activity',
+    timestamp: activity.timestamp || activity.createdAt || new Date().toISOString(),
+    authorId: activity.authorId || activity.userId || activity.actorId || 'u-1',
+    authorName: activity.authorName || activity.actorName || 'Alex Vance',
+    linkedType: activity.linkedType || (activity.dealId ? 'Deal' : activity.leadId ? 'Lead' : 'Deal'),
+    linkedId: activity.linkedId || activity.dealId || activity.leadId || '',
     linkedTitle: activity.linkedTitle || 'General',
+    isOutbound: activity.isOutbound ?? false,
+    createdAt: activity.createdAt || new Date().toISOString()
   };
-  return await prisma.activity.create({ data: newActivity });
+
+  const saved = await prisma.activity.create({ data: newActivity });
+
+  // Update lastActivityDate on linked Deal or Lead
+  if (newActivity.linkedType === 'Deal' && newActivity.linkedId) {
+    try {
+      await prisma.deal.update({
+        where: { id: newActivity.linkedId },
+        data: { lastActivityDate: todayStr }
+      });
+    } catch {
+      // Ignore if deal not found
+    }
+  } else if (newActivity.linkedType === 'Lead' && newActivity.linkedId) {
+    try {
+      await prisma.lead.update({
+        where: { id: newActivity.linkedId },
+        data: { lastActivityDate: todayStr }
+      });
+    } catch {
+      // Ignore if lead not found
+    }
+  }
+
+  return saved;
 };

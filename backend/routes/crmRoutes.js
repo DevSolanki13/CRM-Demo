@@ -86,3 +86,10 @@ crmRouter.post('/stage-gate-checks/:id/reject', crmController.rejectStageGateChe
 
 // Bulk Import
 crmRouter.post('/import/contacts', crmController.importContacts);
+
+// Unified Customer Activity Timeline
+crmRouter.get('/timeline', crmController.getTimeline);
+
+// Automation & Follow-up Rules
+crmRouter.get('/settings/automation-rules', crmController.getAutomationRules);
+crmRouter.put('/settings/automation-rules', crmController.updateAutomationRules);

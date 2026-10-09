@@ -2,6 +2,7 @@ import { prisma } from '../prisma.js';
 import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUtils.js';
 import { createTask } from './taskService.js';
 import { logAudit } from './activityNoteService.js';
+import { triggerFollowUp } from './followUpEngine.js';
 
 export const getLeads = async () => {
   return await prisma.lead.findMany({
@@ -28,7 +29,6 @@ export const createLead = async (lead) => {
     status: lead.status || 'New',
     ownerId: lead.ownerId || 'u-3',
     ownerName: lead.ownerName || 'Marcus Vance',
-    customFields: lead.customFields || {},
     pendingGateCheck: lead.pendingGateCheck || null,
     createdAt: lead.createdAt || todayStr,
     lastActivityDate: lead.lastActivityDate || todayStr,
@@ -40,21 +40,8 @@ export const createLead = async (lead) => {
     create: newLead,
   });
 
-  // Automatically create first-contact task when a lead is created
-  const tomorrowStr = getLocalDateStringAfterDays(1);
-  await createTask({
-    title: `First contact outreach for ${savedLead.contactName || savedLead.title}`,
-    dueDate: tomorrowStr,
-    type: 'Call',
-    priority: 'High',
-    linkedType: 'Lead',
-    linkedId: savedLead.id,
-    linkedTitle: savedLead.title,
-    ownerId: savedLead.ownerId,
-    ownerName: savedLead.ownerName,
-    status: 'pending',
-    note: `Inbound/outbound lead inquiry via ${savedLead.source}. Initiate first contact.`,
-  });
+  // Automatically evaluate follow-up engine rules for new lead creation
+  await triggerFollowUp('LEAD_CREATED', savedLead);
 
   await logAudit({
     actorId: savedLead.ownerId,
@@ -79,11 +66,13 @@ export const updateLead = async (id, lead) => {
     title = `Lead #${title}`;
   }
 
+  const { customFields, ...validFields } = lead;
+
   return await prisma.lead.update({
     where: { id },
     data: {
       ...existing,
-      ...lead,
+      ...validFields,
       title,
       id,
       lastActivityDate: getLocalDateString(),

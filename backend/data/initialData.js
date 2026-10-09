@@ -5,10 +5,62 @@ export const initialBranding = {
   primaryColor: '#2563eb', // Indigo / Modern SaaS Blue
   accentColor: '#10b981', // Emerald
   defaultRecurrenceDays: 60, // 60 days cycle for repeat orders
-  customFields: [
-    { id: 'cf1', entity: 'Lead', label: 'Sample Budget (₹)', type: 'number' },
-    { id: 'cf2', entity: 'Contact', label: 'Preferred Channel', type: 'select', options: ['Phone', 'Email', 'WhatsApp', 'In-Person'] },
-  ]
+  customFields: {
+    fields: [
+      { id: 'cf1', entity: 'Lead', label: 'Sample Budget (₹)', type: 'number' },
+      { id: 'cf2', entity: 'Contact', label: 'Preferred Channel', type: 'select', options: ['Phone', 'Email', 'WhatsApp', 'In-Person'] },
+    ],
+    followUpRules: [
+      {
+        id: 'rule-lead-create',
+        name: 'New Lead Outreach',
+        triggerEvent: 'LEAD_CREATED',
+        description: 'Triggered when a new lead is created in the system',
+        offsetDays: 1,
+        taskType: 'Call',
+        priority: 'High',
+        taskTitleTemplate: 'First contact outreach for {{entityName}}',
+        noteTemplate: 'Inbound/outbound lead inquiry via {{source}}. Initiate first contact outreach.',
+        isActive: true
+      },
+      {
+        id: 'rule-sample-sent',
+        name: 'Sample Delivery & Testing Check-in',
+        triggerEvent: 'SAMPLE_SENT',
+        description: 'Triggered when a deal advances to Sample Sent or sample is dispatched',
+        offsetDays: 3,
+        taskType: 'Call',
+        priority: 'High',
+        taskTitleTemplate: 'Follow up on sample evaluation with {{contactName}} ({{companyName}})',
+        noteTemplate: 'Sample dispatched. Confirm receipt and gather product feedback / qualification data.',
+        isActive: true
+      },
+      {
+        id: 'rule-proposal-sent',
+        name: 'Proposal & Commercial Terms Review',
+        triggerEvent: 'PROPOSAL_SENT',
+        description: 'Triggered when a deal moves to Proposal Sent stage',
+        offsetDays: 3,
+        taskType: 'Meeting',
+        priority: 'High',
+        taskTitleTemplate: 'Review commercial proposal & pricing terms with {{contactName}}',
+        noteTemplate: 'Proposal delivered. Conduct review meeting to address questions before validity expiration.',
+        isActive: true
+      },
+      {
+        id: 'rule-renewal-approaching',
+        name: 'Recurring Contract Rebuy Outreach',
+        triggerEvent: 'RENEWAL_APPROACHING',
+        description: 'Triggered when a recurring client approaches their replenishment / renewal cycle',
+        offsetDays: 7,
+        taskType: 'Renewal Check-in',
+        priority: 'Urgent',
+        taskTitleTemplate: 'Prepare renewal rebuy quote for {{companyName}}',
+        noteTemplate: 'Customer order cycle threshold approaching. Review historical consumption and initiate replenishment.',
+        isActive: true
+      }
+    ]
+  }
 };
 
 export const initialUsers = [

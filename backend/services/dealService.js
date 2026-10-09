@@ -4,6 +4,7 @@ import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUt
 import { createTask } from './taskService.js';
 import { logAudit, createActivity } from './activityNoteService.js';
 import { createStageGateCheck } from './stageGateService.js';
+import { triggerFollowUp } from './followUpEngine.js';
 
 export const getDeals = async () => {
   return await prisma.deal.findMany({
@@ -47,7 +48,6 @@ export const createDeal = async (deal) => {
     valueHistory: deal.valueHistory || [
       { date: todayStr, value: Number(deal.value) || 10000, stage: initialStage.name, reason: 'Initial deal creation' }
     ],
-    customFields: deal.customFields || {},
     partialGateState: deal.partialGateState || null,
     pendingGateCheck: deal.pendingGateCheck || null,
     lostReason: deal.lostReason || null,
@@ -111,9 +111,11 @@ export const updateDeal = async (id, deal) => {
     });
   }
 
+  const { customFields, valueChangeReason, updatedById, updatedByName, ...validDealFields } = deal;
+
   const updatedData = {
     ...existing,
-    ...deal,
+    ...validDealFields,
     id,
     value: deal.value !== undefined ? Number(deal.value) : existing.value,
     valueHistory,
@@ -187,19 +189,15 @@ export const createRebuyDeal = async (parentDealId, user) => {
 
   const saved = await prisma.deal.create({ data: newRebuyDeal });
 
-  // Proactive automated task for rebuy outreach
-  const threeDaysStr = getLocalDateStringAfterDays(3);
-  await createTask({
-    title: `[Rebuy Outreach] Review renewal contract with ${parentDeal.contactName || parentDeal.companyName}`,
-    dueDate: threeDaysStr,
-    type: 'Renewal Check-in',
-    linkedType: 'Deal',
-    linkedId: saved.id,
-    linkedTitle: saved.title,
+  // Proactive automated task for rebuy outreach via Follow-Up Engine
+  await triggerFollowUp('RENEWAL_APPROACHING', {
+    id: saved.id,
+    title: saved.title,
+    contactName: parentDeal.contactName,
+    companyName: parentDeal.companyName,
     ownerId: parentDeal.ownerId,
     ownerName: parentDeal.ownerName,
-    status: 'pending',
-    note: `Recurring customer ${parentDeal.companyName} reached repeat order cycle. Initiate proposal review.`
+    value: parentDeal.value
   });
 
   await logAudit({
@@ -381,33 +379,27 @@ export const transitionDealStage = async (dealId, payload) => {
     dealLostReasonNote = note || '';
   } else if (!isBackward) {
     status = 'Active';
-    if (targetName === 'Sample Sent') {
-      const sampleDue = getLocalDateStringAfterDays(4);
-      await createTask({
-        title: `[Sample Evaluation Feedback] Collect testing feedback for ${deal.title}`,
-        dueDate: sampleDue,
-        type: 'Sample Follow-up',
-        linkedType: 'Deal',
-        linkedId: deal.id,
-        linkedTitle: deal.title,
+    if (targetName === 'Sample Sent' || targetName.includes('Sample')) {
+      await triggerFollowUp('SAMPLE_SENT', {
+        id: deal.id,
+        title: deal.title,
+        contactName: deal.contactName,
+        companyName: deal.companyName,
         ownerId: deal.ownerId,
         ownerName: deal.ownerName,
-        status: 'pending',
-        note: 'Sample dispatched. Follow up with testing engineer on evaluation.'
+        value: deal.value,
+        stageName: targetName
       });
-    } else if (targetName === 'Proposal Sent') {
-      const propDue = getLocalDateStringAfterDays(3);
-      await createTask({
-        title: `[Proposal Review] Follow up on proposal terms with ${deal.contactName || deal.companyName}`,
-        dueDate: propDue,
-        type: 'Proposal Follow-up',
-        linkedType: 'Deal',
-        linkedId: deal.id,
-        linkedTitle: deal.title,
+    } else if (targetName === 'Proposal Sent' || targetName.includes('Proposal')) {
+      await triggerFollowUp('PROPOSAL_SENT', {
+        id: deal.id,
+        title: deal.title,
+        contactName: deal.contactName,
+        companyName: deal.companyName,
         ownerId: deal.ownerId,
         ownerName: deal.ownerName,
-        status: 'pending',
-        note: 'Commercial quotation sent. Follow up with decision maker.'
+        value: deal.value,
+        stageName: targetName
       });
     }
   }

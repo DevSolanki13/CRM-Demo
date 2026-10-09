@@ -132,4 +132,21 @@ export const taskSchema = z.object({
   createdAt: z.string().optional(),
 }).passthrough();
 
-export const updateTaskSchema = taskSchema.partial();
+export const updateTaskSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().optional(),
+  dueDate: z.string().optional(),
+  type: z.string().optional(),
+  priority: z.string().optional(),
+  assignedToId: z.string().optional(),
+  assignedToName: z.string().optional(),
+  ownerId: z.string().optional(),
+  ownerName: z.string().optional(),
+  dealId: z.string().optional(),
+  leadId: z.string().optional(),
+  companyId: z.string().optional(),
+  linkedTitle: z.string().optional(),
+  status: z.string().optional(),
+  completed: z.boolean().optional(),
+  createdAt: z.string().optional(),
+}).passthrough();

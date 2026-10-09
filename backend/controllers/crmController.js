@@ -9,6 +9,8 @@ import * as taskService from '../services/taskService.js';
 import * as activityNoteService from '../services/activityNoteService.js';
 import * as userService from '../services/userService.js';
 import * as stageGateService from '../services/stageGateService.js';
+import * as timelineService from '../services/timelineService.js';
+import * as followUpEngine from '../services/followUpEngine.js';
 
 // Health & System State
 export const getHealth = (_req, res) => {
@@ -256,4 +258,26 @@ export const approveStageGateCheck = asyncHandler(async (req, res) => {
 export const rejectStageGateCheck = asyncHandler(async (req, res) => {
   const updated = await stageGateService.rejectStageGateCheck(req.params.id, req.body?.reviewer, req.body?.reason);
   res.json(updated || { success: true });
+});
+
+// Unified Activity Timeline
+export const getTimeline = asyncHandler(async (req, res) => {
+  const { entityType, entityId } = req.query;
+  if (!entityType || !entityId) {
+    return res.status(400).json({ error: 'entityType and entityId query parameters are required' });
+  }
+  const timeline = await timelineService.getEntityTimeline({ entityType, entityId });
+  res.json(timeline);
+});
+
+// Automation & Follow-up Rules
+export const getAutomationRules = asyncHandler(async (_req, res) => {
+  const rules = await followUpEngine.getFollowUpRules();
+  res.json(rules);
+});
+
+export const updateAutomationRules = asyncHandler(async (req, res) => {
+  const rules = req.body.rules || req.body;
+  const updated = await followUpEngine.updateFollowUpRules(rules);
+  res.json(updated);
 });

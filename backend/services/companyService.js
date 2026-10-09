@@ -1,5 +1,25 @@
 import { prisma } from '../prisma.js';
 
+const VALID_COMPANY_KEYS = new Set([
+  'id',
+  'name',
+  'industry',
+  'website',
+  'address',
+  'notes',
+  'createdAt'
+]);
+
+const sanitizeCompanyData = (data = {}) => {
+  const sanitized = {};
+  for (const key of Object.keys(data)) {
+    if (VALID_COMPANY_KEYS.has(key)) {
+      sanitized[key] = data[key];
+    }
+  }
+  return sanitized;
+};
+
 export const getCompanies = async () => {
   return await prisma.company.findMany({
     orderBy: { createdAt: 'desc' }
@@ -7,7 +27,7 @@ export const getCompanies = async () => {
 };
 
 export const createCompany = async (data) => {
-  const newComp = {
+  const rawComp = {
     id: data.id || `c-${Date.now()}`,
     name: data.name,
     industry: data.industry || 'General',
@@ -16,7 +36,7 @@ export const createCompany = async (data) => {
     notes: data.notes || '',
     createdAt: data.createdAt || new Date().toISOString().split('T')[0],
   };
-  return await prisma.company.create({ data: newComp });
+  return await prisma.company.create({ data: sanitizeCompanyData(rawComp) });
 };
 
 export const updateCompany = async (id, data) => {
@@ -25,8 +45,8 @@ export const updateCompany = async (id, data) => {
   return await prisma.company.update({
     where: { id },
     data: {
-      ...existing,
-      ...data,
+      ...sanitizeCompanyData(existing),
+      ...sanitizeCompanyData(data),
       id, // Preserve immutable ID
     }
   });

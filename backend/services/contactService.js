@@ -1,5 +1,29 @@
 import { prisma } from '../prisma.js';
 
+const VALID_CONTACT_KEYS = new Set([
+  'id',
+  'name',
+  'email',
+  'phone',
+  'jobTitle',
+  'companyId',
+  'companyName',
+  'ownerId',
+  'ownerName',
+  'customFields',
+  'createdAt'
+]);
+
+const sanitizeContactData = (data = {}) => {
+  const sanitized = {};
+  for (const key of Object.keys(data)) {
+    if (VALID_CONTACT_KEYS.has(key)) {
+      sanitized[key] = data[key];
+    }
+  }
+  return sanitized;
+};
+
 export const getContacts = async () => {
   return await prisma.contact.findMany({
     orderBy: { createdAt: 'desc' }
@@ -7,7 +31,7 @@ export const getContacts = async () => {
 };
 
 export const createContact = async (data) => {
-  const newContact = {
+  const rawContact = {
     id: data.id || `cnt-${Date.now()}`,
     name: data.name,
     email: data.email || '',
@@ -20,7 +44,7 @@ export const createContact = async (data) => {
     customFields: data.customFields || {},
     createdAt: data.createdAt || new Date().toISOString().split('T')[0],
   };
-  return await prisma.contact.create({ data: newContact });
+  return await prisma.contact.create({ data: sanitizeContactData(rawContact) });
 };
 
 export const updateContact = async (id, data) => {
@@ -29,8 +53,8 @@ export const updateContact = async (id, data) => {
   return await prisma.contact.update({
     where: { id },
     data: {
-      ...existing,
-      ...data,
+      ...sanitizeContactData(existing),
+      ...sanitizeContactData(data),
       id,
     }
   });
@@ -47,7 +71,7 @@ export const importContacts = async (items = []) => {
   const created = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    const contact = {
+    const rawContact = {
       id: item.id || `cnt-imp-${Date.now()}-${i}`,
       name: item.name || 'Unnamed Contact',
       email: item.email || '',
@@ -60,6 +84,7 @@ export const importContacts = async (items = []) => {
       customFields: item.customFields || {},
       createdAt: item.createdAt || new Date().toISOString().split('T')[0],
     };
+    const contact = sanitizeContactData(rawContact);
     const saved = await prisma.contact.upsert({
       where: { id: contact.id },
       update: contact,

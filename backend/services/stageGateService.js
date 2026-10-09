@@ -2,6 +2,7 @@ import { prisma } from '../prisma.js';
 import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUtils.js';
 import { logAudit, createActivity } from './activityNoteService.js';
 import { createTask } from './taskService.js';
+import { triggerFollowUp } from './followUpEngine.js';
 
 export const getStageGateChecks = async () => {
   return await prisma.stageGateCheck.findMany({
@@ -12,10 +13,8 @@ export const getStageGateChecks = async () => {
 export const createStageGateCheck = async (check) => {
   const newCheck = {
     id: check.id || `sgc-${Date.now()}`,
-    dealId: check.dealId || null,
-    leadId: check.leadId || null,
-    dealTitle: check.dealTitle || null,
-    leadTitle: check.leadTitle || null,
+    dealId: check.dealId || check.id || '',
+    dealTitle: check.dealTitle || check.leadTitle || 'Opportunity Gate Check',
     fromStageId: check.fromStageId || null,
     fromStageName: check.fromStageName || null,
     targetStageId: check.targetStageId || null,
@@ -106,8 +105,7 @@ export const approveStageGateCheck = async (id, reviewer) => {
     where: {
       OR: [
         { id: cleanId },
-        { dealId: cleanId },
-        { leadId: cleanId }
+        { dealId: cleanId }
       ]
     }
   });
@@ -126,8 +124,7 @@ export const approveStageGateCheck = async (id, reviewer) => {
     where: {
       OR: [
         { id: cleanId },
-        ...(dealObj?.leadId ? [{ id: dealObj.leadId }] : []),
-        ...(check?.leadId ? [{ id: check.leadId }] : [])
+        ...(dealObj?.leadId ? [{ id: dealObj.leadId }] : [])
       ]
     }
   });
@@ -145,10 +142,8 @@ export const approveStageGateCheck = async (id, reviewer) => {
     check = await prisma.stageGateCheck.create({
       data: {
         id: `sgc-${Date.now()}`,
-        dealId: dealObj?.id || null,
-        leadId: leadObj?.id || null,
-        dealTitle: dealObj?.title || null,
-        leadTitle: leadObj?.title || null,
+        dealId: dealObj?.id || cleanId,
+        dealTitle: dealObj?.title || leadObj?.title || 'Stage Gate Check',
         fromStageName: curStageName || 'Current Stage',
         targetStageId: nextStg?.id || null,
         targetStageName: nextStg?.name || null,
@@ -167,7 +162,7 @@ export const approveStageGateCheck = async (id, reviewer) => {
         status: 'approved_and_executed',
         reviewedBy: reviewer?.id || 'u-1',
         reviewedByName: reviewer?.name || 'Alex Vance',
-        reviewedAt: new Date().toISOString()
+        timestamp: new Date().toISOString()
       }
     });
 
@@ -177,7 +172,6 @@ export const approveStageGateCheck = async (id, reviewer) => {
         OR: [
           { stageGateCheckId: check.id },
           { linkedId: check.dealId || '' },
-          { linkedId: check.leadId || '' },
           { linkedId: cleanId }
         ],
         type: 'Approval'
@@ -203,8 +197,8 @@ export const approveStageGateCheck = async (id, reviewer) => {
       actorName: reviewer?.name || 'Alex Vance',
       action: 'APPROVAL_APPROVED',
       entityType: check.dealId ? 'Deal' : 'Lead',
-      entityId: check.dealId || check.leadId || cleanId,
-      entityTitle: check.dealTitle || check.leadTitle || 'Opportunity',
+      entityId: check.dealId || cleanId,
+      entityTitle: check.dealTitle || 'Opportunity',
       fromStage: check.fromStageName,
       toStage: check.targetStageName,
       reason: `Stage Gate Check approved by ${reviewer?.name || 'Manager'}. Advanced to "${check.targetStageName}".`,
@@ -236,8 +230,7 @@ export const rejectStageGateCheck = async (id, reviewer, reason) => {
     where: {
       OR: [
         { id: cleanId },
-        { dealId: cleanId },
-        { leadId: cleanId }
+        { dealId: cleanId }
       ]
     }
   });
@@ -274,7 +267,7 @@ export const rejectStageGateCheck = async (id, reviewer, reason) => {
     where: {
       OR: [
         { id: cleanId },
-        ...(check?.leadId ? [{ id: check.leadId }] : [])
+        ...(dealObj?.leadId ? [{ id: dealObj.leadId }] : [])
       ]
     }
   });
@@ -294,7 +287,8 @@ export const rejectStageGateCheck = async (id, reviewer, reason) => {
         status: 'rejected',
         reviewedBy: reviewer?.id || 'u-1',
         reviewedByName: reviewer?.name || 'Alex Vance',
-        rejectionReason: reason || 'Requirements not met'
+        note: reason || 'Requirements not met',
+        lostReason: reason || 'Requirements not met'
       }
     });
   }
@@ -305,8 +299,7 @@ export const rejectStageGateCheck = async (id, reviewer, reason) => {
       OR: [
         ...(check ? [{ stageGateCheckId: check.id }] : []),
         { linkedId: cleanId },
-        ...(check?.dealId ? [{ linkedId: check.dealId }] : []),
-        ...(check?.leadId ? [{ linkedId: check.leadId }] : [])
+        ...(check?.dealId ? [{ linkedId: check.dealId }] : [])
       ],
       type: 'Approval'
     }
@@ -319,7 +312,7 @@ export const rejectStageGateCheck = async (id, reviewer, reason) => {
         status: 'done',
         reviewedByName: reviewer?.name || 'Alex Vance',
         resolution: 'Rejected',
-        rejectionReason: reason || 'Requirements not met'
+        note: reason || 'Requirements not met'
       }
     });
   }
@@ -341,7 +334,7 @@ export const rejectStageGateCheck = async (id, reviewer, reason) => {
 export const executeGateCheckTransition = async (check) => {
   const todayStr = getLocalDateString();
   const deal = check.dealId ? await prisma.deal.findUnique({ where: { id: check.dealId } }) : null;
-  const leadId = check.leadId || deal?.leadId;
+  const leadId = deal?.leadId;
   const lead = leadId ? await prisma.lead.findUnique({ where: { id: leadId } }) : null;
 
   if (deal) {
@@ -374,6 +367,28 @@ export const executeGateCheckTransition = async (check) => {
           ownerName: deal.ownerName,
           status: 'pending',
           note: 'Closed Won deal converted. Confirm order delivery and client satisfaction.'
+        });
+      } else if (check.targetStageName === 'Sample Sent' || check.targetStageName?.includes('Sample')) {
+        await triggerFollowUp('SAMPLE_SENT', {
+          id: deal.id,
+          title: deal.title,
+          contactName: deal.contactName,
+          companyName: deal.companyName,
+          ownerId: deal.ownerId,
+          ownerName: deal.ownerName,
+          value: deal.value,
+          stageName: check.targetStageName
+        });
+      } else if (check.targetStageName === 'Proposal Sent' || check.targetStageName?.includes('Proposal')) {
+        await triggerFollowUp('PROPOSAL_SENT', {
+          id: deal.id,
+          title: deal.title,
+          contactName: deal.contactName,
+          companyName: deal.companyName,
+          ownerId: deal.ownerId,
+          ownerName: deal.ownerName,
+          value: deal.value,
+          stageName: check.targetStageName
         });
       }
 
