@@ -8,3 +8,5 @@ coverage/
 !.env.example
 
 /generated/prisma
+test-results/
+playwright-report/
