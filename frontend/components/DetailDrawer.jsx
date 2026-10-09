@@ -23,6 +23,7 @@ import {
   isCloseDateOverdue,
   getLocalDateInputValueAfterDays
 } from '../utils/crmHelpers.js';
+import { UnifiedTimeline } from './UnifiedTimeline.jsx';
 import { toast } from 'sonner';
 
 export const DetailDrawer = ({
@@ -162,12 +163,13 @@ export const DetailDrawer = ({
   const overdue = deal ? isCloseDateOverdue(deal.expectedCloseDate, deal.status) : false;
 
   // Filter connected activities and tasks
+  const targetId = type === 'deal' ? deal?.id : lead?.id;
   const connectedActivities = activities.filter(a =>
-    type === 'deal' ? a.dealId === deal?.id : a.leadId === lead?.id
+    a.dealId === targetId || a.leadId === targetId || a.linkedId === targetId
   );
 
   const connectedTasks = tasks.filter(t =>
-    type === 'deal' ? t.dealId === deal?.id : t.leadId === lead?.id
+    t.dealId === targetId || t.leadId === targetId || t.linkedId === targetId
   );
 
   // Handle saving properties
@@ -399,7 +401,7 @@ export const DetailDrawer = ({
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
-                <span>Activities ({connectedActivities.length})</span>
+                <span>360° Timeline</span>
               </button>
 
               <button
@@ -617,86 +619,19 @@ export const DetailDrawer = ({
               </div>
             )}
 
-            {/* TAB 3: ACTIVITY TIMELINE & QUICK LOGGER */}
+            {/* TAB 3: UNIFIED CUSTOMER ACTIVITY TIMELINE */}
             {activeTab === 'timeline' && (
-              <div role="tabpanel" id="panel-timeline" aria-labelledby="tab-timeline" className="space-y-5 text-xs">
-                
-                {/* Quick Composer */}
-                <div className="p-3.5 bg-[#FAFCFD] border border-[#E3E6EA] rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#5B6472]">
-                      Log Interaction
-                    </span>
-                    <div className="flex items-center gap-1 bg-[#F6F7F8] p-0.5 rounded-lg border border-[#E3E6EA]">
-                      {['Note', 'Outbound Call', 'Outbound Email'].map(t => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setQuickActivityType(t)}
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors ${
-                            quickActivityType === t ? 'bg-[#FFFFFF] text-[#1D4E63] shadow-2xs font-extrabold' : 'text-[#5B6472]'
-                          }`}
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <textarea
-                    rows={2}
-                    value={quickActivityNotes}
-                    onChange={(e) => setQuickActivityNotes(e.target.value)}
-                    placeholder={`Write notes for this ${quickActivityType.toLowerCase()}...`}
-                    className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2.5 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] focus:ring-1 focus:ring-[#1D4E63]/30 transition-all"
-                  />
-
-                  <div className="flex justify-end">
-                    <button
-                      onClick={handleAddQuickActivity}
-                      disabled={isSubmittingActivity}
-                      className="px-3 py-1.5 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-2xs focus-visible:outline-none"
-                    >
-                      <Send className="w-3 h-3" />
-                      <span>Log {quickActivityType}</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Timeline Feed */}
-                <div className="space-y-3">
-                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#5B6472]">
-                    History Feed ({connectedActivities.length})
-                  </div>
-
-                  {connectedActivities.length === 0 ? (
-                    <div className="text-center py-6 bg-[#FAFCFD] border border-dashed border-[#E3E6EA] rounded-xl text-[#5B6472]">
-                      <FileText className="w-6 h-6 mx-auto mb-1 text-[#5B6472]/60" />
-                      <p className="font-medium">No activity logged yet.</p>
-                      <p className="text-[10px]">Use the composer above to add the first note.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {connectedActivities.map(act => (
-                        <div key={act.id} className="p-3 bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl space-y-1">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-bold text-[#12161C] flex items-center gap-1.5">
-                              {act.type.includes('Call') && <PhoneCall className="w-3.5 h-3.5 text-[#1D4E63]" />}
-                              {act.type.includes('Email') && <Mail className="w-3.5 h-3.5 text-[#1D4E63]" />}
-                              {act.type.includes('Note') && <FileText className="w-3.5 h-3.5 text-[#5B6472]" />}
-                              <span>{act.type}</span>
-                            </span>
-                            <span className="text-[10px] text-[#5B6472] font-mono">
-                              {act.createdAt ? formatDate(act.createdAt) : 'Recently'}
-                            </span>
-                          </div>
-                          <p className="text-xs text-[#5B6472] whitespace-pre-wrap">{act.notes}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
+              <div role="tabpanel" id="panel-timeline" aria-labelledby="tab-timeline">
+                <UnifiedTimeline
+                  entityType={type === 'deal' ? 'Deal' : 'Lead'}
+                  entityId={currentItem?.id}
+                  entityTitle={currentItem?.title}
+                  currentUser={currentUser}
+                  onActivityCreated={onCreateActivity}
+                  fallbackActivities={connectedActivities}
+                  fallbackNotes={[]}
+                  fallbackTasks={connectedTasks}
+                />
               </div>
             )}
 

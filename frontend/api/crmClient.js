@@ -318,3 +318,33 @@ export async function importContacts(items) {
   });
   return res.json();
 }
+
+// Unified Activity Timeline
+export async function fetchTimeline(entityType, entityId) {
+  const res = await fetch(`${BASE_URL}/timeline?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`);
+  if (!res.ok) {
+    throw new Error('Failed to fetch unified timeline');
+  }
+  return res.json();
+}
+
+// Automation & Follow-up Rules
+export async function fetchAutomationRules() {
+  const res = await fetch(`${BASE_URL}/settings/automation-rules`);
+  if (!res.ok) {
+    throw new Error('Failed to fetch automation rules');
+  }
+  return res.json();
+}
+
+export async function updateAutomationRules(rules) {
+  const res = await fetch(`${BASE_URL}/settings/automation-rules`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rules })
+  });
+  if (!res.ok) {
+    throw new Error('Failed to save automation rules');
+  }
+  return res.json();
+}
