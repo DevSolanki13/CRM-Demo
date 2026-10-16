@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import {
   Users,
   Trophy,
@@ -100,6 +100,17 @@ export const DashboardView = ({
   const [activeQueueFilter, setActiveQueueFilter] = useState('all');
   const [activeViewMode, setActiveViewMode] = useState('queue'); // 'queue' | 'activity'
   const [actionInProgressId, setActionInProgressId] = useState(null);
+  const queueListRef = useRef(null);
+  const activityListRef = useRef(null);
+
+  useEffect(() => {
+    if (queueListRef.current) {
+      queueListRef.current.scrollTop = 0;
+    }
+    if (activityListRef.current) {
+      activityListRef.current.scrollTop = 0;
+    }
+  }, [activeQueueFilter, activeViewMode]);
 
   // --- Selective Memoization of Key Executive Metrics & Action Queues ---
   const {
@@ -676,7 +687,10 @@ export const DashboardView = ({
 
           {/* List Content */}
           {activeViewMode === 'queue' ? (
-            <div className="space-y-3 pt-1">
+            <div
+              ref={queueListRef}
+              className="space-y-3 pt-1 px-0.5 max-h-[600px] overflow-y-auto pr-1.5 overscroll-contain"
+            >
               {displayedQueueItems.length === 0 ? (
                 <div className="p-8 text-center bg-[#FAFCFD] border border-dashed border-[#BCDBC9] rounded-xl space-y-2">
                   <div className="w-10 h-10 rounded-full bg-[#F0F7F3] border border-[#BCDBC9] flex items-center justify-center mx-auto text-[#255B40]">
@@ -781,13 +795,16 @@ export const DashboardView = ({
             </div>
           ) : (
             /* Live Activity Feed view inside work queue container */
-            <div className="space-y-3 pt-1">
+            <div
+              ref={activityListRef}
+              className="space-y-3 pt-1 px-0.5 max-h-[600px] overflow-y-auto pr-1.5 overscroll-contain"
+            >
               {activities?.length === 0 ? (
                 <div className="p-8 text-center text-xs text-[#5B6472]">
                   No activity logs recorded yet.
                 </div>
               ) : (
-                activities.slice(0, 8).map(act => (
+                activities.slice(0, 25).map(act => (
                   <div key={act.id} className="p-3.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl space-y-1.5 text-xs">
                     <div className="flex items-center justify-between">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
