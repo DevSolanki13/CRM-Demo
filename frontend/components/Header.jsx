@@ -20,7 +20,9 @@ export const Header = ({
   onNavigateTab,
   onOpenQuickAction,
   onTriggerRenewalCheck,
-  renewalsDueCount = 0
+  renewalsDueCount = 0,
+  isMobileMenuOpen = false,
+  onToggleMobileMenu
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showQuickMenu, setShowQuickMenu] = useState(false);
@@ -36,23 +38,37 @@ export const Header = ({
 
   return (
     <header className="bg-[#FFFFFF] text-[#12161C] border-b border-[#E3E6EA] sticky top-0 z-30 shadow-[0_1px_2px_rgba(18,22,28,0.06)]">
-      <div className="px-6 py-3 flex items-center justify-between gap-4">
+      <div className="px-3.5 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4">
         
-        {/* Brand & App Title */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Brand & App Title + Mobile Hamburger */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Mobile Hamburger Menu Toggle */}
+          <button
+            onClick={onToggleMobileMenu}
+            aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={isMobileMenuOpen}
+            className="md:hidden p-2 rounded-xl text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] border border-[#E3E6EA] transition-colors focus-visible:outline-2 focus-visible:outline-[#1D4E63]"
+          >
+            <div className="w-5 h-5 flex flex-col justify-center items-center gap-1">
+              <span className={`block h-0.5 w-4 bg-[#12161C] transition-all duration-200 ${isMobileMenuOpen ? 'rotate-45 translate-y-1.5' : ''}`} />
+              <span className={`block h-0.5 w-4 bg-[#12161C] transition-all duration-200 ${isMobileMenuOpen ? 'opacity-0' : ''}`} />
+              <span className={`block h-0.5 w-4 bg-[#12161C] transition-all duration-200 ${isMobileMenuOpen ? '-rotate-45 -translate-y-1.5' : ''}`} />
+            </div>
+          </button>
+
           <div 
-            className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-white shadow-2xs"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-extrabold text-white shadow-2xs shrink-0"
             style={{ backgroundColor: branding?.primaryColor || '#1D4E63' }}
           >
-            <Building2 className="w-5 h-5 text-white" />
+            <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="font-display font-extrabold text-lg tracking-tight text-[#12161C]">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="font-display font-extrabold text-base sm:text-lg tracking-tight text-[#12161C]">
                 {branding?.appName || 'Sales CRM'}
               </span>
-              <span className="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded-md font-semibold bg-[#EFF6F9] text-[#1D4E63] border border-[#D8E8EF]">
-                Sales Console
+              <span className="text-[9px] sm:text-[10px] uppercase font-mono tracking-wider px-1.5 sm:px-2 py-0.5 rounded-md font-semibold bg-[#EFF6F9] text-[#1D4E63] border border-[#D8E8EF]">
+                Console
               </span>
             </div>
             <p className="text-xs text-[#5B6472] hidden sm:block font-medium">

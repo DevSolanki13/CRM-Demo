@@ -21,7 +21,9 @@ import {
   CheckCircle2,
   CheckSquare,
   Check,
-  RotateCcw
+  RotateCcw,
+  BarChart3,
+  AlignLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -100,6 +102,7 @@ export const DashboardView = ({
   const [activeQueueFilter, setActiveQueueFilter] = useState('all');
   const [activeViewMode, setActiveViewMode] = useState('queue'); // 'queue' | 'activity'
   const [actionInProgressId, setActionInProgressId] = useState(null);
+  const [mobileChartMode, setMobileChartMode] = useState('bars'); // 'bars' | 'columns'
   const queueListRef = useRef(null);
   const activityListRef = useRef(null);
 
@@ -466,10 +469,10 @@ export const DashboardView = ({
         currentUser={currentUser}
       />
 
-      <div className="p-6 md:p-8 space-y-6 flex-1">
+      <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 flex-1">
 
         {/* Top Banner / Welcome Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-[#EFF6F9] via-[#FFFFFF] to-[#EFF6F9] border border-[#D8E8EF] p-6 rounded-2xl shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-[#EFF6F9] via-[#FFFFFF] to-[#EFF6F9] border border-[#D8E8EF] p-4 sm:p-6 rounded-2xl shadow-sm">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-display text-2xl font-extrabold text-[#12161C] tracking-tight">
@@ -899,29 +902,175 @@ export const DashboardView = ({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Pipeline Stage Column Chart Cards (2 Cols) */}
-          <div className="lg:col-span-2 bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl space-y-4 flex flex-col justify-between shadow-sm">
+          <div className="lg:col-span-2 bg-[#FFFFFF] border border-[#E3E6EA] p-4 sm:p-6 rounded-2xl space-y-4 flex flex-col justify-between shadow-sm">
 
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-3">
+            {/* Header with Title and Mobile View Switcher */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#E3E6EA] pb-3 gap-2.5">
               <div>
-                <h2 className="font-display text-sm font-bold text-[#12161C]">Pipeline Value by Stage</h2>
+                <h2 className="font-display text-sm font-bold text-[#12161C] flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-[#1D4E63]" />
+                  <span>Pipeline Value by Stage</span>
+                </h2>
                 <p className="text-xs text-[#5B6472] mt-0.5">Total deal distribution across active sales stages</p>
               </div>
-              <button
-                onClick={() => onNavigateTab('pipeline')}
-                className="text-xs text-[#5B6472] hover:text-[#12161C] font-semibold flex items-center gap-1 transition-colors px-3 py-1.5 rounded-xl bg-[#F6F7F8] hover:bg-[#EEF0F3] border border-[#E3E6EA]"
-              >
-                <span>View Kanban</span>
-                <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                {/* Mobile View Switcher (Horizontal Bars vs Vertical Columns) */}
+                <div className="sm:hidden flex items-center bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-0.5 text-[11px] font-bold">
+                  <button
+                    onClick={() => setMobileChartMode('bars')}
+                    aria-label="Bars"
+                    className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
+                      mobileChartMode === 'bars'
+                        ? 'bg-[#FFFFFF] text-[#1D4E63] shadow-2xs font-extrabold'
+                        : 'text-[#5B6472] hover:text-[#12161C]'
+                    }`}
+                  >
+                    <AlignLeft className="w-3 h-3" />
+                    <span>Bars</span>
+                  </button>
+                  <button
+                    onClick={() => setMobileChartMode('columns')}
+                    aria-label="Columns"
+                    className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 cursor-pointer ${
+                      mobileChartMode === 'columns'
+                        ? 'bg-[#FFFFFF] text-[#1D4E63] shadow-2xs font-extrabold'
+                        : 'text-[#5B6472] hover:text-[#12161C]'
+                    }`}
+                  >
+                    <BarChart3 className="w-3 h-3" />
+                    <span>Columns</span>
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => onNavigateTab('pipeline')}
+                  className="text-xs text-[#5B6472] hover:text-[#12161C] font-semibold flex items-center gap-1 transition-colors px-3 py-1.5 rounded-xl bg-[#F6F7F8] hover:bg-[#EEF0F3] border border-[#E3E6EA] cursor-pointer"
+                >
+                  <span>View Kanban</span>
+                  <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
 
             {/* Chart Area */}
-            <div className="relative py-2 px-1">
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 relative z-10">
+            <div className="relative py-1">
+              
+              {/* 1. Mobile Horizontal Comparative Bars (Default on mobile) */}
+              <div 
+                data-testid="mobile-stage-bars"
+                className={`sm:hidden ${mobileChartMode === 'bars' ? 'space-y-2.5' : 'hidden'}`}
+              >
+                {stageBreakdown.map(({ stage, count, value }) => {
+                  const isZero = value === 0;
+                  const widthPct = maxStageVal > 0 ? (value / maxStageVal) * 100 : 0;
+                  const barColor = getStageBarColor(stage.name, stage.category);
+                  const sharePct = totalPipelineValue > 0 ? Math.round((value / totalPipelineValue) * 100) : 0;
+
+                  return (
+                    <div
+                      key={stage.id}
+                      onClick={() => onNavigateTab('pipeline')}
+                      className="p-3 bg-[#F6F7F8] hover:bg-[#EEF0F3] border border-[#E3E6EA] rounded-xl space-y-2 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full border border-[#D1D5DB] shrink-0"
+                            style={{ backgroundColor: barColor || '#FFFFFF' }}
+                          />
+                          <span className="font-bold text-[#12161C] truncate">{stage.name}</span>
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-[#FFFFFF] border border-[#E3E6EA] text-[#5B6472] shrink-0">
+                            {count}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 font-mono">
+                          <span className="font-bold text-[#12161C] text-xs">{formatCurrency(value)}</span>
+                          <span className="text-[10px] text-[#5B6472] font-semibold">({sharePct}%)</span>
+                        </div>
+                      </div>
+
+                      {/* Bar Fill Track */}
+                      <div className="h-2.5 w-full bg-[#FFFFFF] rounded-full overflow-hidden border border-[#E3E6EA]">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${Math.max(widthPct, isZero ? 0 : 4)}%`,
+                            backgroundColor: barColor === '#FFFFFF' ? '#94A3B8' : barColor
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 2. Mobile Horizontally Scrollable Column Bars (When Columns toggle is active on mobile) */}
+              <div 
+                data-testid="mobile-stage-columns"
+                className={`sm:hidden ${mobileChartMode === 'columns' ? 'block' : 'hidden'}`}
+              >
+                <div className="text-[11px] text-[#5B6472] font-semibold flex items-center justify-between pb-2 px-1">
+                  <span>Stage Value Bars</span>
+                  <span className="text-[#1D4E63] font-mono text-[10px] font-bold">Swipe columns ➔</span>
+                </div>
+                <div className="overflow-x-auto no-scrollbar scroll-smooth pb-2">
+                  <div className="flex items-end gap-2.5 min-w-[620px] h-[240px] pt-2">
+                    {stageBreakdown.map(({ stage, count, value }) => {
+                      const isZero = value === 0;
+                      const heightPct = maxStageVal > 0 ? (value / maxStageVal) * 100 : 0;
+                      const barColor = getStageBarColor(stage.name, stage.category);
+
+                      return (
+                        <div
+                          key={stage.id}
+                          className={`w-28 shrink-0 rounded-xl p-2.5 flex flex-col justify-between items-center text-center h-full transition-all relative ${
+                            isZero
+                              ? 'bg-[#F6F7F8]/60 border border-[#E3E6EA]/60 opacity-60'
+                              : 'bg-[#F6F7F8] border border-[#E3E6EA] shadow-2xs'
+                          }`}
+                        >
+                          <div className="space-y-1 w-full pt-1">
+                            <h4 className="font-display text-[11px] font-bold truncate leading-tight text-[#12161C]" title={stage.name}>
+                              {stage.name}
+                            </h4>
+                            <p className="text-[10px] font-mono text-[#5B6472]">({count})</p>
+                            <div className="text-[11px] font-bold font-mono pt-1 text-[#12161C] truncate">
+                              {formatCurrency(value)}
+                            </div>
+                          </div>
+
+                          <div className="w-full flex-1 flex flex-col justify-end items-center pb-1">
+                            {isZero ? (
+                              <div className="w-full space-y-1.5 flex flex-col items-center">
+                                <div className="w-6 h-1 bg-[#E3E6EA] rounded-full" />
+                                <span className="text-[9px] font-mono text-[#5B6472] font-bold">₹0</span>
+                              </div>
+                            ) : (
+                              <div className="w-full flex flex-col items-center justify-end h-full">
+                                <div
+                                  className={`w-full rounded-lg transition-all duration-500 shadow-2xs ${barColor === '#FFFFFF' ? 'border border-[#D1D5DB]' : ''}`}
+                                  style={{
+                                    height: `${Math.max(heightPct, 10)}%`,
+                                    backgroundColor: barColor === '#FFFFFF' ? '#94A3B8' : barColor
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Desktop / Tablet Grid Column Chart (Hidden on mobile) */}
+              <div className="hidden sm:grid sm:grid-cols-4 lg:grid-cols-8 gap-2.5 relative z-10">
                 {stageBreakdown.map(({ stage, count, value }) => {
                   const isZero = value === 0;
                   const heightPct = maxStageVal > 0 ? (value / maxStageVal) * 100 : 0;
+                  const barColor = getStageBarColor(stage.name, stage.category);
 
                   return (
                     <div
@@ -937,7 +1086,7 @@ export const DashboardView = ({
                         <h4 className="font-display text-[11px] font-bold truncate leading-tight text-[#12161C]" title={stage.name}>
                           {stage.name}
                         </h4>
-                        <p className="text-[10px] font-mono text-[var(--ink-muted)]">
+                        <p className="text-[10px] font-mono text-[#5B6472]">
                           ({count})
                         </p>
 
@@ -955,19 +1104,13 @@ export const DashboardView = ({
                           </div>
                         ) : (
                           <div className="w-full flex flex-col items-center justify-end h-full">
-                            {(() => {
-                              const barColor = getStageBarColor(stage.name, stage.category);
-                              const isWhite = barColor === '#FFFFFF';
-                              return (
-                                <div
-                                  className={`w-full rounded-lg transition-all duration-500 shadow-2xs ${isWhite ? 'border border-[#D1D5DB]' : ''}`}
-                                  style={{
-                                    height: `${Math.max(heightPct, 10)}%`,
-                                    backgroundColor: barColor
-                                  }}
-                                />
-                              );
-                            })()}
+                            <div
+                              className={`w-full rounded-lg transition-all duration-500 shadow-2xs ${barColor === '#FFFFFF' ? 'border border-[#D1D5DB]' : ''}`}
+                              style={{
+                                height: `${Math.max(heightPct, 10)}%`,
+                                backgroundColor: barColor === '#FFFFFF' ? '#94A3B8' : barColor
+                              }}
+                            />
                           </div>
                         )}
                       </div>
@@ -976,6 +1119,7 @@ export const DashboardView = ({
                   );
                 })}
               </div>
+
             </div>
 
           </div>

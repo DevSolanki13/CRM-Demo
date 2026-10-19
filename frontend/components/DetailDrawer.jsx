@@ -275,10 +275,10 @@ export const DetailDrawer = ({
       />
 
       {/* Slide-over Drawer Panel */}
-      <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
+      <div className="absolute inset-y-0 right-0 max-w-full flex sm:pl-10">
         <div 
           ref={drawerRef}
-          className="w-screen max-w-lg bg-[#FFFFFF] border-l border-[#E3E6EA] shadow-2xl flex flex-col h-full animate-in slide-in-from-right duration-200"
+          className="w-screen max-w-full sm:max-w-lg bg-[#FFFFFF] border-l border-[#E3E6EA] shadow-2xl flex flex-col h-full animate-in slide-in-from-right duration-200"
         >
           {/* Header */}
           <div className="p-5 border-b border-[#E3E6EA] bg-[#FAFCFD]">
@@ -350,7 +350,7 @@ export const DetailDrawer = ({
             <div 
               role="tablist" 
               aria-label="Record detail sections" 
-              className="flex items-center gap-1 mt-4 border-b border-[#E3E6EA] -mb-5 pb-0"
+              className="flex items-center gap-1 mt-4 border-b border-[#E3E6EA] -mb-5 pb-0 overflow-x-auto no-scrollbar scroll-smooth"
             >
               <button
                 role="tab"

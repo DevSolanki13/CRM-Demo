@@ -327,10 +327,10 @@ export const TasksView = ({
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">
       
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-4 sm:p-6 rounded-2xl shadow-sm">
         <div>
           <h1 className="font-display text-2xl font-extrabold text-[#12161C] flex items-center gap-2">
             <CheckSquare className="w-5 h-5 text-[#1D4E63]" aria-hidden="true" />

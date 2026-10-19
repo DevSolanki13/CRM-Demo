@@ -419,7 +419,7 @@ export const PipelineView = ({
   };
 
   return (
-    <div className="p-6 md:p-8 bg-[#F6F7F8] text-[#12161C] h-full flex flex-col justify-between overflow-hidden gap-4 min-h-screen">
+    <div className="p-3.5 sm:p-6 md:p-8 bg-[#F6F7F8] text-[#12161C] h-full flex flex-col justify-between overflow-hidden gap-4 min-h-screen">
 
       {/* Top Header & Controls */}
       <div className="shrink-0 space-y-3">
@@ -492,7 +492,7 @@ export const PipelineView = ({
       </div>
 
       {/* Kanban Board Layout */}
-      <div className="flex-1 flex gap-4 overflow-x-auto pb-4 pt-1 items-stretch min-h-0 custom-horizontal-scrollbar">
+      <div className="flex-1 flex gap-3 sm:gap-4 overflow-x-auto pb-4 pt-1 items-stretch min-h-0 custom-horizontal-scrollbar snap-x snap-mandatory scroll-smooth">
         {sortedStages.map(stage => {
           const stageDeals = filteredDeals.filter(d => d.stageId === stage.id);
           const totalVal = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
@@ -502,7 +502,7 @@ export const PipelineView = ({
               key={stage.id}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, stage.id)}
-              className="w-80 shrink-0 bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-4 flex flex-col gap-3 max-h-full shadow-2xs"
+              className="w-[85vw] sm:w-80 shrink-0 snap-start bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-4 flex flex-col gap-3 max-h-full shadow-2xs"
             >
 
               {/* Column Header */}

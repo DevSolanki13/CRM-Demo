@@ -131,10 +131,10 @@ export const ReportsView = ({
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">
+    <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-4 sm:p-6 rounded-2xl shadow-2xs">
         <div>
           <h1 className="font-display text-2xl font-extrabold text-[#12161C] flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-[#1D4E63]" />
@@ -294,7 +294,7 @@ export const ReportsView = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Lost Deals by Stage Chart */}
-        <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl space-y-4 shadow-2xs">
+        <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-4 sm:p-6 rounded-2xl space-y-4 shadow-2xs">
           <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-3">
             <div>
               <h2 className="font-display text-sm font-bold text-[#12161C] flex items-center gap-2">
@@ -334,7 +334,7 @@ export const ReportsView = ({
         </div>
 
         {/* Lost Deals by Reason Breakdown */}
-        <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl space-y-4 shadow-2xs">
+        <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-4 sm:p-6 rounded-2xl space-y-4 shadow-2xs">
           <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-3">
             <div>
               <h2 className="font-display text-sm font-bold text-[#12161C] flex items-center gap-2">
@@ -345,7 +345,7 @@ export const ReportsView = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 pt-1">
             {lostByReason.map(({ reason, count, value }) => (
               <div key={reason} className="p-3.5 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl space-y-1">
                 <div className="text-[11px] font-bold text-[#12161C] truncate">{reason}</div>
