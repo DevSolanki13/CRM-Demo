@@ -185,6 +185,6 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
 
     await expect(page.getByRole('heading', { name: /Apex Apparel Bio-Dye Order/i })).toBeVisible();
     await expect(page.getByText(/Deal Won & Converted Successfully/i)).toBeVisible();
-    await expect(page.getByText(/60-Day Renewal replenishment check-in/i)).toBeVisible();
+    await expect(page.getByText(/60-Day Renewal replenishment check-in/i).first()).toBeVisible();
   });
 });

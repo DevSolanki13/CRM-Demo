@@ -32,7 +32,9 @@ import {
   X,
   UserCheck,
   Award,
-  Info
+  Info,
+  Loader2,
+  Flag
 } from 'lucide-react';
 import { formatDate, getStageBadgeStyle, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
 import { fetchTimeline, createActivity, createTask, updateTask } from '../api/crmClient.js';
@@ -148,10 +150,10 @@ export const LeadJourneyView = ({
   const [stageTransitionNote, setStageTransitionNote] = useState('');
   const [isSubmittingStage, setIsSubmittingStage] = useState(false);
 
-  // Find linked deal for this lead
+  // Find linked deal for this lead (prioritize primary deal over renewal rebuy deals)
   const linkedDeal = useMemo(() => {
     if (!lead?.id) return null;
-    return deals.find(d => d.leadId === lead.id) || null;
+    return deals.find(d => d.leadId === lead.id && !d.isRebuy) || deals.find(d => d.leadId === lead.id) || null;
   }, [lead?.id, deals]);
 
   // Sort stages by pipeline order
@@ -298,14 +300,23 @@ export const LeadJourneyView = ({
       });
   }, [timelineWithStage]);
 
-  // Terminal status resolution
+  // Terminal status resolution — based ONLY on the deal's actual stage, not lead.status
+  // (lead.status='Converted' does NOT mean Closed Won — it means the lead became a client)
   const isWon = useMemo(() => {
-    return currentActualStage?.category === 'Won' || currentActualStage?.name === 'Closed Won' || lead?.status === 'Converted';
-  }, [currentActualStage, lead?.status]);
+    return (
+      currentActualStage?.category === 'Won' ||
+      currentActualStage?.name === 'Closed Won' ||
+      linkedDeal?.status === 'Won'
+    );
+  }, [currentActualStage, linkedDeal?.status]);
 
   const isLost = useMemo(() => {
-    return currentActualStage?.category === 'Lost' || currentActualStage?.name === 'Closed Lost' || lead?.status === 'Unqualified';
-  }, [currentActualStage, lead?.status]);
+    return (
+      currentActualStage?.category === 'Lost' ||
+      currentActualStage?.name === 'Closed Lost' ||
+      linkedDeal?.status === 'Lost'
+    );
+  }, [currentActualStage, linkedDeal?.status]);
 
   const isRenewal = useMemo(() => {
     return currentActualStage?.category === 'Buy Again' || currentActualStage?.name?.includes('Renewal') || currentActualStage?.name?.includes('Buy Again');
@@ -313,12 +324,12 @@ export const LeadJourneyView = ({
 
   // Qualification pipeline stages (stages 1 to 5: New Lead, Contacted, Sample Sent, Proposal Sent, Negotiation)
   const qualificationStages = useMemo(() => {
-    return sortedStages.filter(s => 
-      s.category !== 'Won' && 
-      s.category !== 'Lost' && 
-      s.category !== 'Buy Again' && 
-      !s.name.includes('Closed') && 
-      !s.name.includes('Renewal') && 
+    return sortedStages.filter(s =>
+      s.category !== 'Won' &&
+      s.category !== 'Lost' &&
+      s.category !== 'Buy Again' &&
+      !s.name.includes('Closed') &&
+      !s.name.includes('Renewal') &&
       !s.name.includes('Buy Again')
     );
   }, [sortedStages]);
@@ -326,9 +337,9 @@ export const LeadJourneyView = ({
   // Find where the deal dropped off (off-ramp stage for lost deals)
   const offRampStageInfo = useMemo(() => {
     if (!isLost) return null;
-    const lostTransition = timelineWithStage.find(i => 
-      (i.toStageName === 'Closed Lost' || i.eventType?.includes('Stage Change')) && 
-      i.fromStageName && 
+    const lostTransition = timelineWithStage.find(i =>
+      (i.toStageName === 'Closed Lost' || i.eventType?.includes('Stage Change')) &&
+      i.fromStageName &&
       i.fromStageName !== 'Closed Lost'
     );
     const dropOffName = lostTransition?.fromStageName || linkedDeal?.stageName || 'Negotiation';
@@ -667,13 +678,12 @@ export const LeadJourneyView = ({
           {/* 1. Lead Status */}
           <div className="bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3 space-y-1">
             <span className="text-[10px] font-mono text-[#5B6472] uppercase tracking-wider block font-bold">Lead Status</span>
-            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
-              lead.status === 'Qualified' || lead.status === 'Converted'
+            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${lead.status === 'Qualified' || lead.status === 'Converted'
                 ? 'bg-[#F0F7F3] text-[#255B40] border-[#BCDBC9]'
                 : lead.status === 'Unqualified'
-                ? 'bg-[#FDF2F1] text-[#922D27] border-[#F4C4C1]'
-                : 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]'
-            }`}>
+                  ? 'bg-[#FDF2F1] text-[#922D27] border-[#F4C4C1]'
+                  : 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]'
+              }`}>
               {lead.status || 'New'}
             </span>
           </div>
@@ -729,7 +739,7 @@ export const LeadJourneyView = ({
       {/* 2. SIGNATURE INTERLOCKING CHEVRON STAGE PATH (FULL BAR)       */}
       {/* ============================================================ */}
       <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-4 sm:p-5 shadow-2xs space-y-3">
-        
+
         {/* Mobile Swipe Hint */}
         <div className="flex items-center justify-between text-[11px] text-[#5B6472] font-semibold md:hidden px-1">
           <span>Stage Milestones</span>
@@ -753,8 +763,12 @@ export const LeadJourneyView = ({
               const clipStyle = isFirst
                 ? 'polygon(0% 0%, calc(100% - 13px) 0%, 100% 50%, calc(100% - 13px) 100%, 0% 100%)'
                 : isLast
-                ? 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 13px 50%)'
-                : 'polygon(0% 0%, calc(100% - 13px) 0%, 100% 50%, calc(100% - 13px) 100%, 0% 100%, 13px 50%)';
+                  ? 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 13px 50%)'
+                  : 'polygon(0% 0%, calc(100% - 13px) 0%, 100% 50%, calc(100% - 13px) 100%, 0% 100%, 13px 50%)';
+
+              // Stage interactability: upcoming stages cannot be inspected
+              const isUpcoming = status === 'upcoming';
+              const isInteractable = !isUpcoming;
 
               // Website Theme Tokens
               let chevronBg = 'bg-[#FFFFFF] text-[#5B6472] hover:bg-[#F8F9FA] hover:text-[#12161C]';
@@ -764,7 +778,15 @@ export const LeadJourneyView = ({
                 </span>
               );
 
-              if (isOffRamp) {
+              if (isUpcoming) {
+                // Future stages — neutral, muted, not interactable
+                chevronBg = 'bg-[#F0F1F3] text-[#A8B2BD] cursor-not-allowed opacity-60';
+                iconElement = (
+                  <span className="w-4 h-4 rounded-full bg-[#E3E6EA] border border-[#CAD2DB] text-[9px] font-mono flex items-center justify-center font-bold text-[#A8B2BD] shrink-0">
+                    {idx + 1}
+                  </span>
+                );
+              } else if (isOffRamp) {
                 chevronBg = 'bg-[#FEF8EC] text-[#965700] hover:bg-[#FDF0D5] font-bold';
                 iconElement = (
                   <AlertTriangle className="w-3.5 h-3.5 text-[#965700] shrink-0" />
@@ -779,7 +801,7 @@ export const LeadJourneyView = ({
               } else if (status === 'current') {
                 chevronBg = 'bg-[#1D4E63] text-white font-extrabold hover:bg-[#153B4B] shadow-sm';
                 iconElement = (
-                  <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
+                  <Loader2 className="w-3.5 h-3.5 text-white shrink-0 animate-spin" />
                 );
               } else if (status === 'closed_won') {
                 chevronBg = 'bg-[#255B40] text-white font-extrabold shadow-sm hover:bg-[#1C4731]';
@@ -787,30 +809,44 @@ export const LeadJourneyView = ({
               } else if (status === 'closed_lost') {
                 chevronBg = 'bg-[#922D27] text-white font-extrabold shadow-sm hover:bg-[#7D2620]';
                 iconElement = <XCircle className="w-3.5 h-3.5 text-white shrink-0" />;
+              } else if (stage.isTarget && !isWon && !isLost) {
+                // In-flight "Closed" target — neutral colour, flag icon
+                chevronBg = 'bg-[#FFFFFF] text-[#5B6472] hover:bg-[#F8F9FA] hover:text-[#12161C]';
+                iconElement = (
+                  <Flag className="w-3.5 h-3.5 text-[#5B6472] shrink-0" />
+                );
               }
 
               return (
                 <button
                   key={stage.id}
+                  disabled={isUpcoming}
                   onClick={() => {
+                    if (isUpcoming) return;
                     if (stage.isTarget) {
-                      const actualTerminal = isWon 
-                        ? sortedStages.find(s => s.category === 'Won') 
-                        : isLost 
-                        ? sortedStages.find(s => s.category === 'Lost') 
-                        : stage;
+                      const actualTerminal = isWon
+                        ? sortedStages.find(s => s.category === 'Won')
+                        : isLost
+                          ? sortedStages.find(s => s.category === 'Lost')
+                          : stage;
                       setSelectedStageId(actualTerminal?.id || stage.id);
                     } else {
                       setSelectedStageId(stage.id);
                     }
                   }}
                   style={{ clipPath: clipStyle }}
-                  className={`relative flex-1 min-w-[105px] h-11 px-3 flex items-center justify-center gap-1.5 sm:gap-2 font-bold text-xs transition-all cursor-pointer select-none shrink-0 ${chevronBg} ${
-                    !isFirst ? '-ml-2.5' : 'rounded-l-xl'
-                  } ${isLast ? 'rounded-r-xl' : ''} ${
-                    isSelected ? 'ring-2 ring-offset-1 ring-[#1D4E63] z-20 brightness-95' : 'z-10'
-                  }`}
-                  title={isOffRamp ? `Deal dropped off at ${stage.name}` : `Click to inspect ${stage.name} history`}
+                  className={`relative flex-1 min-w-[105px] h-11 px-3 flex items-center justify-center gap-1.5 sm:gap-2 font-bold text-xs transition-all select-none shrink-0 ${
+                    isUpcoming ? 'cursor-not-allowed' : 'cursor-pointer'
+                  } ${chevronBg} ${!isFirst ? '-ml-2.5' : 'rounded-l-xl'
+                    } ${isLast ? 'rounded-r-xl' : ''} ${isSelected && isInteractable ? 'ring-2 ring-offset-1 ring-[#1D4E63] z-20 brightness-95' : 'z-10'
+                    }`}
+                  title={
+                    isUpcoming
+                      ? `${stage.name} — not yet reached`
+                      : isOffRamp
+                        ? `Deal dropped off at ${stage.name}`
+                        : `Click to inspect ${stage.name} history`
+                  }
                 >
                   {iconElement}
                   <span className="truncate">{stage.name}</span>
@@ -820,11 +856,10 @@ export const LeadJourneyView = ({
                     </span>
                   )}
                   {count > 0 && !isOffRamp && (
-                    <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full font-extrabold ${
-                      status === 'current' || status === 'closed_won' || status === 'closed_lost'
+                    <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full font-extrabold ${status === 'current' || status === 'closed_won' || status === 'closed_lost'
                         ? 'bg-white/20 text-white'
                         : 'bg-black/5 text-[#5B6472]'
-                    }`}>
+                      }`}>
                       {count}
                     </span>
                   )}
@@ -884,8 +919,8 @@ export const LeadJourneyView = ({
               {selectedStageId === 'ALL'
                 ? 'All Stages (Full Customer Journey)'
                 : selectedStageId === 'UNASSIGNED'
-                ? 'Stage Not Recorded'
-                : selectedStageObj?.name}
+                  ? 'Stage Not Recorded'
+                  : selectedStageObj?.name}
             </strong>
 
             {selectedStageObj && selectedStageObj.id !== currentActualStage.id && selectedStageId !== 'ALL' && selectedStageId !== 'UNASSIGNED' && (
@@ -898,11 +933,10 @@ export const LeadJourneyView = ({
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setSelectedStageId('ALL')}
-              className={`px-3 py-1 rounded-xl text-xs font-bold cursor-pointer border transition-colors ${
-                selectedStageId === 'ALL'
+              className={`px-3 py-1 rounded-xl text-xs font-bold cursor-pointer border transition-colors ${selectedStageId === 'ALL'
                   ? 'bg-[#1D4E63] text-white border-[#1D4E63] shadow-2xs'
                   : 'bg-[#FFFFFF] text-[#5B6472] border-[#E3E6EA] hover:bg-[#F6F7F8]'
-              }`}
+                }`}
             >
               All History ({stageActivityCounts.ALL})
             </button>
@@ -910,11 +944,10 @@ export const LeadJourneyView = ({
             {stageActivityCounts.UNASSIGNED > 0 && (
               <button
                 onClick={() => setSelectedStageId('UNASSIGNED')}
-                className={`px-3 py-1 rounded-xl text-xs font-bold cursor-pointer border transition-colors ${
-                  selectedStageId === 'UNASSIGNED'
+                className={`px-3 py-1 rounded-xl text-xs font-bold cursor-pointer border transition-colors ${selectedStageId === 'UNASSIGNED'
                     ? 'bg-[#965700] text-white border-[#965700] shadow-2xs'
                     : 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
-                }`}
+                  }`}
               >
                 Unassigned ({stageActivityCounts.UNASSIGNED})
               </button>
@@ -998,7 +1031,7 @@ export const LeadJourneyView = ({
 
           {/* Activity Composer Card */}
           <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl shadow-2xs overflow-hidden">
-            
+
             {/* Segmented Composer Tabs */}
             <div className="flex items-center gap-1.5 p-2 bg-[#F6F7F8] border-b border-[#E3E6EA] overflow-x-auto no-scrollbar">
               {[
@@ -1014,11 +1047,10 @@ export const LeadJourneyView = ({
                   <button
                     key={tab.id}
                     onClick={() => setComposerTab(tab.id)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                      isSelected
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${isSelected
                         ? 'bg-[#FFFFFF] text-[#1D4E63] shadow-2xs border border-[#E3E6EA]'
                         : 'text-[#5B6472] hover:text-[#12161C] hover:bg-[#FFFFFF]/50'
-                    }`}
+                      }`}
                   >
                     <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[#1D4E63]' : 'text-[#5B6472]'}`} />
                     <span>{tab.label}</span>
@@ -1039,12 +1071,12 @@ export const LeadJourneyView = ({
                     composerTab === 'Call'
                       ? 'Call Subject: e.g. Discussed sample feedback with client'
                       : composerTab === 'Task'
-                      ? 'Task Subject: e.g. Send revised spec sheets'
-                      : composerTab === 'Email'
-                      ? 'Email Subject: e.g. Quotation follow-up'
-                      : composerTab === 'Event'
-                      ? 'Event: e.g. Technical walkthrough meeting'
-                      : 'Note Title: e.g. Client budget notes'
+                        ? 'Task Subject: e.g. Send revised spec sheets'
+                        : composerTab === 'Email'
+                          ? 'Email Subject: e.g. Quotation follow-up'
+                          : composerTab === 'Event'
+                            ? 'Event: e.g. Technical walkthrough meeting'
+                            : 'Note Title: e.g. Client budget notes'
                   }
                   className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3.5 py-2.5 text-xs text-[#12161C] placeholder-[#5B6472] focus:outline-none focus:border-[#1D4E63] focus:ring-1 focus:ring-[#1D4E63]"
                 />
@@ -1061,8 +1093,8 @@ export const LeadJourneyView = ({
                     composerTab === 'Call'
                       ? 'Call comments, call outcome, client objections, commitments...'
                       : composerTab === 'Task'
-                      ? 'Task instructions and details...'
-                      : 'Details...'
+                        ? 'Task instructions and details...'
+                        : 'Details...'
                   }
                   className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3 text-xs text-[#12161C] placeholder-[#5B6472] focus:outline-none focus:border-[#1D4E63] focus:ring-1 focus:ring-[#1D4E63]"
                 />
@@ -1196,7 +1228,7 @@ export const LeadJourneyView = ({
 
           {/* Activity History Timeline Stream */}
           <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl shadow-2xs p-5 space-y-4">
-            
+
             {/* Timeline Header & Filters */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 border-b border-[#E3E6EA]">
               <div className="font-bold text-xs text-[#12161C] flex items-center gap-2">
@@ -1555,3 +1587,4 @@ export const LeadJourneyView = ({
     </div>
   );
 };
+

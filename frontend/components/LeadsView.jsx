@@ -114,7 +114,7 @@ export const LeadsView = ({
 
       const matchesOwner = selectedOwner === 'All' || l.ownerId === selectedOwner;
 
-      const leadDeal = deals.find(d => d.leadId === l.id);
+      const leadDeal = deals.find(d => d.leadId === l.id && !d.isRebuy) || deals.find(d => d.leadId === l.id);
       const matchesStage = selectedStage === 'All' || (leadDeal && leadDeal.stageId === selectedStage);
 
       if (!matchesSearch || !matchesSource || !matchesOwner || !matchesStage) return false;
@@ -165,7 +165,7 @@ export const LeadsView = ({
       await onCreateActivity(activityData);
     }
 
-    const leadDeal = deals.find(d => d.leadId === targetEntity.id);
+    const leadDeal = deals.find(d => d.leadId === targetEntity.id && !d.isRebuy) || deals.find(d => d.leadId === targetEntity.id);
 
     // 2. Stage & Status Updates
     if (outcomeData.shouldAdvanceStage && outcomeData.targetStageObj) {
@@ -443,7 +443,7 @@ export const LeadsView = ({
         ) : (
           filteredLeads.map(lead => {
             const isSelected = selectedLeadIds.includes(lead.id);
-            const leadDeal = deals.find(d => d.leadId === lead.id);
+            const leadDeal = deals.find(d => d.leadId === lead.id && !d.isRebuy) || deals.find(d => d.leadId === lead.id);
             const currentStageName = leadDeal ? leadDeal.stageName : 'New Lead';
             const currentStageObj = stages.find(s => s.id === leadDeal?.stageId);
 
@@ -618,7 +618,7 @@ export const LeadsView = ({
               ) : (
                 filteredLeads.map((lead, idx) => {
                   const isSelected = selectedLeadIds.includes(lead.id);
-                  const leadDeal = deals.find(d => d.leadId === lead.id);
+                  const leadDeal = deals.find(d => d.leadId === lead.id && !d.isRebuy) || deals.find(d => d.leadId === lead.id);
                   const currentStageName = leadDeal ? leadDeal.stageName : 'New Lead';
                   const currentStageObj = stages.find(s => s.id === leadDeal?.stageId);
                   const isLowerRow = idx >= Math.max(0, filteredLeads.length - 2);
