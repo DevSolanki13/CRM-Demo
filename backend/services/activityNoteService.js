@@ -58,6 +58,11 @@ export const createActivity = async (activity) => {
     timestamp: activity.timestamp || activity.createdAt || new Date().toISOString(),
     authorId: activity.authorId || activity.userId || activity.actorId || 'u-1',
     authorName: activity.authorName || activity.actorName || 'Alex Vance',
+    performedByName: activity.performedByName || activity.authorName || activity.actorName || 'Sales Rep',
+    assignedToName: activity.assignedToName || null,
+    stageId: activity.stageId || null,
+    stageName: activity.stageName || null,
+    metadata: activity.metadata || null,
     linkedType: activity.linkedType || (activity.dealId ? 'Deal' : activity.leadId ? 'Lead' : 'Deal'),
     linkedId: activity.linkedId || activity.dealId || activity.leadId || '',
     linkedTitle: activity.linkedTitle || 'General',
@@ -89,4 +94,11 @@ export const createActivity = async (activity) => {
   }
 
   return saved;
+};
+
+export const deleteActivity = async (id) => {
+  const existing = await prisma.activity.findUnique({ where: { id } });
+  if (!existing) return false;
+  await prisma.activity.delete({ where: { id } });
+  return true;
 };

@@ -221,6 +221,11 @@ export const createActivity = asyncHandler(async (req, res) => {
   res.status(201).json(newActivity);
 });
 
+export const deleteActivity = asyncHandler(async (req, res) => {
+  const success = await activityNoteService.deleteActivity(req.params.id);
+  res.json({ success });
+});
+
 // Users
 export const getUsers = asyncHandler(async (_req, res) => {
   res.json(await userService.getUsers());

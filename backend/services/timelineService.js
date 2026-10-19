@@ -79,13 +79,25 @@ export const getEntityTimeline = async ({ entityType, entityId }) => {
       title: `${act.type}: ${act.linkedTitle || act.linkedType}`,
       description: act.description || act.notes || '',
       authorName: act.authorName || act.actorName || 'Sales Rep',
+      performedByName: act.performedByName || act.authorName || act.actorName || 'Sales Rep',
+      assignedToName: act.assignedToName || null,
+      recordedByName: act.authorName || 'Sales Rep',
+      stageId: act.stageId || null,
+      stageName: act.stageName || null,
       timestamp: act.timestamp || act.createdAt || new Date().toISOString(),
       linkedType: act.linkedType,
       linkedId: act.linkedId,
       linkedTitle: act.linkedTitle,
       category,
       icon,
-      metadata: { isOutbound: act.isOutbound }
+      metadata: {
+        isOutbound: act.isOutbound,
+        stageId: act.stageId,
+        stageName: act.stageName,
+        performedByName: act.performedByName,
+        assignedToName: act.assignedToName,
+        ...(typeof act.metadata === 'object' && act.metadata ? act.metadata : {})
+      }
     });
   }
 
@@ -102,19 +114,32 @@ export const getEntityTimeline = async ({ entityType, entityId }) => {
   });
 
   for (const note of notes) {
+    let noteStageName = null;
+    const stagePrefixMatch = (note.text || '').match(/^\[(.*?)\]/);
+    if (stagePrefixMatch) {
+      noteStageName = stagePrefixMatch[1].trim();
+    }
+
     timelineItems.push({
       id: note.id,
       sourceType: 'note',
       eventType: 'Internal Note',
-      title: 'Internal Account Note',
+      title: noteStageName ? `Internal Note (${noteStageName})` : 'Internal Account Note',
       description: note.text || '',
       authorName: note.authorName || 'Team Member',
+      performedByName: note.authorName || 'Team Member',
+      assignedToName: null,
+      recordedByName: note.authorName || 'Team Member',
+      stageId: null,
+      stageName: noteStageName,
       timestamp: note.timestamp || note.createdAt || new Date().toISOString(),
       linkedType: note.linkedType,
       linkedId: note.linkedId,
       category: 'note',
       icon: 'FileText',
-      metadata: {}
+      metadata: {
+        stageName: noteStageName
+      }
     });
   }
 
@@ -139,6 +164,13 @@ export const getEntityTimeline = async ({ entityType, entityId }) => {
       title: task.title,
       description: task.note || (task.type === 'Approval' ? 'Stage gate verification item' : 'Follow-up action item'),
       authorName: task.ownerName || task.submittedByName || 'Assigned Rep',
+      performedByName: task.reviewedByName || (task.status === 'done' || task.status === 'completed' ? task.ownerName : null),
+      assignedToName: task.ownerName || null,
+      recordedByName: task.submittedByName || task.ownerName || null,
+      stageId: null,
+      stageName: task.targetStageName || task.fromStageName || null,
+      fromStageName: task.fromStageName || null,
+      targetStageName: task.targetStageName || null,
       timestamp: task.createdAt ? (task.createdAt.includes('T') ? task.createdAt : `${task.createdAt}T12:00:00.000Z`) : new Date().toISOString(),
       status: task.status,
       linkedType: task.linkedType,
@@ -205,6 +237,13 @@ export const getEntityTimeline = async ({ entityType, entityId }) => {
       title: `${eventType}: ${aud.entityTitle || aud.entityType}`,
       description: aud.reason || `Action: ${aud.action}`,
       authorName: aud.actorName || 'System',
+      performedByName: aud.actorName || 'System',
+      assignedToName: null,
+      recordedByName: aud.actorName || 'System',
+      stageId: aud.metadata?.toStageId || null,
+      stageName: aud.toStage || null,
+      fromStageName: aud.fromStage || null,
+      toStageName: aud.toStage || null,
       timestamp: aud.timestamp || new Date().toISOString(),
       linkedType: aud.entityType,
       linkedId: aud.entityId,
@@ -213,6 +252,8 @@ export const getEntityTimeline = async ({ entityType, entityId }) => {
       metadata: {
         fromStage: aud.fromStage,
         toStage: aud.toStage,
+        reason: aud.reason,
+        actorName: aud.actorName,
         ...(typeof aud.metadata === 'object' ? aud.metadata : {})
       }
     });
@@ -235,6 +276,13 @@ export const getEntityTimeline = async ({ entityType, entityId }) => {
         title: `Gate Check: ${chk.fromStageName || 'Stage'} ➔ ${chk.targetStageName || 'Target'}`,
         description: chk.note || `Gate evaluation status: ${chk.status}. Outcome: ${chk.outcome || 'None'}`,
         authorName: chk.submittedByName || 'Sales Rep',
+        performedByName: chk.reviewedByName || chk.submittedByName || 'Sales Rep',
+        assignedToName: chk.reviewedByName || null,
+        recordedByName: chk.submittedByName || null,
+        stageId: chk.targetStageId || null,
+        stageName: chk.targetStageName || chk.fromStageName || null,
+        fromStageName: chk.fromStageName || null,
+        toStageName: chk.targetStageName || null,
         timestamp: chk.timestamp || chk.createdAt || new Date().toISOString(),
         status: chk.status,
         linkedType: 'Deal',

@@ -72,6 +72,7 @@ crmRouter.get('/notes', crmController.getNotes);
 crmRouter.post('/notes', crmController.createNote);
 crmRouter.get('/activities', crmController.getActivities);
 crmRouter.post('/activities', crmController.createActivity);
+crmRouter.delete('/activities/:id', crmController.deleteActivity);
 
 // Users / Employees
 crmRouter.get('/users', crmController.getUsers);

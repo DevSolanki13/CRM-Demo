@@ -160,17 +160,22 @@ model Note {
 
 // 10. Activity Timeline Logs
 model Activity {
-  id          String   @id
-  type        String
-  description String
-  timestamp   String?
-  linkedType  String?
-  linkedId    String?
-  linkedTitle String?
-  authorId    String?
-  authorName  String?
-  isOutbound  Boolean? @default(false)
-  createdAt   String?
+  id              String   @id
+  type            String
+  description     String
+  timestamp       String?
+  linkedType      String?
+  linkedId        String?
+  linkedTitle     String?
+  authorId        String?
+  authorName      String?
+  performedByName String?
+  assignedToName  String?
+  stageId         String?
+  stageName       String?
+  isOutbound      Boolean? @default(false)
+  metadata        Json?
+  createdAt       String?
 }
 
 // 11. Stage Gate Qualification Checks
