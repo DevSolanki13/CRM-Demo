@@ -38,6 +38,7 @@ import { Header } from './components/Header.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
 import { DashboardView } from './components/DashboardView.jsx';
 import { LeadsView } from './components/LeadsView.jsx';
+import { LeadJourneyView } from './components/LeadJourneyView.jsx';
 import { PipelineView } from './components/PipelineView.jsx';
 import { ContactsView } from './components/ContactsView.jsx';
 import { CompaniesView } from './components/CompaniesView.jsx';
@@ -50,6 +51,13 @@ import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import { NotFoundView } from './components/NotFoundView.jsx';
 import { DetailDrawer } from './components/DetailDrawer.jsx';
 import { Toaster, toast } from 'sonner';
+import { 
+  LayoutDashboard, 
+  Users, 
+  Kanban, 
+  CheckSquare, 
+  Menu 
+} from 'lucide-react';
 
 import { normalizeStageColor } from '../backend/constants/stageConstants.js';
 
@@ -69,6 +77,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Modals & Drawer
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
@@ -84,6 +93,21 @@ export default function App() {
 
   const handleCloseDrawer = () => {
     setDrawerState(prev => ({ ...prev, isOpen: false }));
+  };
+
+  // Lead Journey Workspace State
+  const [selectedLeadForJourney, setSelectedLeadForJourney] = useState(null);
+
+  const currentJourneyLead = useMemo(() => {
+    if (!selectedLeadForJourney) return null;
+    return state?.leads?.find(l => l.id === selectedLeadForJourney.id) || selectedLeadForJourney;
+  }, [selectedLeadForJourney, state?.leads]);
+
+  const handleNavigateTab = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'leads' && activeTab === 'leads') {
+      setSelectedLeadForJourney(null);
+    }
   };
 
   // Global Keyboard Shortcuts (Cmd+K / Ctrl+K) focuses header search input
@@ -534,7 +558,7 @@ export default function App() {
   const handleSelectSearchResult = (type, item) => {
     if (type === 'lead') {
       setActiveTab('leads');
-      if (item) setDrawerState({ isOpen: true, type: 'lead', item });
+      if (item) setSelectedLeadForJourney(item);
     } else if (type === 'deal') {
       setActiveTab('pipeline');
       if (item) setDrawerState({ isOpen: true, type: 'deal', item });
@@ -560,10 +584,12 @@ export default function App() {
           state={state}
           onSelectUser={setCurrentUser}
           onSelectSearchResult={handleSelectSearchResult}
-          onNavigateTab={setActiveTab}
+          onNavigateTab={handleNavigateTab}
           onOpenQuickAction={handleQuickAction}
           onTriggerRenewalCheck={handleTriggerRenewalCheck}
           renewalsDueCount={renewalsDueCount}
+          isMobileMenuOpen={isMobileMenuOpen}
+          onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)}
         />
 
         {/* Main Body: Sidebar + Content */}
@@ -572,15 +598,17 @@ export default function App() {
           {/* Navigation Sidebar */}
           <Sidebar
             activeTab={activeTab}
-            setActiveTab={setActiveTab}
+            setActiveTab={handleNavigateTab}
             userRole={currentUser.role}
             pendingTasksCount={pendingTasksCount}
             renewalsDueCount={renewalsDueCount}
             onOpenImportExport={() => setIsImportExportOpen(true)}
+            isMobileOpen={isMobileMenuOpen}
+            onCloseMobile={() => setIsMobileMenuOpen(false)}
           />
 
           {/* Dynamic Tab Content View */}
-          <main className="flex-1 overflow-y-auto bg-[var(--canvas)]">
+          <main className="flex-1 overflow-y-auto bg-[var(--canvas)] pb-16 md:pb-0">
             {activeTab === 'dashboard' && (
               <DashboardView
                 state={state}
@@ -596,25 +624,45 @@ export default function App() {
             )}
 
             {activeTab === 'leads' && (
-              <LeadsView
-                leads={state.leads}
-                stages={state.stages}
-                deals={state.deals}
-                users={state.users}
-                currentUser={currentUser}
-                branding={state.branding}
-                onCreateLead={handleCreateLead}
-                onUpdateLead={handleUpdateLead}
-                onDeleteLead={handleDeleteLead}
-                onConvertToDeal={handleConvertToDeal}
-                onUpdateDeal={handleUpdateDeal}
-                onCreateActivity={handleCreateActivity}
-                onCreateTask={handleCreateTask}
-                onSubmitStageGateCheck={handleCreateStageGateCheck}
-                onApproveStageGateCheck={handleApproveStageGateCheck}
-                onRejectStageGateCheck={handleRejectStageGateCheck}
-                onOpenDrawer={handleOpenDrawer}
-              />
+              currentJourneyLead ? (
+                <LeadJourneyView
+                  lead={currentJourneyLead}
+                  stages={state.stages}
+                  deals={state.deals}
+                  users={state.users}
+                  currentUser={currentUser}
+                  branding={state.branding}
+                  onBack={() => setSelectedLeadForJourney(null)}
+                  onOpenDrawer={handleOpenDrawer}
+                  onUpdateLead={handleUpdateLead}
+                  onUpdateDeal={handleUpdateDeal}
+                  onCreateActivity={handleCreateActivity}
+                  onCreateTask={handleCreateTask}
+                  onUpdateTask={handleUpdateTask}
+                  onTransitionDealStage={handleTransitionDealStage}
+                />
+              ) : (
+                <LeadsView
+                  leads={state.leads}
+                  stages={state.stages}
+                  deals={state.deals}
+                  users={state.users}
+                  currentUser={currentUser}
+                  branding={state.branding}
+                  onCreateLead={handleCreateLead}
+                  onUpdateLead={handleUpdateLead}
+                  onDeleteLead={handleDeleteLead}
+                  onConvertToDeal={handleConvertToDeal}
+                  onUpdateDeal={handleUpdateDeal}
+                  onCreateActivity={handleCreateActivity}
+                  onCreateTask={handleCreateTask}
+                  onSubmitStageGateCheck={handleCreateStageGateCheck}
+                  onApproveStageGateCheck={handleApproveStageGateCheck}
+                  onRejectStageGateCheck={handleRejectStageGateCheck}
+                  onOpenDrawer={handleOpenDrawer}
+                  onOpenLeadJourney={(lead) => setSelectedLeadForJourney(lead)}
+                />
+              )
             )}
 
             {activeTab === 'pipeline' && (
@@ -767,6 +815,50 @@ export default function App() {
           onClose={() => setIsImportExportOpen(false)}
           state={state}
         />
+
+        {/* Mobile Bottom Navigation Bar (< md) */}
+        <nav 
+          aria-label="Mobile Navigation Bar"
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FFFFFF] border-t border-[#E3E6EA] px-2 py-1.5 flex items-center justify-around shadow-[0_-2px_10px_rgba(18,22,28,0.06)]"
+        >
+          {[
+            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            { id: 'leads', label: 'Leads', icon: Users },
+            { id: 'pipeline', label: 'Pipeline', icon: Kanban, badge: renewalsDueCount > 0 },
+            { id: 'tasks', label: 'Tasks', icon: CheckSquare, badge: pendingTasksCount > 0 },
+            { id: 'menu', label: 'More', icon: Menu, isAction: true }
+          ].map(item => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  if (item.isAction) {
+                    setIsMobileMenuOpen(prev => !prev);
+                  } else {
+                    handleNavigateTab(item.id);
+                  }
+                }}
+                aria-label={item.label}
+                aria-current={isActive && !item.isAction ? 'page' : undefined}
+                className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all relative cursor-pointer ${
+                  isActive && !item.isAction
+                    ? 'text-[#1D4E63] font-bold'
+                    : 'text-[#5B6472] hover:text-[#12161C] font-medium'
+                }`}
+              >
+                <div className="relative">
+                  <Icon className={`w-5 h-5 ${isActive && !item.isAction ? 'text-[#1D4E63]' : 'text-[#5B6472]'}`} />
+                  {item.badge && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#965700]" />
+                  )}
+                </div>
+                <span className="text-[10px] mt-0.5 leading-tight">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
 
       </div>
     </ErrorBoundary>
