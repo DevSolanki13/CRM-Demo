@@ -83,6 +83,14 @@ async function main() {
   console.log(`✔ ${initialContacts.length} Contacts seeded`);
 
   // 6. Leads
+  await prisma.lead.deleteMany({
+    where: {
+      OR: [
+        { contactName: 'Jane Doe' },
+        { title: { startsWith: 'Apex Bio' } }
+      ]
+    }
+  });
   for (const ld of initialLeads) {
     await prisma.lead.upsert({
       where: { id: ld.id },
