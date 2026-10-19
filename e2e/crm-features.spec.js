@@ -49,6 +49,16 @@ test.describe('CRM Features Automated Test Suite', () => {
 
     // 5. Verify the automated outreach task is listed in the tasks view
     await expect(page.getByText(new RegExp(`First contact outreach for ${testLeadName}`, 'i'))).toBeVisible({ timeout: 10000 });
+
+    // Clean up created test lead and its task so tests leave no residue in database
+    const leadsRes = await page.request.get('/api/leads');
+    if (leadsRes.ok()) {
+      const allLeads = await leadsRes.json();
+      const created = allLeads.find(l => l.title === testLeadName);
+      if (created) {
+        await page.request.delete(`/api/leads/${created.id}`);
+      }
+    }
   });
 
   test('03: Unified 360° Timeline renders for deals with multi-source events', async ({ page }) => {
