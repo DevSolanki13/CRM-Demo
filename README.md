@@ -12,259 +12,233 @@
 
 # Sales CRM — B2B Sales Pipeline & Recurring Order Management
 
-Sales CRM is a full-stack, customizable B2B Sales Customer Relationship Management (CRM) application engineered for pipeline governance, stage-gate qualification workflows, manager approval ledgers, and repeat purchase management.
-
-![Sales Console](images/WebSite/Screenshot%202026-09-22%20004657.png)
+Sales CRM is a modern, full-stack B2B Customer Relationship Management platform engineered for pipeline governance, Salesforce-style lead journey milestone tracking, stage-gate qualification, repeat purchase management, and responsive mobile sales workflows.
 
 ---
 
 ## 📚 Project Documentation
 
-Explore the detailed architecture, database specifications, workflows, and API guides:
-
-| Document | Description |
+| Document | Core Topics |
 |:---|:---|
-| 📖 **[Features Guide](features.md)** | Complete breakdown of stage-gate governance, approval ledger, rebuy architecture, and UX |
-| 🔄 **[System Flows](flow.md)** | Step-by-step process workflows, sequence diagrams, and lifecycle state machines |
-| 🏛️ **[Architecture](architecture.md)** | System components, frontend/backend architecture, state management, and RBAC |
-| 🗄️ **[Database & Schema](db.md)** | PostgreSQL database specs, 12 Prisma models, Mermaid ERD, and JSON column schemas |
-| 🔌 **[REST API Reference](api.md)** | Endpoint definitions, request/response payloads, status codes, and Zod schemas |
-| 🚀 **[Setup & Deployment](setup-guide.md)** | Installation, Supabase/Neon PostgreSQL setup, seeding, testing, and Vercel deploy |
+| 📖 **[Features Guide](features.md)** | Lead Journey milestones, stage-gate governance, mobile console, rebuy engine |
+| 🔄 **[System Flows](flow.md)** | Lead-to-deal conversion, chevron stage transitions, demotion, rebuy lifecycles |
+| 🏛️ **[Architecture](architecture.md)** | System topology, React 19 SPA, Express REST API, Prisma 7 PostgreSQL adapter |
+| 🗄️ **[Database & Schema](db.md)** | 12 Prisma models, PostgreSQL ERD, JSONB columns, connection pooling |
+| 🔌 **[REST API Reference](api.md)** | Complete endpoint specifications, request/response payloads, Zod validation |
+| 🚀 **[Setup & Deployment](setup-guide.md)** | Installation, Supabase/Neon PostgreSQL setup, seeding, Vitest, and Playwright |
 
 ---
 
-## Key Features
+## 🚀 Key Features
 
-### 1. Stage-Gate Qualification Engine
-- **Structured Qualification Gates**: Advancing opportunities requires completing stage-specific Yes/No qualification checklists (e.g. decision-maker confirmed, use-case validated, commercial alignment).
-- **Automated Routing on Failure**: Failing qualification criteria automatically routes deals to **Closed Lost** with mandatory lost-reason selection and rep observation notes.
-- **Backward Stage Demotion**: Backward pipeline movements enforce mandatory demotion reasons and activity logging to prevent unexplained pipeline slippage.
+### 1. Lead Journey & Milestone Pipeline
+- **Interlocking Chevron Stage Path**: Salesforce-style visual milestone header showing current position, completed stages, and upcoming milestones.
+- **Historical Stage Inspection**: Click any past stage to view a read-only snapshot of stage-specific activities, gate checks, and audit notes without mutating live deal state.
+- **Closed Lost / Won Diagnostic Banners**: Dynamic banners displaying lost root-cause breakdown or renewal replenishment timelines.
+- **Inline Activity Composer**: Reps can log calls, meetings, emails, and internal notes directly inside the journey view with automatic timestamping and user attribution.
 
-### 2. Manager Approval & Task Ledger
-- **Role-Gated Transitions**: When a Sales Rep advances a deal or qualifies a lead, the record moves to `Pending Review` status.
-- **Reviewer Tasks**: Automatically creates `[Stage Approval Required]` tasks in the agenda for Managers and Admins with submitted criteria answers, rep observations, and stage paths.
-- **One-Click Execution**: Managers can click **`[ Approve & Move Stage ]`** or **`[ Reject ]`** directly from the Follow-ups & Tasks Ledger to execute transitions and log permanent audit events.
+### 2. Stage-Gate Qualification Engine
+- **Objective Criteria Checklists**: Stage promotions require completing mandatory Yes/No qualification checks (decision-maker engaged, budget confirmed, specs agreed).
+- **Automated Lost Routing**: Disqualified opportunities automatically route to **Closed Lost** with required reason categorization and field observation notes.
+- **Backward Demotion Auditing**: Demoting a deal backward enforces a mandatory demotion reason and logs an immutable audit event to prevent unexplained slippage.
 
-### 3. Rebuy & Recurring Order Architecture
-- **Historical Integrity**: Closing a deal as `Closed Won` preserves the original transaction history permanently.
-- **Automated Rebuy Generation**: Recurring accounts trigger scheduled repeat-order cycles (e.g., 60-day renewal cycle) and generate new child opportunities without overwriting previous closed sales.
+### 3. Role-Gated Manager Approvals
+- **Pending Review Status**: Sales Rep stage promotions generate a `[Stage Approval Required]` task for Managers/Admins rather than updating immediately.
+- **One-Click Ledger Decisions**: Managers approve or reject promotions directly from the Tasks & Follow-ups Agenda with complete context.
+- **Admin Direct Override**: Admins can bypass review via drag-and-drop on the Kanban board with mandatory audit logging.
 
-### 4. Interactive Pipeline Board & Governance
-- **Kanban Board**: Drag-and-drop pipeline interface with stage aging badges, stale warnings, and close-date indicators.
-- **Admin Overrides**: Administrators can bypass gates with mandatory audit reasons logged to the permanent audit trail.
-- **Governance Audit Ledger**: Auditable log tracking actor ID, reviewer name, timestamp, action type, from/to stages, and override/rejection reasons.
+### 4. Rebuy & Recurring Order Architecture
+- **Non-Destructive Win History**: Closing a deal as `Closed Won` permanently preserves historical revenue and performance records.
+- **Automated Renewal Generation**: Recurring accounts automatically trigger repeat-order opportunities (`dl-rebuy-...`) in the **Buy Again** stage and schedule outreach tasks.
 
-### 5. Multi-Entity Management
-- **Leads Ledger**: Cold outbound vs. inbound tracking, lead status tracking (`New`, `Working`, `Qualified`, `Unqualified`, `Converted`), non-numeric title validation, and one-click conversion to deals.
-- **Accounts & Contacts**: Corporate account hierarchies, linked contacts, communication logs, and custom fields.
-- **Agenda & Follow-ups**: Follow-up scheduling for phone calls and meetings with scope switching between personal tasks and team-wide agenda.
+### 5. Responsive Mobile Experience
+- **1-Thumb Bottom Navigation**: Sleek bottom action bar on mobile viewports (<768px) with instant access to Dashboard, Pipeline, Leads, and Tasks.
+- **Off-Canvas Navigation Drawer**: Accessible slide-out menu with backdrop blur for secondary views (Accounts, Contacts, Reports, Settings).
+- **Executive Bar Graph Switcher**: Dashboard features dual view modes (`[Bars] | [Columns]`) providing high-density comparative horizontal bar charts optimized for mobile screens.
+- **Mobile-Adaptive Kanban**: Horizontal touch scrolling with stage pills and compact deal cards.
 
-### 6. Modern CRM User Experience (UX)
-- **360° Slide-Over Detail Drawer**: Clicking any Deal or Lead opens an interactive side drawer (Sheet UI) featuring 4 dedicated tabs: Overview & Property Editor, Stage Gate Verification, Interaction & Note Logger, and Connected Tasks—without losing board or table context.
-- **Inline Anchored Command Search (`Ctrl+K` / `⌘K`)**: Instant search dropdown anchored directly beneath the header search bar (zero center modals or background blur), supporting categorized search across Deals, Leads, Contacts, and Companies with arrow-key navigation.
-- **Ergonomic Quick-Filter Pills**: Real-time count badges and one-click filtering for deals (`All Deals`, `My Deals`, `Stale >10d`, `Aging in Stage`, `Closing Overdue`, `Renewals Due`) and leads (`All`, `My Leads`, `Outbound`, `Inbound`, `New`).
-- **Non-Blocking Toast System**: Replaced native browser `alert()` popups with rich [`Sonner`](https://sonner.emilkowal.ski) toasts featuring contextual action buttons and status colors.
-- **Crash Resilience & Custom Error Screens**: Built-in `ErrorBoundary` (500 recovery with diagnostics and demo-state reset), `NotFoundView` (404 missing routes/tabs), and backend API 404 fallbacks.
+### 6. Automated Testing Suite
+- **14 Playwright E2E Tests**: Comprehensive end-to-end tests verifying the full CRM workflow, Lead Journey milestone transitions, and mobile viewport interactions.
+- **32 Vitest Unit Tests**: Validating Zod request schemas, stage transitions, timeline aggregation, follow-up automations, and RBAC rules.
 
 ---
 
-## Pipeline Stage Matrix
+## 📊 Pipeline Stage Matrix
 
 ```text
 New Lead ──► Contacted ──► Sample Sent ──► Proposal Sent ──► Negotiation ──► Closed Won
     │            │              │               │                 │             │
     ▼            ▼              ▼               ▼                 ▼             ▼
-Closed Lost  Closed Lost   Closed Lost     Closed Lost       Closed Lost   Rebuy Deal
+Closed Lost  Closed Lost   Closed Lost     Closed Lost       Closed Lost   Buy Again (Renewal)
 ```
 
-| Stage | Code | Category | Progression Requirements |
-|:---|:---|:---|:---|
-| **New Lead** | `stg-1` | New | Inbound inquiry or outbound lead captured |
-| **Contacted** | `stg-2` | Contacted | Meaningful conversation logged; decision-maker identified |
-| **Sample Sent** | `stg-3` | Evaluation | Product/sample dispatched; testing criteria agreed |
-| **Proposal Sent** | `stg-4` | Proposal | Formal quote submitted with commercial terms and validity date |
-| **Negotiation** | `stg-5` | Negotiation | Commercial terms, pricing, and volume tiers in active discussion |
-| **Closed Won** | `stg-6` | Won | Signed contract / Purchase Order received; triggers rebuy schedule |
-| **Closed Lost** | `stg-8` | Lost | Terminal lost state with mandatory reason and explanation |
+| Stage | Code | Progression Requirements |
+|:---|:---|:---|
+| **New Lead** | `stg-1` | Inbound inquiry or outbound prospect captured |
+| **Contacted** | `stg-2` | Decision-maker identified; initial qualification dialogue |
+| **Sample Sent** | `stg-3` | Product sample dispatched; testing parameters agreed |
+| **Proposal Sent** | `stg-4` | Formal commercial quote submitted with validity date |
+| **Negotiation** | `stg-5` | Contract terms, pricing tiers, and volume commitments |
+| **Buy Again (Renewal)** | `stg-7` | Scheduled repeat order pipeline for active accounts |
+| **Closed Won** | `stg-6` | Signed agreement / Purchase Order received |
+| **Closed Lost** | `stg-8` | Disqualified or lost opportunity with root-cause reason |
 
 ---
 
-## Role-Based Access Control (RBAC)
+## 👥 Role-Based Access Control (RBAC)
 
 | Capability | Admin | Manager | Sales Rep |
 |:---|:---:|:---:|:---:|
-| Create & Edit Leads / Deals / Contacts | Yes | Yes | Yes |
-| Log Activities & Qualification Gate Checks | Yes | Yes | Yes |
-| Direct Stage Movement (Auto-approved) | Yes | No | No |
+| Create / Edit Leads, Deals, Accounts, Contacts | Yes | Yes | Yes |
+| Log Activities, Notes & Gate Checklists | Yes | Yes | Yes |
+| Direct Stage Movement (Auto-approved) | Yes (Override) | No | No |
 | Approve / Reject Pending Stage Gates | Yes | Yes | No |
-| Admin Kanban Drag-and-Drop Override | Yes | No | No |
-| View Team-Wide Tasks & Governance Audit Logs | Yes | Yes | Assigned Only |
-| Modify System Settings & Team Roles | Yes | No | No |
+| View Team Agenda & Governance Audit Log | Yes | Yes | Assigned Only |
+| Modify Branding, Stages & System Settings | Yes | No | No |
+| Reset System Demo State | Yes | No | No |
 
 ---
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 | Layer | Technologies |
 |:---|:---|
-| **Frontend** | React 19, JavaScript (JSX), Vite, Lucide Icons, Sonner (Toasts), Vanilla CSS |
+| **Frontend** | React 19, Vite, Lucide React, Sonner (Toasts), Vanilla CSS |
 | **Backend** | Node.js, Express.js (REST API Server) |
 | **Database** | PostgreSQL (Supabase / Neon), Connection Pooling |
 | **ORM** | Prisma ORM 7 (`@prisma/client`, `@prisma/adapter-pg`, `pg`) |
-| **Tooling & Build** | Vite, Esbuild, Prisma Studio |
-| **Styling** | 60-30-10 surface elevation system with WCAG AA-compliant contrast |
+| **Validation** | Zod runtime schema validation |
+| **Testing** | Vitest (Unit/Integration), Playwright (End-to-End) |
 
 ---
 
-## Getting Started
+## ⚡ Quickstart
 
-### Prerequisites
+### 1. Prerequisites
 - **Node.js**: `v18.0.0` or higher
-- **npm**: `v9.0.0` or higher
-- **PostgreSQL Database**: Free cloud instance from [Supabase](https://supabase.com) or [Neon](https://neon.tech)
+- **PostgreSQL**: Cloud database from [Supabase](https://supabase.com) or [Neon](https://neon.tech)
 
-### 1. Installation
-
+### 2. Setup & Installation
 ```bash
 # Clone the repository
 git clone https://github.com/DevSolanki13/CRM-Demo.git
 cd CRM-Demo
 
-# Install project dependencies
+# Install dependencies
 npm install
-```
 
-### 2. Environment Configuration
-
-Create your `.env` file from the provided template:
-
-```bash
+# Configure environment
 cp .env.example .env
 ```
 
-Add your Supabase or PostgreSQL connection strings to `.env`:
-
+Add your PostgreSQL connection strings to `.env`:
 ```env
-DATABASE_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres"
+PORT=3000
+NODE_ENV=development
+DATABASE_URL="postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres"
 ```
 
-### 3. Database Sync & Seeding
-
-Synchronize the 12 Prisma models to your database and seed all demo data (Users, Stages, Companies, Contacts, Leads, Deals, Tasks, Notes, Activities, Gate Checks, Audit Logs):
-
+### 3. Database Push & Seed
 ```bash
-# Push Prisma schema to your PostgreSQL database
+# Push Prisma schema to PostgreSQL
 npx prisma db push
 
-# Seed sample CRM data
+# Seed demo dataset
 npm run seed
 ```
 
-### 4. Running Locally
-
+### 4. Running the Application
 ```bash
-# Start backend Express server and Vite development server
+# Start backend server with Vite dev middleware
 npm run dev
 ```
+Open **`http://localhost:3000`** in your browser.
 
-The application will be accessible at `http://localhost:3000`.
-
-### 5. Inspecting Database (Prisma Studio)
-
-Launch Prisma Studio to visually browse, query, and edit data in your PostgreSQL database:
-
+### 5. Running Tests
 ```bash
-npx prisma studio
-```
+# Run Vitest unit & integration tests
+npm test
 
-Studio will open in your browser at `http://localhost:5555`.
-
-### 6. Production Build
-
-```bash
-# Generate Prisma Client and bundle frontend + backend
-npm run build
-
-# Start production server
-npm run start
+# Run Playwright E2E test suite
+npm run test:e2e
 ```
 
 ---
 
-## REST API Overview
+## 🔌 Core REST API Endpoints
 
 | Method | Endpoint | Description |
 |:---|:---|:---|
-| `GET` | `/api/health` | Service health status check |
-| `GET` | `/api/state` | Hydrate entire CRM state from PostgreSQL |
-| `POST` | `/api/state/reset` | Reseed and reset state to defaults |
-| `GET` / `POST` | `/api/leads` | List all leads / create a new lead |
-| `PUT` / `DELETE` | `/api/leads/:id` | Update lead details / delete lead |
-| `GET` / `POST` | `/api/deals` | List all deals / create a new deal |
-| `POST` | `/api/deals/:id/stage-transition` | Transition deal stage with gate validation |
-| `POST` | `/api/deals/:id/close-lost` | Mark opportunity as Closed Lost with reason |
-| `POST` | `/api/deals/:id/create-rebuy` | Generate new repeat order opportunity |
-| `GET` / `POST` | `/api/stage-gate-checks` | Fetch all stage gate checks / submit new check |
-| `POST` | `/api/stage-gate-checks/:id/approve` | Approve stage gate check and execute transition |
-| `POST` | `/api/stage-gate-checks/:id/reject` | Reject stage gate check with feedback note |
-| `GET` / `POST` | `/api/tasks` | Fetch tasks / create a follow-up task |
-| `PUT` / `DELETE` | `/api/tasks/:id` | Update task status / delete task |
-| `GET` | `/api/audit-logs` | Retrieve chronological governance audit trail |
+| `GET` | `/api/health` | Health status and database check |
+| `GET` | `/api/state` | Hydrate complete CRM state on startup |
+| `POST` | `/api/state/reset` | Restore pristine seed dataset |
+| `GET` / `POST` | `/api/leads` | List leads / Create a new lead |
+| `PUT` / `DELETE` | `/api/leads/:id` | Update / Delete lead |
+| `GET` / `POST` | `/api/deals` | List deals / Create opportunity |
+| `PUT` / `DELETE` | `/api/deals/:id` | Update deal / Delete deal |
+| `POST` | `/api/deals/:id/stage-transition` | Transition stage with gate validation |
+| `POST` | `/api/deals/:id/close-lost` | Mark opportunity Closed Lost with reason |
+| `POST` | `/api/deals/:id/create-rebuy` | Generate renewal repeat-order deal |
+| `POST` | `/api/deals/check-renewals` | Trigger background renewal evaluation |
+| `GET` | `/api/timeline` | Unified customer activity & audit timeline |
+| `GET` / `POST` | `/api/tasks` | List tasks / Create follow-up task |
+| `PUT` / `DELETE` | `/api/tasks/:id` | Update status / Delete task |
+| `GET` / `POST` | `/api/activities` | List activities / Log call or meeting |
+| `DELETE` | `/api/activities/:id` | Remove activity entry |
+| `GET` / `POST` | `/api/stage-gate-checks` | Fetch checks / Submit qualification gate |
+| `POST` | `/api/stage-gate-checks/:id/approve` | Approve stage promotion & execute move |
+| `POST` | `/api/stage-gate-checks/:id/reject` | Reject stage promotion with feedback |
+| `GET` | `/api/audit-logs` | Retrieve immutable governance audit trail |
 
 ---
 
-## Project Structure
+## 📁 Project Directory Structure
 
 ```text
-customizable-crm-demo/
+crm-demo/
 ├── backend/
-│   ├── controllers/
-│   │   └── crmController.js        # Request handlers & response formatting
-│   ├── data/
-│   │   └── initialData.js          # Seed records (companies, leads, deals, stages)
-│   ├── routes/
-│   │   └── crmRoutes.js            # Express REST route endpoints
-│   ├── store/
-│   │   └── crmStore.js             # Dual-layer state store, stage transitions & persistence
-│   ├── prisma.js                   # Prisma Client singleton with PostgreSQL adapter
-│   └── server.js                   # Express server entry point & Vite middleware
-├── prisma/
-│   ├── schema.prisma               # Prisma 7 schema definition (12 models)
-│   └── seed.js                     # Seed script populating Supabase database
-├── prisma7.config.ts               # Prisma 7 configuration file
+│   ├── constants/             # Pipeline transition matrices & stage constants
+│   ├── controllers/           # HTTP handlers & response formatting
+│   ├── data/                  # Initial demo seed records
+│   ├── middleware/            # Zod validation middleware (validation.js)
+│   ├── routes/                # Express API routes (crmRoutes.js)
+│   ├── services/              # Domain services (deal, lead, task, timeline, etc.)
+│   ├── prisma.js              # Prisma 7 client with PostgreSQL driver adapter
+│   └── server.js              # Express server & Vite development middleware
 ├── frontend/
-│   ├── api/
-│   │   └── crmClient.js            # Frontend HTTP API client
-│   ├── components/
-│   │   ├── DashboardView.jsx       # Financial metrics, stage charts & activity stream
-│   │   ├── LeadsView.jsx           # Leads list, quick-filter chips & actionable empty states
-│   │   ├── PipelineView.jsx        # Kanban pipeline board with quick-filter pills & card controls
-│   │   ├── DetailDrawer.jsx        # 360° slide-over inspector sheet (Overview, Gate, Notes, Tasks)
-│   │   ├── ErrorBoundary.jsx       # React crash recovery with diagnostics & reset actions
-│   │   ├── NotFoundView.jsx        # Custom 404 page for missing tabs or records
-│   │   ├── TasksView.jsx           # Follow-up ledger & stage approval action cards
-│   │   ├── StageGateCheckModal.jsx # Yes/No qualification checklist & demotion form
-│   │   ├── AddActivityModal.jsx    # Log calls/meetings with integrated gate checks
-│   │   ├── ReportsView.jsx         # Governance audit log & lost deal analytics
-│   │   ├── CompaniesView.jsx       # Corporate accounts ledger
-│   │   ├── ContactsView.jsx        # Client directory & contact information
-│   │   ├── EmployeesView.jsx       # Team directory & role management
-│   │   ├── SettingsView.jsx        # Branding customization & pipeline stage manager
-│   │   ├── Header.jsx              # Navigation bar, user switcher & inline anchored search
-│   │   └── Sidebar.jsx             # Module navigation sidebar
-│   ├── utils/
-│   │   └── crmHelpers.js           # Currency formatting (INR ₹), date & RBAC utilities
-│   ├── App.jsx                     # Top-level application component & routing
-│   ├── index.css                   # Global stylesheet & design token system
-│   └── main.jsx                    # React application entry point
-├── .env.example                    # Template environment variables (Database URL)
-├── package.json                    # Project configuration & npm scripts
-└── vite.config.ts                  # Vite build & plugin configuration
+│   ├── api/                   # crmClient.js API abstraction
+│   ├── components/            # React UI components
+│   │   ├── LeadJourneyView.jsx      # Salesforce-style chevron pipeline & milestone tracker
+│   │   ├── PipelineView.jsx         # Kanban board with quick filters & card controls
+│   │   ├── DashboardView.jsx        # KPI cards & responsive horizontal bar graph
+│   │   ├── DetailDrawer.jsx         # 360° slide-over inspector sheet (4 tabs)
+│   │   ├── LeadsView.jsx            # Lead management & conversion workflows
+│   │   ├── TasksView.jsx            # Follow-ups & manager approval agenda
+│   │   ├── UnifiedTimeline.jsx      # Chronological customer interaction feed
+│   │   ├── StageGateCheckModal.jsx  # Qualification gate checklist modal
+│   │   ├── Header.jsx               # Navigation bar, mobile toggles, user switcher
+│   │   ├── Sidebar.jsx              # Primary desktop & off-canvas mobile navigation
+│   │   ├── ErrorBoundary.jsx        # Crash recovery & diagnostics
+│   │   └── ...                      # Accounts, Contacts, Reports, Settings views
+│   ├── utils/                 # Currency (INR ₹), date, and badge formatting helpers
+│   ├── App.jsx                # Root container, tab router & mobile bottom nav bar
+│   └── index.css              # Design tokens, chevron paths, mobile styles
+├── prisma/
+│   ├── schema.prisma          # 12 Prisma models & PostgreSQL datasource
+│   └── seed.js                # Database seed script
+├── e2e/                       # Playwright E2E test suite (14 tests)
+│   ├── crm-features.spec.js   # Pipeline, drawer, modal, and filter tests
+│   ├── lead-journey.spec.js   # Lead Journey milestone and composer tests
+│   └── mobile-responsive.spec.js # Mobile navigation, drawer, and chart tests
+├── tests/                     # Vitest unit & integration test suite (32 tests)
+├── playwright.config.js       # Playwright browser automation config
+├── vitest.config.js           # Vitest unit testing config
+├── package.json               # Dependencies & npm scripts
+└── vite.config.ts             # Vite build configuration
 ```
 
 ---
 
-## License
-
+## 📄 License
 This project is licensed under the MIT License.

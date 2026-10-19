@@ -16,6 +16,20 @@ The main objective is not to copy Salesforce or HubSpot. The goal is to evolve t
 
 ---
 
+## 1.1 Live Implementation Status
+
+| Capability | Status | Implementation Details |
+|:---|:---:|:---|
+| **Lead Journey & Chevron Path** | **Shipped** | Salesforce-style chevron milestone tracker (`LeadJourneyView.jsx`), past stage inspection, inline composer |
+| **Mobile Responsiveness** | **Shipped** | 1-thumb bottom nav bar, off-canvas drawer, executive comparative horizontal bar graph switcher |
+| **Stage-Gate Governance** | **Shipped** | Yes/No qualification checklists, failure lost routing, backward demotion reasons, audit trail |
+| **Manager Approvals** | **Shipped** | Role-gated stage promotions, `[Stage Approval Required]` task agenda, one-click execution |
+| **Rebuy & Renewal Engine** | **Shipped** | Non-destructive won preservation, child rebuy opportunity generation, automated renewal outreach |
+| **Unified Timeline Service** | **Shipped** | `/api/timeline` aggregating activities, gate checks, notes, and audit logs with chronological sorting |
+| **Automated Testing Suite** | **Shipped** | 14 Playwright E2E browser tests + 32 Vitest unit and integration tests |
+
+---
+
 # 2. Current CRM — Existing Foundation
 
 The current demo already contains several important CRM concepts:
