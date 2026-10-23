@@ -37,6 +37,8 @@ const sanitizeTaskData = (data = {}) => {
     input.status = input.completed ? 'completed' : 'pending';
   }
 
+  if (input.status === 'done') input.status = 'completed';
+
   for (const key of Object.keys(input)) {
     if (VALID_TASK_KEYS.has(key)) {
       sanitized[key] = input[key];

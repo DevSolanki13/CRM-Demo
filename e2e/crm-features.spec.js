@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 
 test.describe('CRM Features Automated Test Suite', () => {
   test.beforeEach(async ({ page }) => {
@@ -116,4 +116,22 @@ test.describe('CRM Features Automated Test Suite', () => {
     await page.getByRole('button', { name: /^Overdue \d+/i }).click();
     await expect(page.getByRole('heading', { name: /Prioritized Work Queue/i })).toBeVisible();
   });
+});
+
+
+test('creates a zero-value opportunity without changing its value', async ({ page }) => {
+  const title = `Zero-value opportunity ${Date.now()}`;
+  await page.goto('/');
+  await page.locator('aside[aria-label="Main Navigation"]').getByRole('button', { name: /Pipeline/ }).click();
+  await page.getByRole('button', { name: 'New Deal', exact: true }).click();
+  await page.getByPlaceholder('e.g. AeroTech Q3 Packaging Contract').fill(title);
+  await page.locator('input[type="number"]').first().fill('0');
+  const saved = page.waitForResponse(response => response.url().endsWith('/api/deals') && response.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Save Deal', exact: true }).click();
+  const response = await saved;
+  expect(response.status()).toBe(201);
+  const deal = await response.json();
+  expect(deal.value).toBe(0);
+  expect(deal.stageId).toBe('stg-1');
+  await expect(page.getByRole('heading', { name: 'Create New Deal Opportunity' })).toHaveCount(0);
 });

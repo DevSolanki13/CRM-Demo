@@ -63,7 +63,7 @@ describe('request validation', () => {
     expect(approvalRequestSchema.safeParse({
       dealId: 'dl-1', fromStageId: 'stg-1', targetStageId: 'stg-2', answers: { need: 'yes' }
     }).success).toBe(false);
-    expect(updateTaskSchema.safeParse({ status: 'done' }).success).toBe(false);
+    expect(updateTaskSchema.safeParse({ status: 'done' }).success).toBe(true);
     expect(activitySchema.safeParse({ type: 'Call', notes: 'Called', timestamp: 'yesterdayish' }).success).toBe(false);
   });
 });

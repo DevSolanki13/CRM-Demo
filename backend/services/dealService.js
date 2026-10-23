@@ -36,7 +36,7 @@ export const createDeal = async (deal) => {
   if (!initialStage) throw Object.assign(new Error('No pipeline stages are configured.'), { statusCode: 409 });
   if ((deal.stageId && deal.stageId !== initialStage.id) ||
       (deal.status && !['Active', 'Open'].includes(deal.status)) ||
-      deal.pendingGateCheck || deal.parentDealId) {
+      deal.pendingGateCheck || deal.parentDealId || deal.isRebuy) {
     throw Object.assign(new Error('New deals must start in the initial pipeline stage.'), { statusCode: 409 });
   }
 
@@ -48,7 +48,7 @@ export const createDeal = async (deal) => {
     leadId: deal.leadId || null,
     parentDealId: deal.parentDealId || null,
     title: deal.title || 'New Sales Deal',
-    value: deal.value === undefined ? 10000 : Number(deal.value),
+    value: Number(deal.value ?? 0),
     currency: deal.currency || 'INR',
     stageId: initialStage.id,
     stageName: initialStage.name,
@@ -68,8 +68,8 @@ export const createDeal = async (deal) => {
     updatedAt: deal.updatedAt || todayStr,
     lastActivityDate: deal.lastActivityDate || todayStr,
     daysInStage: deal.daysInStage || 0,
-    valueHistory: deal.valueHistory || [
-      { date: todayStr, value: deal.value === undefined ? 10000 : Number(deal.value), stage: initialStage.name, reason: 'Initial deal creation' }
+    valueHistory: [
+      { date: todayStr, value: Number(deal.value ?? 0), stage: initialStage.name, reason: 'Initial deal creation' }
     ],
     partialGateState: deal.partialGateState || null,
     customFields: deal.customFields ?? {},
@@ -113,7 +113,8 @@ export const updateDeal = async (id, deal) => {
   if (!existing) return null;
 
   const managedFields = ['stageId', 'stageName', 'status', 'pendingGateCheck',
-    'actualCloseDate', 'lostReason', 'lostReasonNote'];
+    'actualCloseDate', 'lostReason', 'lostReasonNote', 'parentDealId',
+    'leadId', 'isRebuy', 'valueHistory'];
   if (managedFields.some(key => Object.hasOwn(deal, key) &&
       JSON.stringify(deal[key]) !== JSON.stringify(existing[key]))) {
     throw Object.assign(new Error('Pipeline state must be changed through a stage transition or approval decision.'),

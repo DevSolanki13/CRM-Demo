@@ -4,7 +4,7 @@ const customFieldsSchema = z.record(z.string(), z.union([
   z.string(), z.number().finite(), z.boolean(), z.null()
 ]));
 const optionalDate = z.iso.date().optional();
-const taskStatus = z.enum(['pending', 'completed']);
+const taskStatus = z.enum(['pending', 'completed', 'done']);
 
 export const validateBody = (schema) => (req, res, next) => {
   const result = schema.safeParse(req.body);
@@ -23,6 +23,12 @@ export const validateBody = (schema) => (req, res, next) => {
   next();
 };
 
+// Zod 4 applies defaults inside optional fields. Update schemas must remove
+// creation defaults, otherwise a title-only edit silently resets other fields.
+const updateSchema = schema => z.object(Object.fromEntries(
+  Object.entries(schema.shape).map(([key, field]) => [key, (field instanceof z.ZodDefault ? field.removeDefault() : field).optional()])
+)).passthrough();
+
 // 1. Companies
 export const companySchema = z.object({
   id: z.string().optional(),
@@ -34,7 +40,7 @@ export const companySchema = z.object({
   createdAt: z.string().optional(),
 }).passthrough();
 
-export const updateCompanySchema = companySchema.partial();
+export const updateCompanySchema = updateSchema(companySchema);
 
 // 2. Contacts
 export const contactSchema = z.object({
@@ -51,7 +57,7 @@ export const contactSchema = z.object({
   createdAt: z.string().optional(),
 }).passthrough();
 
-export const updateContactSchema = contactSchema.partial();
+export const updateContactSchema = updateSchema(contactSchema);
 
 // 3. Leads
 export const leadSchema = z.object({
@@ -72,7 +78,7 @@ export const leadSchema = z.object({
   lastActivityDate: z.string().optional(),
 }).passthrough();
 
-export const updateLeadSchema = leadSchema.partial();
+export const updateLeadSchema = updateSchema(leadSchema);
 
 // 4. Deals
 export const dealSchema = z.object({
@@ -105,7 +111,7 @@ export const dealSchema = z.object({
   updatedAt: z.string().optional(),
 }).passthrough();
 
-export const updateDealSchema = dealSchema.partial();
+export const updateDealSchema = updateSchema(dealSchema);
 
 export const dealTransitionSchema = z.object({
   targetStageId: z.string().min(1, 'Target stage ID is required'),
@@ -183,9 +189,7 @@ export const approvalRequestSchema = z.object({
   message: 'A Closed Lost reason is required', path: ['lostReason']
 });
 
-export const approvalDecisionSchema = z.object({
-  reviewer: z.object({ id: z.string().min(1) }).passthrough(),
-});
+export const approvalDecisionSchema = z.object({});
 
 export const approvalRejectionSchema = approvalDecisionSchema.extend({
   reason: z.string().trim().min(1, 'A rejection reason is required'),

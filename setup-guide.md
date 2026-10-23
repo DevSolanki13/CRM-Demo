@@ -19,7 +19,7 @@ This guide walks you through installing, configuring, running, testing, and depl
 ## 1. Prerequisites
 
 Ensure your local development environment has:
-- **Node.js**: `v18.0.0` or higher (`v20.x` recommended)
+- **Node.js**: `v24.x` (the tested cloud runtime)
 - **npm**: `v9.0.0` or higher
 - **PostgreSQL Database**: Free cloud instance from [Supabase](https://supabase.com) or [Neon](https://neon.tech), or a local PostgreSQL instance.
 
@@ -33,7 +33,7 @@ git clone https://github.com/DevSolanki13/CRM-Demo.git
 cd CRM-Demo
 
 # Install frontend, backend, and development dependencies
-npm install
+npm ci
 ```
 
 ### Step 2: Configure Environment Variables
@@ -64,11 +64,24 @@ DIRECT_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].p
 ### Step 3: Push Prisma Schema
 Push the 12 Prisma data models directly to your PostgreSQL database:
 ```bash
-npx prisma db push
+npm run db:migrate
+npx prisma generate --config prisma7.config.ts
 ```
 
+### Existing databases created with `prisma db push`
+
+Back up the database first. The baseline migration represents the original demo schema. Before adopting it, compare the existing database against that schema and reconcile differences; do not mark a mismatched database as migrated. For a database confirmed to match the original schema, mark only the baseline applied, then run the new migrations:
+
+```bash
+npx prisma migrate resolve --applied 202610230001_baseline --config prisma7.config.ts
+npm run db:migrate
+npx prisma generate --config prisma7.config.ts
+```
+
+Fresh databases need only `npm run db:migrate`; they should not use `migrate resolve`. Do not use `db push` as a substitute for versioned production migrations.
+
 ### Step 4: Seed Demo Dataset
-Populate the database with sample users, stages, accounts, contacts, leads, deals, tasks, activities, and audit logs:
+For a new disposable development database, populate sample records. Do not run demo seeding against business data: it updates existing demo records. Sample users have no passwords and cannot sign in until provisioned by an administrator.
 ```bash
 npm run seed
 ```
@@ -76,6 +89,20 @@ npm run seed
 ---
 
 ## 4. Running Locally
+
+### Create the first administrator
+
+From the repository root, run:
+
+```bash
+npm run admin:create
+```
+
+The command asks for an email, name, and a password of 12–128 characters without echoing the password. It can provision an existing seed user by email or create a new administrator. It refuses to bootstrap once an active administrator already has a password. For noninteractive provisioning, inject `ADMIN_EMAIL`, `ADMIN_NAME`, and `ADMIN_PASSWORD` securely into the process environment; never commit passwords or place them in command arguments.
+
+Sign in through the application. Administrators can create users and set/reset their passwords in Team & Workload. There is no public sign-up, default password, or client-side role switching.
+
+Sessions expire after eight hours. Logout, account deactivation, password changes, and role changes invalidate sessions. Production requires HTTPS; cookies are Secure when `NODE_ENV=production`. Set `APP_ORIGIN` to the exact external origin (for example `https://crm.example.com`) behind a reverse proxy. Keep the application on one origin for frontend and API requests. A shared gateway rate limiter is required before running multiple application replicas.
 
 ### Step 5: Start Unified Development Server
 ```bash
@@ -92,7 +119,7 @@ http://localhost:3000
 ## 5. Running Automated Tests
 
 ### Unit & Integration Tests (Vitest)
-Executes 32 unit and integration tests covering Zod schemas, stage transitions, timeline aggregation, follow-up automations, and RBAC rules:
+Executes unit and database-backed API/integration tests covering Zod schemas, stage transitions, timeline aggregation, follow-up automations, and RBAC rules:
 ```bash
 # Run tests once
 npm test
@@ -102,10 +129,13 @@ npm run test:watch
 ```
 
 ### End-to-End Tests (Playwright)
-Executes 14 browser automation tests covering core workflows, Lead Journey milestones, and mobile responsive viewports:
+Executes browser automation tests, including real sign-in/session checks covering core workflows, Lead Journey milestones, and mobile responsive viewports:
 ```bash
-# Run headless E2E test suite
+# Run headless E2E test suite (use a disposable test database)
 npm run test:e2e
+
+# Use the Chromium installed in the cloud image
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 
 # Run with interactive Playwright UI
 npm run test:e2e:ui

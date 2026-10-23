@@ -115,7 +115,7 @@ Closed Lost  Closed Lost   Closed Lost     Closed Lost       Closed Lost   Buy A
 ## ⚡ Quickstart
 
 ### 1. Prerequisites
-- **Node.js**: `v18.0.0` or higher
+- **Node.js**: `v24.x` (tested runtime)
 - **PostgreSQL**: Cloud database from [Supabase](https://supabase.com) or [Neon](https://neon.tech)
 
 ### 2. Setup & Installation
@@ -125,7 +125,7 @@ git clone https://github.com/DevSolanki13/CRM-Demo.git
 cd CRM-Demo
 
 # Install dependencies
-npm install
+npm ci
 
 # Configure environment
 cp .env.example .env
@@ -142,11 +142,20 @@ DIRECT_URL="postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabas
 ### 3. Database Push & Seed
 ```bash
 # Push Prisma schema to PostgreSQL
-npx prisma db push
+npm run db:migrate
+npx prisma generate --config prisma7.config.ts
 
 # Seed demo dataset
 npm run seed
 ```
+
+Create your first administrator before signing in:
+
+```bash
+npm run admin:create
+```
+
+There are no default passwords or demo role switching. For an existing database, read the baselining instructions in [setup-guide.md](setup-guide.md) before applying migrations. See [implementation progress](IMPLEMENTATION_PROGRESS.md) for completed work and [remaining changes](REMAINING_CHANGES.md) for the prioritized backlog.
 
 ### 4. Running the Application
 ```bash

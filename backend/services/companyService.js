@@ -2,6 +2,7 @@ import { prisma } from '../prisma.js';
 
 const VALID_COMPANY_KEYS = new Set([
   'id',
+  'ownerId',
   'name',
   'industry',
   'website',
@@ -30,6 +31,7 @@ export const createCompany = async (data) => {
   const rawComp = {
     id: data.id || `c-${Date.now()}`,
     name: data.name,
+    ownerId: data.ownerId || null,
     industry: data.industry || 'General',
     website: data.website || '',
     address: data.address || '',

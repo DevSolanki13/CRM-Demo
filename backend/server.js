@@ -1,29 +1,9 @@
-import express from "express";
-import path from "path";
-import { crmRouter } from "./routes/crmRoutes.js";
+import express from 'express';
+import path from 'path';
+import { createApp } from './app.js';
 
-const app = express();
+const app = createApp();
 const PORT = process.env.PORT || 3000;
-
-app.use(express.json({ limit: '10mb' }));
-
-// Mount API router
-app.use("/api", crmRouter);
-
-// Handle unknown API endpoints with clean JSON 404
-app.all("/api/*", (req, res) => {
-  res.status(404).json({ error: `API endpoint '${req.originalUrl}' not found`, statusCode: 404 });
-});
-
-// Global API error handler
-app.use((err, _req, res, _next) => {
-  console.error('[API Error]', err.message || err);
-  const status = err.statusCode || err.status || 500;
-  res.status(status).json({
-    error: err.message || 'Internal server error',
-    statusCode: status,
-  });
-});
 
 // Vite / Static file serving
 if (process.env.NODE_ENV !== "production") {

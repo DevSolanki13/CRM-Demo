@@ -1,8 +1,36 @@
 const BASE_URL = '/api';
 
+async function apiFetch(url, options = {}) {
+  const write = options.method && !['GET', 'HEAD'].includes(options.method);
+  const res = await fetch(url, {
+    ...options,
+    credentials: 'same-origin',
+    ...(write ? { body: options.body ?? '{}', headers: { 'Content-Type': 'application/json', ...options.headers } } : {}),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const error = Object.assign(new Error(data.error || 'Request failed'), { status: res.status, details: data.details });
+    if (res.status === 401 && typeof window !== 'undefined') window.dispatchEvent(new Event('crm:session-expired'));
+    throw error;
+  }
+  return res;
+}
+
+export async function fetchCurrentUser() {
+  return (await (await apiFetch(`${BASE_URL}/auth/me`)).json()).user;
+}
+
+export async function login(email, password) {
+  return (await (await apiFetch(`${BASE_URL}/auth/login`, { method: 'POST', body: JSON.stringify({ email, password }) })).json()).user;
+}
+
+export async function logout() {
+  await apiFetch(`${BASE_URL}/auth/logout`, { method: 'POST' });
+}
+
 export async function fetchCRMState() {
   try {
-    const res = await fetch(`${BASE_URL}/state`);
+    const res = await apiFetch(`${BASE_URL}/state`);
     if (!res.ok) throw new Error('Failed to load state');
     return await res.json();
   } catch (err) {
@@ -12,13 +40,13 @@ export async function fetchCRMState() {
 }
 
 export async function resetCRMState() {
-  const res = await fetch(`${BASE_URL}/state/reset`, { method: 'POST' });
+  const res = await apiFetch(`${BASE_URL}/state/reset`, { method: 'POST' });
   const data = await res.json();
   return data.state;
 }
 
 export async function updateBranding(branding) {
-  const res = await fetch(`${BASE_URL}/branding`, {
+  const res = await apiFetch(`${BASE_URL}/branding`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(branding)
@@ -28,7 +56,7 @@ export async function updateBranding(branding) {
 
 // Companies
 export async function createCompany(company) {
-  const res = await fetch(`${BASE_URL}/companies`, {
+  const res = await apiFetch(`${BASE_URL}/companies`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(company)
@@ -37,7 +65,7 @@ export async function createCompany(company) {
 }
 
 export async function updateCompany(id, company) {
-  const res = await fetch(`${BASE_URL}/companies/${id}`, {
+  const res = await apiFetch(`${BASE_URL}/companies/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(company)
@@ -46,14 +74,14 @@ export async function updateCompany(id, company) {
 }
 
 export async function deleteCompany(id) {
-  const res = await fetch(`${BASE_URL}/companies/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`${BASE_URL}/companies/${id}`, { method: 'DELETE' });
   const data = await res.json();
   return data.success;
 }
 
 // Contacts
 export async function createContact(contact) {
-  const res = await fetch(`${BASE_URL}/contacts`, {
+  const res = await apiFetch(`${BASE_URL}/contacts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(contact)
@@ -62,7 +90,7 @@ export async function createContact(contact) {
 }
 
 export async function updateContact(id, contact) {
-  const res = await fetch(`${BASE_URL}/contacts/${id}`, {
+  const res = await apiFetch(`${BASE_URL}/contacts/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(contact)
@@ -71,14 +99,14 @@ export async function updateContact(id, contact) {
 }
 
 export async function deleteContact(id) {
-  const res = await fetch(`${BASE_URL}/contacts/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`${BASE_URL}/contacts/${id}`, { method: 'DELETE' });
   const data = await res.json();
   return data.success;
 }
 
 // Leads
 export async function createLead(lead) {
-  const res = await fetch(`${BASE_URL}/leads`, {
+  const res = await apiFetch(`${BASE_URL}/leads`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(lead)
@@ -87,7 +115,7 @@ export async function createLead(lead) {
 }
 
 export async function updateLead(id, lead) {
-  const res = await fetch(`${BASE_URL}/leads/${id}`, {
+  const res = await apiFetch(`${BASE_URL}/leads/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(lead)
@@ -96,14 +124,14 @@ export async function updateLead(id, lead) {
 }
 
 export async function deleteLead(id) {
-  const res = await fetch(`${BASE_URL}/leads/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`${BASE_URL}/leads/${id}`, { method: 'DELETE' });
   const data = await res.json();
   return data.success;
 }
 
 // Pipeline Stages
 export async function createStage(stage) {
-  const res = await fetch(`${BASE_URL}/stages`, {
+  const res = await apiFetch(`${BASE_URL}/stages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(stage)
@@ -112,7 +140,7 @@ export async function createStage(stage) {
 }
 
 export async function updateStage(id, stage) {
-  const res = await fetch(`${BASE_URL}/stages/${id}`, {
+  const res = await apiFetch(`${BASE_URL}/stages/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(stage)
@@ -122,7 +150,7 @@ export async function updateStage(id, stage) {
 
 // Deals
 export async function createDeal(deal) {
-  const res = await fetch(`${BASE_URL}/deals`, {
+  const res = await apiFetch(`${BASE_URL}/deals`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(deal)
@@ -131,7 +159,7 @@ export async function createDeal(deal) {
 }
 
 export async function updateDeal(id, deal) {
-  const res = await fetch(`${BASE_URL}/deals/${id}`, {
+  const res = await apiFetch(`${BASE_URL}/deals/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(deal)
@@ -140,13 +168,13 @@ export async function updateDeal(id, deal) {
 }
 
 export async function deleteDeal(id) {
-  const res = await fetch(`${BASE_URL}/deals/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`${BASE_URL}/deals/${id}`, { method: 'DELETE' });
   const data = await res.json();
   return data.success;
 }
 
 export async function transitionDealStage(id, payload) {
-  const res = await fetch(`${BASE_URL}/deals/${id}/stage-transition`, {
+  const res = await apiFetch(`${BASE_URL}/deals/${id}/stage-transition`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -159,7 +187,7 @@ export async function transitionDealStage(id, payload) {
 }
 
 export async function closeLostDeal(id, payload) {
-  const res = await fetch(`${BASE_URL}/deals/${id}/close-lost`, {
+  const res = await apiFetch(`${BASE_URL}/deals/${id}/close-lost`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -172,7 +200,7 @@ export async function closeLostDeal(id, payload) {
 }
 
 export async function createRebuyDeal(id, user) {
-  const res = await fetch(`${BASE_URL}/deals/${id}/create-rebuy`, {
+  const res = await apiFetch(`${BASE_URL}/deals/${id}/create-rebuy`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user })
@@ -185,19 +213,19 @@ export async function createRebuyDeal(id, user) {
 }
 
 export async function triggerRenewalAutomation() {
-  const res = await fetch(`${BASE_URL}/deals/check-renewals`, { method: 'POST' });
+  const res = await apiFetch(`${BASE_URL}/deals/check-renewals`, { method: 'POST' });
   return res.json();
 }
 
 export async function fetchAuditLogs() {
-  const res = await fetch(`${BASE_URL}/audit-logs`);
+  const res = await apiFetch(`${BASE_URL}/audit-logs`);
   if (!res.ok) throw new Error('Failed to load audit logs');
   return res.json();
 }
 
 // Tasks
 export async function createTask(task) {
-  const res = await fetch(`${BASE_URL}/tasks`, {
+  const res = await apiFetch(`${BASE_URL}/tasks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task)
@@ -206,7 +234,7 @@ export async function createTask(task) {
 }
 
 export async function updateTask(id, task) {
-  const res = await fetch(`${BASE_URL}/tasks/${id}`, {
+  const res = await apiFetch(`${BASE_URL}/tasks/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task)
@@ -215,14 +243,14 @@ export async function updateTask(id, task) {
 }
 
 export async function deleteTask(id) {
-  const res = await fetch(`${BASE_URL}/tasks/${id}`, { method: 'DELETE' });
+  const res = await apiFetch(`${BASE_URL}/tasks/${id}`, { method: 'DELETE' });
   const data = await res.json();
   return data.success;
 }
 
 // Notes & Activities
 export async function createNote(note) {
-  const res = await fetch(`${BASE_URL}/notes`, {
+  const res = await apiFetch(`${BASE_URL}/notes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(note)
@@ -233,7 +261,7 @@ export async function createNote(note) {
 }
 
 export async function createActivity(activity) {
-  const res = await fetch(`${BASE_URL}/activities`, {
+  const res = await apiFetch(`${BASE_URL}/activities`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(activity)
@@ -245,7 +273,7 @@ export async function createActivity(activity) {
 
 // Users
 export async function createUser(user) {
-  const res = await fetch(`${BASE_URL}/users`, {
+  const res = await apiFetch(`${BASE_URL}/users`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(user)
@@ -254,7 +282,7 @@ export async function createUser(user) {
 }
 
 export async function updateUser(id, user) {
-  const res = await fetch(`${BASE_URL}/users/${id}`, {
+  const res = await apiFetch(`${BASE_URL}/users/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(user)
@@ -264,12 +292,12 @@ export async function updateUser(id, user) {
 
 // Stage Gate Checks
 export async function fetchStageGateChecks() {
-  const res = await fetch(`${BASE_URL}/stage-gate-checks`);
+  const res = await apiFetch(`${BASE_URL}/stage-gate-checks`);
   return res.json();
 }
 
 export async function createStageGateCheck(check) {
-  const res = await fetch(`${BASE_URL}/stage-gate-checks`, {
+  const res = await apiFetch(`${BASE_URL}/stage-gate-checks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(check)
@@ -279,29 +307,21 @@ export async function createStageGateCheck(check) {
   return data;
 }
 
-export async function approveStageGateCheck(id, reviewer) {
-  const res = await fetch(`${BASE_URL}/stage-gate-checks/${encodeURIComponent(id)}/approve`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reviewer })
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Approval failed');
-  return data;
+export async function approveStageGateCheck(id, _reviewer) {
+  const res = await apiFetch(`${BASE_URL}/stage-gate-checks/${encodeURIComponent(id)}/approve`, { method: 'POST' });
+  return res.json();
 }
 
-export async function rejectStageGateCheck(id, reviewer, reason) {
-  const res = await fetch(`${BASE_URL}/stage-gate-checks/${encodeURIComponent(id)}/reject`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reviewer, reason })
+export async function rejectStageGateCheck(id, _reviewer, reason) {
+  const res = await apiFetch(`${BASE_URL}/stage-gate-checks/${encodeURIComponent(id)}/reject`, {
+    method: 'POST', body: JSON.stringify({ reason })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Rejection failed');
-  return data;
+  return res.json();
 }
 
 // CSV Bulk Import
 export async function importContacts(items) {
-  const res = await fetch(`${BASE_URL}/import/contacts`, {
+  const res = await apiFetch(`${BASE_URL}/import/contacts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items })
@@ -313,7 +333,7 @@ export async function importContacts(items) {
 
 // Unified Activity Timeline
 export async function fetchTimeline(entityType, entityId) {
-  const res = await fetch(`${BASE_URL}/timeline?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`);
+  const res = await apiFetch(`${BASE_URL}/timeline?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`);
   if (!res.ok) {
     throw new Error('Failed to fetch unified timeline');
   }
@@ -322,7 +342,7 @@ export async function fetchTimeline(entityType, entityId) {
 
 // Automation & Follow-up Rules
 export async function fetchAutomationRules() {
-  const res = await fetch(`${BASE_URL}/settings/automation-rules`);
+  const res = await apiFetch(`${BASE_URL}/settings/automation-rules`);
   if (!res.ok) {
     throw new Error('Failed to fetch automation rules');
   }
@@ -330,7 +350,7 @@ export async function fetchAutomationRules() {
 }
 
 export async function updateAutomationRules(rules) {
-  const res = await fetch(`${BASE_URL}/settings/automation-rules`, {
+  const res = await apiFetch(`${BASE_URL}/settings/automation-rules`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ rules })

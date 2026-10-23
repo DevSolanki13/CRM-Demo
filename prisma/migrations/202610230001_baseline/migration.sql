@@ -4,7 +4,7 @@ CREATE SCHEMA IF NOT EXISTS "public";
 -- CreateTable
 CREATE TABLE "Branding" (
     "id" TEXT NOT NULL DEFAULT 'default',
-    "appName" TEXT NOT NULL DEFAULT 'NexusCRM',
+    "appName" TEXT NOT NULL DEFAULT 'Sales CRM',
     "tagline" TEXT NOT NULL DEFAULT 'Customizable B2B Sales & Recurring Order Platform',
     "logoIcon" TEXT NOT NULL DEFAULT 'Building2',
     "primaryColor" TEXT NOT NULL DEFAULT '#2563eb',
@@ -237,3 +237,4 @@ CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Stage_name_key" ON "Stage"("name");
+

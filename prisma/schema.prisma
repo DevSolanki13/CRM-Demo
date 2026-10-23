@@ -30,6 +30,19 @@ model User {
   role      String   @default("Sales Rep")
   active    Boolean  @default(true)
   avatarUrl String?
+  passwordHash String?
+  sessions Session[]
+}
+
+model Session {
+  tokenHash String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // 3. Pipeline Stages
@@ -43,6 +56,7 @@ model Stage {
 
 // 4. Accounts / Companies
 model Company {
+  ownerId   String?
   id        String  @id
   name      String
   industry  String?

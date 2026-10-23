@@ -33,7 +33,7 @@ export const EmployeesView = ({
 
   const handleOpenEdit = (user) => {
     setEditingUser(user);
-    setFormData({ ...user });
+    setFormData({ ...user, password: '' });
     setIsModalOpen(true);
   };
 
@@ -42,7 +42,7 @@ export const EmployeesView = ({
     if (!formData.name || !formData.email) return;
 
     if (editingUser) {
-      await onUpdateUser(editingUser.id, formData);
+      await onUpdateUser(editingUser.id, { ...formData, password: formData.password || undefined });
     } else {
       await onCreateUser(formData);
     }
@@ -178,6 +178,11 @@ export const EmployeesView = ({
                   placeholder="elena@company.com"
                   className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] font-mono"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[#5B6472] font-semibold mb-1" htmlFor="member-password">{editingUser ? 'New password (optional)' : 'Initial password *'}</label>
+                <input id="member-password" type="password" autoComplete="new-password" required={!editingUser} minLength={12} maxLength={128} value={formData.password || ''} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-xl border p-2.5" />
               </div>
 
               <div>

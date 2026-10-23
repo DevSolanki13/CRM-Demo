@@ -96,7 +96,6 @@ export const deleteLead = async (id) => {
   if (!existing) return false;
   await prisma.task.deleteMany({ where: { linkedId: id } });
   await prisma.activity.deleteMany({ where: { linkedId: id } });
-  await prisma.auditLog.deleteMany({ where: { entityId: id } });
   await prisma.lead.delete({ where: { id } });
   return true;
 };

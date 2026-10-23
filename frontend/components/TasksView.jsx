@@ -197,7 +197,7 @@ export const TasksView = ({
   }, [filteredFollowups, todayStr]);
 
   const completedTasks = useMemo(() => {
-    return filteredFollowups.filter(t => t.status === 'done');
+    return filteredFollowups.filter(t => t.status === 'completed');
   }, [filteredFollowups]);
 
   // Pending approval count
@@ -226,7 +226,7 @@ export const TasksView = ({
   };
 
   const handleToggleStatus = async (task) => {
-    const nextStatus = task.status === 'pending' ? 'done' : 'pending';
+    const nextStatus = task.status === 'pending' ? 'completed' : 'pending';
     await onUpdateTask(task.id, { status: nextStatus });
   };
 
@@ -246,7 +246,7 @@ export const TasksView = ({
 
   // Helper renderer for a standard rep task card
   const renderTaskCard = (task, isOverdue = false, isDueToday = false) => {
-    const isDone = task.status === 'done';
+    const isDone = task.status === 'completed';
 
     return (
       <div
@@ -537,7 +537,7 @@ export const TasksView = ({
           ) : (
             pendingApprovals.map(task => {
               const answerEntries = Object.entries(task.answers || {});
-              const isDone = task.status === 'done';
+              const isDone = task.status === 'completed';
 
               return (
                 <div

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 
 test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
   test.beforeEach(async ({ page }) => {
@@ -43,7 +43,10 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
     await nav.getByRole('button', { name: /Leads/i }).click();
 
     // 2. Click a lead row
-    const leadRow = page.locator('table tbody tr').first();
+    const before = await (await page.request.get('/api/state')).json();
+    const dealBefore = before.deals.find(deal => deal.title === 'Vanguard Silicone Liners Supply');
+    expect(dealBefore).toBeTruthy();
+    const leadRow = page.locator('table tbody tr', { hasText: 'Vanguard Silicone Liners' });
     await expect(leadRow).toBeVisible();
     await leadRow.click();
 
@@ -60,6 +63,8 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
     await expect(allHistoryBtn).toBeVisible();
     await allHistoryBtn.click();
     await expect(page.getByText(/All Stages \(Full Customer Journey\)/i)).toBeVisible();
+    const after = await (await page.request.get('/api/state')).json();
+    expect(after.deals.find(deal => deal.id === dealBefore.id).stageId).toBe(dealBefore.stageId);
   });
 
   test('03: Inline Salesforce Activity Composer logs a call to the timeline', async ({ page }) => {

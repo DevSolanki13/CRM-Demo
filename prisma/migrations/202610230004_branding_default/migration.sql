@@ -1,0 +1,1 @@
+ALTER TABLE "Branding" ALTER COLUMN "appName" SET DEFAULT 'NexusCRM';
