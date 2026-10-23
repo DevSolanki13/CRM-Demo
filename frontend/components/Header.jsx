@@ -192,7 +192,7 @@ export const Header = ({
                   <p className="text-xs font-semibold">{currentUser?.name}</p>
                   <p className="text-[11px] text-[#5B6472]">{currentUser?.email}</p>
                 </div>
-                <button role="menuitem" onClick={() => { setShowUserDropdown(false); onLogout(); }} className="w-full px-3 py-3 text-left hover:bg-[#EFF6F9] font-semibold">Sign out</button>
+                {onLogout && <button role="menuitem" onClick={() => { setShowUserDropdown(false); onLogout(); }} className="w-full px-3 py-3 text-left hover:bg-[#EFF6F9] font-semibold">Sign out</button>}
               </div>
             )}
           </div>

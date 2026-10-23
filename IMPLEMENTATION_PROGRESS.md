@@ -2,6 +2,12 @@
 
 The detailed outstanding backlog is in [REMAINING_CHANGES.md](REMAINING_CHANGES.md).
 
+## Temporary direct-access mode (2026-10-24)
+
+- Login and sign-out are removed from the active UI and API routes. The server selects the first active administrator as a shared actor for every visitor, including production visitors. Account login and a landing page are deferred.
+- The former authentication implementation remains in the repository for later restoration, but its routes are not mounted. This mode grants every reachable visitor administrator access; restrict the deployment and use disposable data until login returns.
+- The current development database lacks `Company.ownerId` from the authentication migration and has a different recorded baseline name. The direct-access profile endpoint works, but the full CRM state cannot load against that database until its schema and migration history are safely reconciled. No database migration or reset was run for this mode change.
+
 ## Access control and initial correctness milestone
 
 - Password login uses scrypt hashes, database-backed sessions, HttpOnly/SameSite cookies, eight-hour expiry, logout, and session revocation. An administrator provisions the first account; existing seeded users need passwords assigned before sign-in.
@@ -51,5 +57,5 @@ The detailed outstanding backlog is in [REMAINING_CHANGES.md](REMAINING_CHANGES.
 
 - Ordinary stage transitions and the approval executor still have separate transition implementations. The ordinary path needs a transactional compare-and-swap and shared side-effect logic.
 - Lead-only gate checks need an explicit, persisted stage model. The current request creator requires a deal.
-- Reviewer identity now comes from the authenticated session. The approval executor also looks up the reviewer in the database before deciding.
+- Reviewer identity currently comes from the shared server-selected administrator. The approval executor also looks up that actor in the database before deciding.
 - The reporting, customer-data, automation, product, scale, and deployment sections of the CRM backlog remain open.

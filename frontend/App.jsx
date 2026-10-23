@@ -1,11 +1,8 @@
-import { LoginView } from './components/LoginView.jsx';
 import React, { useState, useEffect, useMemo } from 'react';
 import { getLocalDateInputValueAfterDays } from './utils/crmHelpers.js';
 import {
   fetchCRMState,
   fetchCurrentUser,
-  login,
-  logout,
   resetCRMState,
   updateBranding,
   createCompany,
@@ -127,18 +124,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
-  // Identity is established by the server, never by choosing a demo profile.
+  // Load the temporary shared workspace identity from the server.
   useEffect(() => {
     let cancelled = false;
-    const expire = () => {
-      setCurrentUser(null);
-      setState(null);
-      setDrawerState({ isOpen: false, type: 'deal', item: null });
-      setSelectedLeadForJourney(null);
-      setIsImportExportOpen(false);
-      setActiveTab('dashboard');
-    };
-    window.addEventListener('crm:session-expired', expire);
     async function loadData() {
       try {
         const user = await fetchCurrentUser();
@@ -148,39 +136,14 @@ export default function App() {
           setCurrentUser(user);
         }
       } catch (err) {
-        if (!cancelled && err.status !== 401) setLoadError(err.message);
+        if (!cancelled) setLoadError(err.message);
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
     loadData();
-    return () => {
-      cancelled = true;
-      window.removeEventListener('crm:session-expired', expire);
-    };
+    return () => { cancelled = true; };
   }, []);
-
-  const handleLogin = async (email, password) => {
-    const user = await login(email, password);
-    const data = await fetchCRMState();
-    setState(normalizeStateStages(data));
-    setCurrentUser(user);
-    setLoadError('');
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      setCurrentUser(null);
-      setState(null);
-      setSelectedLeadForJourney(null);
-      setDrawerState({ isOpen: false, type: 'deal', item: null });
-      setIsImportExportOpen(false);
-      setActiveTab('dashboard');
-    } catch (err) {
-      toast.error(err.message || 'Sign out failed');
-    }
-  };
 
   // Memoized Pending Tasks and Renewals Count for badges (placed before any early return)
   const pendingTasksCount = useMemo(() => {
@@ -192,8 +155,6 @@ export default function App() {
   }, [state?.deals]);
 
   if (!loading && loadError) return <main className="p-8"><p role="alert">{loadError}</p><button onClick={() => window.location.reload()}>Retry</button></main>;
-  if (!loading && !currentUser) return <LoginView onLogin={handleLogin} />;
-
   if (loading || !state || !currentUser) {
     return (
       <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)] flex flex-col font-sans select-none" aria-busy="true" aria-label="Loading CRM Workspace">
@@ -658,7 +619,6 @@ export default function App() {
           users={state.users}
           currentUser={currentUser}
           state={state}
-          onLogout={handleLogout}
           onSelectSearchResult={handleSelectSearchResult}
           onNavigateTab={handleNavigateTab}
           onOpenQuickAction={handleQuickAction}
@@ -678,7 +638,6 @@ export default function App() {
             userRole={currentUser.role}
             pendingTasksCount={pendingTasksCount}
             renewalsDueCount={renewalsDueCount}
-            onLogout={handleLogout}
             onOpenImportExport={() => setIsImportExportOpen(true)}
             isMobileOpen={isMobileMenuOpen}
             onCloseMobile={() => setIsMobileMenuOpen(false)}

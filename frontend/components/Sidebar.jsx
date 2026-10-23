@@ -134,7 +134,7 @@ export const Sidebar = ({
             </div>
           </div>
 
-          <button
+          {onLogout && <button
             onClick={onLogout}
             aria-label="Sign out of CRM"
             className="w-full flex items-center justify-center lg:justify-start gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-[#922D27] hover:bg-[#FDF2F1] transition-colors focus-visible:outline-2 focus-visible:outline-[#922D27]"
@@ -142,7 +142,7 @@ export const Sidebar = ({
           >
             <LogOut className="w-4 h-4 text-[#922D27] shrink-0" aria-hidden="true" />
             <span className="hidden lg:inline">Sign Out</span>
-          </button>
+          </button>}
         </div>
       </aside>
 
@@ -238,7 +238,7 @@ export const Sidebar = ({
                 <span className="text-[10px] text-[#5B6472] font-mono">.csv</span>
               </button>
 
-              <button
+              {onLogout && <button
                 onClick={() => {
                   if (onCloseMobile) onCloseMobile();
                   onLogout();
@@ -247,7 +247,7 @@ export const Sidebar = ({
               >
                 <LogOut className="w-4 h-4 text-[#922D27]" />
                 <span>Sign Out</span>
-              </button>
+              </button>}
             </div>
           </div>
         </div>

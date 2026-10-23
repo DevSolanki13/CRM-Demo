@@ -14,6 +14,8 @@
 
 Sales CRM is a modern, full-stack B2B Customer Relationship Management platform engineered for pipeline governance, Salesforce-style lead journey milestone tracking, stage-gate qualification, repeat purchase management, and responsive mobile sales workflows.
 
+The current temporary workspace opens directly without a login. The server assigns the first active administrator as the shared actor for all visitors, including production visitors. Keep this version on a private or disposable deployment until account login is restored.
+
 ---
 
 ## 📚 Project Documentation

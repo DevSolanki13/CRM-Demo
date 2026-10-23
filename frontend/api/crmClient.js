@@ -10,22 +10,13 @@ async function apiFetch(url, options = {}) {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     const error = Object.assign(new Error(data.error || 'Request failed'), { status: res.status, details: data.details });
-    if (res.status === 401 && typeof window !== 'undefined') window.dispatchEvent(new Event('crm:session-expired'));
     throw error;
   }
   return res;
 }
 
 export async function fetchCurrentUser() {
-  return (await (await apiFetch(`${BASE_URL}/auth/me`)).json()).user;
-}
-
-export async function login(email, password) {
-  return (await (await apiFetch(`${BASE_URL}/auth/login`, { method: 'POST', body: JSON.stringify({ email, password }) })).json()).user;
-}
-
-export async function logout() {
-  await apiFetch(`${BASE_URL}/auth/logout`, { method: 'POST' });
+  return (await (await apiFetch(`${BASE_URL}/me`)).json()).user;
 }
 
 export async function fetchCRMState() {

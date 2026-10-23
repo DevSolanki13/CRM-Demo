@@ -1,5 +1,4 @@
 import express from 'express';
-import { authRouter } from './auth/sessions.js';
 import { crmRouter } from './routes/crmRoutes.js';
 
 export function createApp() {
@@ -10,7 +9,6 @@ export function createApp() {
     res.set('Cache-Control', 'no-store');
     next();
   });
-  app.use('/api/auth', authRouter);
   app.use('/api', crmRouter);
   app.all('/api/*', (_req, res) => res.status(404).json({ error: 'API endpoint not found' }));
   app.use((err, _req, res, _next) => {

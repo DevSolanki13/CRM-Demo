@@ -81,7 +81,7 @@ npx prisma generate --config prisma7.config.ts
 Fresh databases need only `npm run db:migrate`; they should not use `migrate resolve`. Do not use `db push` as a substitute for versioned production migrations.
 
 ### Step 4: Seed Demo Dataset
-For a new disposable development database, populate sample records. Do not run demo seeding against business data: it updates existing demo records. Sample users have no passwords and cannot sign in until provisioned by an administrator.
+For a new disposable development database, populate sample records. Do not run demo seeding against business data: it updates existing demo records. The CRM needs an active administrator record to supply its temporary shared identity.
 ```bash
 npm run seed
 ```
@@ -90,19 +90,11 @@ npm run seed
 
 ## 4. Running Locally
 
-### Create the first administrator
+### Temporary direct access
 
-From the repository root, run:
+The CRM currently opens without sign-in or sign-out. Every visitor uses the first active administrator as a shared actor and can perform administrator actions. Use a private or disposable database and deployment for this phase. The previous session and password code remains in the repository for the later login and landing-page work, but its routes are not mounted.
 
-```bash
-npm run admin:create
-```
-
-The command asks for an email, name, and a password of 12–128 characters without echoing the password. It can provision an existing seed user by email or create a new administrator. It refuses to bootstrap once an active administrator already has a password. For noninteractive provisioning, inject `ADMIN_EMAIL`, `ADMIN_NAME`, and `ADMIN_PASSWORD` securely into the process environment; never commit passwords or place them in command arguments.
-
-Sign in through the application. Administrators can create users and set/reset their passwords in Team & Workload. There is no public sign-up, default password, or client-side role switching.
-
-Sessions expire after eight hours. Logout, account deactivation, password changes, and role changes invalidate sessions. Production requires HTTPS; cookies are Secure when `NODE_ENV=production`. Set `APP_ORIGIN` to the exact external origin (for example `https://crm.example.com`) behind a reverse proxy. Keep the application on one origin for frontend and API requests. A shared gateway rate limiter is required before running multiple application replicas.
+Set `APP_ORIGIN` to the exact external origin (for example `https://crm.example.com`) behind a reverse proxy. Keep the frontend and API on one origin for API write protection.
 
 ### Step 5: Start Unified Development Server
 ```bash
@@ -119,7 +111,7 @@ http://localhost:3000
 ## 5. Running Automated Tests
 
 ### Unit & Integration Tests (Vitest)
-Executes unit and database-backed API/integration tests covering Zod schemas, stage transitions, timeline aggregation, follow-up automations, and RBAC rules:
+Executes unit and database-backed API/integration tests covering Zod schemas, stage transitions, timeline aggregation, follow-up automations, and open workspace access:
 ```bash
 # Run tests once
 npm test
@@ -129,7 +121,7 @@ npm run test:watch
 ```
 
 ### End-to-End Tests (Playwright)
-Executes browser automation tests, including real sign-in/session checks covering core workflows, Lead Journey milestones, and mobile responsive viewports:
+Executes browser automation tests covering direct workspace access, core workflows, Lead Journey milestones, and mobile responsive viewports:
 ```bash
 # Run headless E2E test suite (use a disposable test database)
 npm run test:e2e
