@@ -384,12 +384,12 @@ export const PipelineView = ({
     }
   };
 
-  const handleOpenAddModal = (stageId) => {
+  const handleOpenAddModal = (_stageId) => {
     setEditingDeal(null);
     setFormData({
       title: '',
       value: 25000,
-      stageId: stageId || sortedStages[0]?.id || '',
+      stageId: sortedStages[0]?.id || '',
       expectedCloseDate: getLocalDateInputValueAfterDays(30),
       contactId: contacts[0]?.id || '',
       companyId: companies[0]?.id || '',
@@ -408,7 +408,7 @@ export const PipelineView = ({
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.title || !formData.value) return;
+    if (!formData.title || !Number.isFinite(formData.value) || formData.value < 0) return;
 
     if (editingDeal) {
       await onUpdateDeal(editingDeal.id, formData);
@@ -532,7 +532,7 @@ export const PipelineView = ({
                 className="w-full py-1.5 bg-[#F6F7F8] hover:bg-[#EEF0F3] text-[#5B6472] hover:text-[#12161C] border border-dashed border-[#E3E6EA] rounded-xl text-xs font-semibold flex items-center justify-center gap-1 transition-colors shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Add Deal to Stage</span>
+                <span>Add Deal</span>
               </button>
 
               {/* Stage Total Value Summary */}
@@ -1043,6 +1043,8 @@ export const PipelineView = ({
                   <label className="block text-[#5B6472] font-semibold mb-1">Value (₹) *</label>
                   <input
                     type="number"
+                    min="0"
+                    step="0.01"
                     required
                     value={formData.value}
                     onChange={(e) => setFormData({ ...formData, value: Number(e.target.value) })}
@@ -1054,6 +1056,7 @@ export const PipelineView = ({
                   <label className="block text-[#5B6472] font-semibold mb-1">Pipeline Stage</label>
                   <select
                     value={formData.stageId}
+                    disabled={!editingDeal}
                     onChange={(e) => setFormData({ ...formData, stageId: e.target.value })}
                     className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
                   >

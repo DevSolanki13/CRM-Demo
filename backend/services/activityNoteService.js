@@ -1,11 +1,12 @@
+import { actorContext } from '../auth/identity.js';
 import { prisma } from '../prisma.js';
 
 export const logAudit = async (event) => {
   const logEntry = {
     id: `aud-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     timestamp: new Date().toISOString(),
-    actorId: event.actorId || 'u-1',
-    actorName: event.actorName || 'System',
+    actorId: actorContext.getStore()?.id || event.actorId || 'u-1',
+    actorName: actorContext.getStore()?.name || event.actorName || 'System',
     action: event.action || 'GENERAL_ACTION',
     entityType: event.entityType || 'General',
     entityId: event.entityId || '',

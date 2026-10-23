@@ -194,7 +194,7 @@ export const TasksView = ({
   }, [filteredFollowups, todayStr]);
 
   const completedTasks = useMemo(() => {
-    return filteredFollowups.filter(t => t.status === 'done');
+    return filteredFollowups.filter(t => t.status === 'completed');
   }, [filteredFollowups]);
 
   // Pending approval count
@@ -223,7 +223,7 @@ export const TasksView = ({
   };
 
   const handleToggleStatus = async (task) => {
-    const nextStatus = task.status === 'pending' ? 'done' : 'pending';
+    const nextStatus = task.status === 'pending' ? 'completed' : 'pending';
     await onUpdateTask(task.id, { status: nextStatus });
   };
 
@@ -232,7 +232,7 @@ export const TasksView = ({
     if (!targetId || !onApproveStageGateCheck) return;
     await onApproveStageGateCheck(targetId, currentUser);
     if (onUpdateTask && !String(task.id).startsWith('v-task-')) {
-      await onUpdateTask(task.id, { status: 'done', resolution: 'Approved' });
+      await onUpdateTask(task.id, { status: 'completed', resolution: 'Approved' });
     }
   };
 
@@ -243,13 +243,13 @@ export const TasksView = ({
     if (reason === null) return;
     await onRejectStageGateCheck(targetId, currentUser, reason);
     if (onUpdateTask && !String(task.id).startsWith('v-task-')) {
-      await onUpdateTask(task.id, { status: 'done', resolution: 'Rejected', rejectionReason: reason });
+      await onUpdateTask(task.id, { status: 'completed', resolution: 'Rejected', rejectionReason: reason });
     }
   };
 
   // Helper renderer for a standard rep task card
   const renderTaskCard = (task, isOverdue = false, isDueToday = false) => {
-    const isDone = task.status === 'done';
+    const isDone = task.status === 'completed';
 
     return (
       <div
@@ -540,7 +540,7 @@ export const TasksView = ({
           ) : (
             pendingApprovals.map(task => {
               const answerEntries = Object.entries(task.answers || {});
-              const isDone = task.status === 'done';
+              const isDone = task.status === 'completed';
 
               return (
                 <div

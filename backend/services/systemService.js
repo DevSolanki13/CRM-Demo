@@ -1,3 +1,4 @@
+import { PUBLIC_USER_SELECT } from '../auth/identity.js';
 import { prisma } from '../prisma.js';
 import {
   initialBranding,
@@ -31,7 +32,7 @@ export const getState = async () => {
     auditLogs
   ] = await Promise.all([
     prisma.branding.findUnique({ where: { id: 'default' } }),
-    prisma.user.findMany({ orderBy: { name: 'asc' } }),
+    prisma.user.findMany({ orderBy: { name: 'asc' }, select: PUBLIC_USER_SELECT }),
     prisma.stage.findMany({ orderBy: { order: 'asc' } }),
     prisma.company.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.contact.findMany({ orderBy: { createdAt: 'desc' } }),

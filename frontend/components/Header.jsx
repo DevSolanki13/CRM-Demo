@@ -12,10 +12,9 @@ import {
 
 export const Header = ({
   branding,
-  users = [],
   currentUser,
   state = null,
-  onSelectUser,
+  onLogout,
   onSelectSearchResult,
   onNavigateTab,
   onOpenQuickAction,
@@ -83,7 +82,7 @@ export const Header = ({
           {/* Renewal Check Button */}
           <button
             onClick={handleRenewalClick}
-            disabled={checkingRenewal}
+            disabled={checkingRenewal || currentUser?.role === 'Sales Rep'}
             aria-label={renewalsDueCount > 0 ? `Trigger renewal check (${renewalsDueCount} renewals due)` : 'Trigger recurring order cycle check'}
             className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border ${
               renewalsDueCount > 0 
@@ -161,13 +160,13 @@ export const Header = ({
             )}
           </div>
 
-          {/* User Role Switcher Dropdown (RBAC Demo Feature) */}
+          {/* Signed-in account */}
           <div className="relative">
             <button
               onClick={() => setShowUserDropdown(!showUserDropdown)}
               aria-haspopup="menu"
               aria-expanded={showUserDropdown}
-              aria-label={`Switch user role, currently ${currentUser?.name} (${currentUser?.role})`}
+              aria-label={`Account: ${currentUser?.name} (${currentUser?.role})`}
               className="flex items-center gap-2 bg-[#F6F7F8] hover:bg-[#EEF0F3] border border-[#E3E6EA] rounded-xl px-3 py-1.5 text-xs text-[#12161C] transition-colors focus-visible:outline-2 focus-visible:outline-[#1D4E63]"
             >
               <img
@@ -190,28 +189,10 @@ export const Header = ({
                 onMouseLeave={() => setShowUserDropdown(false)}
               >
                 <div className="px-3 py-2 border-b border-[#E3E6EA] bg-[#F6F7F8]">
-                  <p className="text-[11px] font-mono font-bold text-[#5B6472] uppercase tracking-wider">Demo RBAC Switcher</p>
-                  <p className="text-[11px] text-[#5B6472]">Switch user role to test access</p>
+                  <p className="text-xs font-semibold">{currentUser?.name}</p>
+                  <p className="text-[11px] text-[#5B6472]">{currentUser?.email}</p>
                 </div>
-                {users?.map(u => (
-                  <button
-                    key={u.id}
-                    role="menuitem"
-                    onClick={() => {
-                      onSelectUser(u);
-                      setShowUserDropdown(false);
-                    }}
-                    className={`w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-[#EFF6F9] transition-colors ${
-                      u.id === currentUser?.id ? 'bg-[#EFF6F9] text-[#12161C] font-semibold border-l-2 border-[#1D4E63]' : 'text-[#5B6472]'
-                    }`}
-                  >
-                    <img src={u.avatarUrl} alt={u.name} className="w-6 h-6 rounded-full object-cover" />
-                    <div className="flex-1">
-                      <div className="text-xs text-[#12161C] font-bold">{u.name}</div>
-                      <div className="text-[11px] text-[#5B6472]">{u.role} &bull; {u.email}</div>
-                    </div>
-                  </button>
-                ))}
+                <button role="menuitem" onClick={() => { setShowUserDropdown(false); onLogout(); }} className="w-full px-3 py-3 text-left hover:bg-[#EFF6F9] font-semibold">Sign out</button>
               </div>
             )}
           </div>

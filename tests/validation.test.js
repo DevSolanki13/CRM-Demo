@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
+  updateCompanySchema,
+  updateContactSchema,
+  updateLeadSchema,
+  updateDealSchema,
   companySchema,
   contactSchema,
   leadSchema,
@@ -112,5 +116,13 @@ describe('Zod Request Body Validation', () => {
       const parsed = taskSchema.safeParse({ title: '' });
       expect(parsed.success).toBe(false);
     });
+  });
+});
+
+
+describe('Partial update safety', () => {
+  it('does not inject creation defaults into partial edits', () => {
+    for (const schema of [updateLeadSchema, updateDealSchema]) expect(schema.parse({ title: 'Changed' })).toEqual({ title: 'Changed' });
+    for (const schema of [updateCompanySchema, updateContactSchema]) expect(schema.parse({ name: 'Changed' })).toEqual({ name: 'Changed' });
   });
 });

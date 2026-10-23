@@ -1,3 +1,5 @@
+import { requireSession, protectWrites } from '../auth/sessions.js';
+import { authorizeCRM } from '../auth/permissions.js';
 import { Router } from 'express';
 import * as crmController from '../controllers/crmController.js';
 import {
@@ -19,6 +21,7 @@ export const crmRouter = Router();
 
 // Health & System State
 crmRouter.get('/health', crmController.getHealth);
+crmRouter.use(protectWrites, requireSession, authorizeCRM);
 crmRouter.get('/state', crmController.getState);
 crmRouter.post('/state/reset', crmController.resetState);
 

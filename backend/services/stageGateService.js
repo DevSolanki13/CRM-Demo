@@ -182,7 +182,7 @@ export const approveStageGateCheck = async (id, reviewer) => {
       await prisma.task.update({
         where: { id: t.id },
         data: {
-          status: 'done',
+          status: 'completed',
           reviewedByName: reviewer?.name || 'Alex Vance',
           resolution: 'Approved'
         }
@@ -309,7 +309,7 @@ export const rejectStageGateCheck = async (id, reviewer, reason) => {
     await prisma.task.update({
       where: { id: t.id },
       data: {
-        status: 'done',
+        status: 'completed',
         reviewedByName: reviewer?.name || 'Alex Vance',
         resolution: 'Rejected',
         note: reason || 'Requirements not met'

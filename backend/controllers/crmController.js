@@ -17,8 +17,8 @@ export const getHealth = (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 };
 
-export const getState = asyncHandler(async (_req, res) => {
-  const state = await systemService.getState();
+export const getState = asyncHandler(async (req, res) => {
+  const state = req.crmState;
   res.json(state);
 });
 
@@ -33,8 +33,8 @@ export const updateBranding = asyncHandler(async (req, res) => {
 });
 
 // Companies
-export const getCompanies = asyncHandler(async (_req, res) => {
-  res.json(await companyService.getCompanies());
+export const getCompanies = asyncHandler(async (req, res) => {
+  res.json(req.crmState.companies);
 });
 
 export const createCompany = asyncHandler(async (req, res) => {
@@ -57,8 +57,8 @@ export const deleteCompany = asyncHandler(async (req, res) => {
 });
 
 // Contacts
-export const getContacts = asyncHandler(async (_req, res) => {
-  res.json(await contactService.getContacts());
+export const getContacts = asyncHandler(async (req, res) => {
+  res.json(req.crmState.contacts);
 });
 
 export const createContact = asyncHandler(async (req, res) => {
@@ -87,8 +87,8 @@ export const importContacts = asyncHandler(async (req, res) => {
 });
 
 // Leads
-export const getLeads = asyncHandler(async (_req, res) => {
-  res.json(await leadService.getLeads());
+export const getLeads = asyncHandler(async (req, res) => {
+  res.json(req.crmState.leads);
 });
 
 export const createLead = asyncHandler(async (req, res) => {
@@ -111,8 +111,8 @@ export const deleteLead = asyncHandler(async (req, res) => {
 });
 
 // Stages
-export const getStages = asyncHandler(async (_req, res) => {
-  res.json(await stageService.getStages());
+export const getStages = asyncHandler(async (req, res) => {
+  res.json(req.crmState.stages);
 });
 
 export const createStage = asyncHandler(async (req, res) => {
@@ -130,8 +130,8 @@ export const updateStage = asyncHandler(async (req, res) => {
 });
 
 // Deals
-export const getDeals = asyncHandler(async (_req, res) => {
-  res.json(await dealService.getDeals());
+export const getDeals = asyncHandler(async (req, res) => {
+  res.json(req.crmState.deals);
 });
 
 export const createDeal = asyncHandler(async (req, res) => {
@@ -154,17 +154,17 @@ export const deleteDeal = asyncHandler(async (req, res) => {
 });
 
 export const transitionDealStage = asyncHandler(async (req, res) => {
-  const result = await dealService.transitionDealStage(req.params.id, req.body);
+  const result = await dealService.transitionDealStage(req.params.id, { ...req.body, user: req.user });
   res.json(result);
 });
 
 export const closeLostDeal = asyncHandler(async (req, res) => {
-  const result = await dealService.closeLostDeal(req.params.id, req.body);
+  const result = await dealService.closeLostDeal(req.params.id, { ...req.body, note: req.body.note || req.body.lostNote, user: req.user });
   res.json(result);
 });
 
 export const createRebuyDeal = asyncHandler(async (req, res) => {
-  const rebuyDeal = await dealService.createRebuyDeal(req.params.id, req.body?.user);
+  const rebuyDeal = await dealService.createRebuyDeal(req.params.id, req.user);
   if (!rebuyDeal) {
     return res.status(404).json({ error: 'Parent deal not found' });
   }
@@ -178,13 +178,13 @@ export const checkRenewals = asyncHandler(async (_req, res) => {
 });
 
 // Audit Logs
-export const getAuditLogs = asyncHandler(async (_req, res) => {
-  res.json(await activityNoteService.getAuditLogs());
+export const getAuditLogs = asyncHandler(async (req, res) => {
+  res.json(req.crmState.auditLogs);
 });
 
 // Tasks
-export const getTasks = asyncHandler(async (_req, res) => {
-  res.json(await taskService.getTasks());
+export const getTasks = asyncHandler(async (req, res) => {
+  res.json(req.crmState.tasks);
 });
 
 export const createTask = asyncHandler(async (req, res) => {
@@ -194,7 +194,8 @@ export const createTask = asyncHandler(async (req, res) => {
 
 export const updateTask = asyncHandler(async (req, res) => {
   const updated = await taskService.updateTask(req.params.id, req.body);
-  res.json(updated || { id: req.params.id, ...req.body });
+  if (!updated) return res.status(404).json({ error: 'Task not found' });
+  res.json(updated);
 });
 
 export const deleteTask = asyncHandler(async (req, res) => {
@@ -203,21 +204,21 @@ export const deleteTask = asyncHandler(async (req, res) => {
 });
 
 // Notes & Activities
-export const getNotes = asyncHandler(async (_req, res) => {
-  res.json(await activityNoteService.getNotes());
+export const getNotes = asyncHandler(async (req, res) => {
+  res.json(req.crmState.notes);
 });
 
 export const createNote = asyncHandler(async (req, res) => {
-  const newNote = await activityNoteService.createNote(req.body);
+  const newNote = await activityNoteService.createNote({ ...req.body, authorId: req.user.id, authorName: req.user.name });
   res.status(201).json(newNote);
 });
 
-export const getActivities = asyncHandler(async (_req, res) => {
-  res.json(await activityNoteService.getActivities());
+export const getActivities = asyncHandler(async (req, res) => {
+  res.json(req.crmState.activities);
 });
 
 export const createActivity = asyncHandler(async (req, res) => {
-  const newActivity = await activityNoteService.createActivity(req.body);
+  const newActivity = await activityNoteService.createActivity({ ...req.body, authorId: req.user.id, authorName: req.user.name, performedByName: req.user.name });
   res.status(201).json(newActivity);
 });
 
@@ -227,8 +228,8 @@ export const deleteActivity = asyncHandler(async (req, res) => {
 });
 
 // Users
-export const getUsers = asyncHandler(async (_req, res) => {
-  res.json(await userService.getUsers());
+export const getUsers = asyncHandler(async (req, res) => {
+  res.json(req.crmState.users);
 });
 
 export const createUser = asyncHandler(async (req, res) => {
@@ -237,7 +238,7 @@ export const createUser = asyncHandler(async (req, res) => {
 });
 
 export const updateUser = asyncHandler(async (req, res) => {
-  const updated = await userService.updateUser(req.params.id, req.body);
+  const updated = await userService.updateUser(req.params.id, req.body, req.user);
   if (updated) {
     res.json(updated);
   } else {
@@ -246,22 +247,27 @@ export const updateUser = asyncHandler(async (req, res) => {
 });
 
 // Stage Gate Checks
-export const getStageGateChecks = asyncHandler(async (_req, res) => {
-  res.json(await stageGateService.getStageGateChecks());
+export const getStageGateChecks = asyncHandler(async (req, res) => {
+  res.json(req.crmState.stageGateChecks);
 });
 
 export const createStageGateCheck = asyncHandler(async (req, res) => {
-  const newCheck = await stageGateService.createStageGateCheck(req.body);
-  res.status(201).json(newCheck);
+  if (!req.body.dealId || !req.body.targetStageId) return res.status(400).json({ error: 'Convert the lead to a deal and choose a target stage first' });
+  if (req.body.outcome === 'lost' || Object.values(req.body.answers || {}).some(answer => answer === false)) {
+    const result = await dealService.closeLostDeal(req.body.dealId, { lostReason: req.body.lostReason, note: req.body.note, user: req.user });
+    return res.status(201).json(result);
+  }
+  const result = await dealService.transitionDealStage(req.body.dealId, { targetStageId: req.body.targetStageId, answers: req.body.answers, note: req.body.note, demotionReason: req.body.backwardReason || req.body.demotionReason, user: req.user });
+  res.status(201).json(result);
 });
 
 export const approveStageGateCheck = asyncHandler(async (req, res) => {
-  const updated = await stageGateService.approveStageGateCheck(req.params.id, req.body?.reviewer);
+  const updated = await stageGateService.approveStageGateCheck(req.params.id, req.user);
   res.json(updated || { success: true });
 });
 
 export const rejectStageGateCheck = asyncHandler(async (req, res) => {
-  const updated = await stageGateService.rejectStageGateCheck(req.params.id, req.body?.reviewer, req.body?.reason);
+  const updated = await stageGateService.rejectStageGateCheck(req.params.id, req.user, req.body?.reason);
   res.json(updated || { success: true });
 });
 
@@ -272,7 +278,10 @@ export const getTimeline = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'entityType and entityId query parameters are required' });
   }
   const timeline = await timelineService.getEntityTimeline({ entityType, entityId });
-  res.json(timeline);
+  res.json(req.user.role === 'Sales Rep' ? timeline.filter(item => {
+    const field = { Deal: 'deals', Lead: 'leads', Contact: 'contacts', Company: 'companies', Task: 'tasks' }[item.linkedType];
+    return field && req.crmState[field].some(row => row.id === item.linkedId);
+  }) : timeline);
 });
 
 // Automation & Follow-up Rules

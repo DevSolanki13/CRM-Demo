@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const validateBody = (schema) => (req, res, next) => {
   const result = schema.safeParse(req.body);
   if (!result.success) {
-    const formatted = result.error.errors.map((err) => ({
+    const formatted = result.error.issues.map((err) => ({
       field: err.path.join('.'),
       message: err.message,
     }));
@@ -17,6 +17,12 @@ export const validateBody = (schema) => (req, res, next) => {
   next();
 };
 
+// Zod 4 applies defaults inside optional fields. Update schemas must remove
+// creation defaults, otherwise a title-only edit silently resets other fields.
+const updateSchema = schema => z.object(Object.fromEntries(
+  Object.entries(schema.shape).map(([key, field]) => [key, (field instanceof z.ZodDefault ? field.removeDefault() : field).optional()])
+)).passthrough();
+
 // 1. Companies
 export const companySchema = z.object({
   id: z.string().optional(),
@@ -28,7 +34,7 @@ export const companySchema = z.object({
   createdAt: z.string().optional(),
 }).passthrough();
 
-export const updateCompanySchema = companySchema.partial();
+export const updateCompanySchema = updateSchema(companySchema);
 
 // 2. Contacts
 export const contactSchema = z.object({
@@ -41,11 +47,11 @@ export const contactSchema = z.object({
   companyName: z.string().optional().default(''),
   ownerId: z.string().optional().default('u-1'),
   ownerName: z.string().optional().default('Alex Vance'),
-  customFields: z.record(z.any()).optional().default({}),
+  customFields: z.record(z.string(), z.any()).optional().default({}),
   createdAt: z.string().optional(),
 }).passthrough();
 
-export const updateContactSchema = contactSchema.partial();
+export const updateContactSchema = updateSchema(contactSchema);
 
 // 3. Leads
 export const leadSchema = z.object({
@@ -60,13 +66,13 @@ export const leadSchema = z.object({
   status: z.string().optional().default('New'),
   ownerId: z.string().optional().default('u-1'),
   ownerName: z.string().optional().default('Alex Vance'),
-  customFields: z.record(z.any()).optional().default({}),
+  customFields: z.record(z.string(), z.any()).optional().default({}),
   pendingGateCheck: z.any().optional(),
   createdAt: z.string().optional(),
   lastActivityDate: z.string().optional(),
 }).passthrough();
 
-export const updateLeadSchema = leadSchema.partial();
+export const updateLeadSchema = updateSchema(leadSchema);
 
 // 4. Deals
 export const dealSchema = z.object({
@@ -78,7 +84,7 @@ export const dealSchema = z.object({
   contactId: z.string().optional().default(''),
   stageId: z.string().optional().default('stg-1'),
   stageName: z.string().optional().default('New Lead'),
-  value: z.number().optional().default(0),
+  value: z.number().finite().nonnegative().optional().default(0),
   leadId: z.string().optional(),
   isRecurring: z.boolean().optional().default(false),
   recurrenceDays: z.number().optional().default(60),
@@ -87,7 +93,7 @@ export const dealSchema = z.object({
   ownerId: z.string().optional().default('u-1'),
   ownerName: z.string().optional().default('Alex Vance'),
   valueHistory: z.array(z.any()).optional(),
-  customFields: z.record(z.any()).optional(),
+  customFields: z.record(z.string(), z.any()).optional(),
   partialGateState: z.any().optional(),
   pendingGateCheck: z.any().optional(),
   proposalExpiryDate: z.string().optional(),
@@ -99,7 +105,7 @@ export const dealSchema = z.object({
   updatedAt: z.string().optional(),
 }).passthrough();
 
-export const updateDealSchema = dealSchema.partial();
+export const updateDealSchema = updateSchema(dealSchema);
 
 export const dealTransitionSchema = z.object({
   targetStageId: z.string().min(1, 'Target stage ID is required'),
@@ -108,7 +114,7 @@ export const dealTransitionSchema = z.object({
     name: z.string().optional(),
     role: z.string().optional(),
   }).optional(),
-  answers: z.record(z.any()).optional(),
+  answers: z.record(z.string(), z.any()).optional(),
   overrideReason: z.string().optional(),
   demotionReason: z.string().optional(),
   note: z.string().optional(),
@@ -128,6 +134,7 @@ export const taskSchema = z.object({
   leadId: z.string().optional(),
   companyId: z.string().optional(),
   linkedTitle: z.string().optional(),
+  status: z.enum(['pending', 'completed', 'done']).optional(),
   completed: z.boolean().optional().default(false),
   createdAt: z.string().optional(),
 }).passthrough();
@@ -146,7 +153,7 @@ export const updateTaskSchema = z.object({
   leadId: z.string().optional(),
   companyId: z.string().optional(),
   linkedTitle: z.string().optional(),
-  status: z.string().optional(),
+  status: z.enum(['pending', 'completed', 'done']).optional(),
   completed: z.boolean().optional(),
   createdAt: z.string().optional(),
 }).passthrough();

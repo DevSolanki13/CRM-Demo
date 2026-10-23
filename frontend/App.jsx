@@ -1,7 +1,11 @@
+import { LoginView } from './components/LoginView.jsx';
 import React, { useState, useEffect, useMemo } from 'react';
 import { getLocalDateInputValueAfterDays } from './utils/crmHelpers.js';
 import {
   fetchCRMState,
+  fetchCurrentUser,
+  login,
+  logout,
   resetCRMState,
   updateBranding,
   createCompany,
@@ -77,6 +81,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Modals & Drawer
@@ -122,24 +127,60 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
-  // Initial Load
+  // Identity is established by the server, never by choosing a demo profile.
   useEffect(() => {
+    let cancelled = false;
+    const expire = () => {
+      setCurrentUser(null);
+      setState(null);
+      setDrawerState({ isOpen: false, type: 'deal', item: null });
+      setSelectedLeadForJourney(null);
+      setIsImportExportOpen(false);
+      setActiveTab('dashboard');
+    };
+    window.addEventListener('crm:session-expired', expire);
     async function loadData() {
       try {
+        const user = await fetchCurrentUser();
         const data = await fetchCRMState();
-        const normalized = normalizeStateStages(data);
-        setState(normalized);
-        if (normalized.users && normalized.users.length > 0) {
-          setCurrentUser(normalized.users[0]); // Alex Vance (Admin)
+        if (!cancelled) {
+          setState(normalizeStateStages(data));
+          setCurrentUser(user);
         }
       } catch (err) {
-        console.error("Error fetching state", err);
+        if (!cancelled && err.status !== 401) setLoadError(err.message);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     loadData();
+    return () => {
+      cancelled = true;
+      window.removeEventListener('crm:session-expired', expire);
+    };
   }, []);
+
+  const handleLogin = async (email, password) => {
+    const user = await login(email, password);
+    const data = await fetchCRMState();
+    setState(normalizeStateStages(data));
+    setCurrentUser(user);
+    setLoadError('');
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setCurrentUser(null);
+      setState(null);
+      setSelectedLeadForJourney(null);
+      setDrawerState({ isOpen: false, type: 'deal', item: null });
+      setIsImportExportOpen(false);
+      setActiveTab('dashboard');
+    } catch (err) {
+      toast.error(err.message || 'Sign out failed');
+    }
+  };
 
   // Memoized Pending Tasks and Renewals Count for badges (placed before any early return)
   const pendingTasksCount = useMemo(() => {
@@ -149,6 +190,9 @@ export default function App() {
   const renewalsDueCount = useMemo(() => {
     return (state?.deals || []).filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again')).length;
   }, [state?.deals]);
+
+  if (!loading && loadError) return <main className="p-8"><p role="alert">{loadError}</p><button onClick={() => window.location.reload()}>Retry</button></main>;
+  if (!loading && !currentUser) return <LoginView onLogin={handleLogin} />;
 
   if (loading || !state || !currentUser) {
     return (
@@ -199,8 +243,12 @@ export default function App() {
   };
 
   const handleTriggerRenewalCheck = async () => {
-    const res = await triggerRenewalAutomation();
-    setState(normalizeStateStages(res.state));
+    try {
+      const res = await triggerRenewalAutomation();
+      setState(normalizeStateStages(res.state));
+    } catch (err) {
+      toast.error(err.message || 'Renewal check failed');
+    }
   };
 
   const handleResetDemoData = async () => {
@@ -220,8 +268,8 @@ export default function App() {
       await reloadState();
       toast.success("Company created successfully");
     } catch (err) {
-      console.error("Error creating company", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -231,8 +279,8 @@ export default function App() {
       await reloadState();
       toast.success("Company updated");
     } catch (err) {
-      console.error("Error updating company", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -242,8 +290,8 @@ export default function App() {
       await reloadState();
       toast.info("Company deleted");
     } catch (err) {
-      console.error("Error deleting company", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -254,8 +302,8 @@ export default function App() {
       await reloadState();
       toast.success("Contact created");
     } catch (err) {
-      console.error("Error creating contact", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -265,8 +313,8 @@ export default function App() {
       await reloadState();
       toast.success("Contact updated");
     } catch (err) {
-      console.error("Error updating contact", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -276,8 +324,8 @@ export default function App() {
       await reloadState();
       toast.info("Contact deleted");
     } catch (err) {
-      console.error("Error deleting contact", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -288,8 +336,8 @@ export default function App() {
       await reloadState();
       toast.success("Lead created");
     } catch (err) {
-      console.error("Error creating lead", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -302,8 +350,8 @@ export default function App() {
       } : prev);
       toast.success("Lead updated");
     } catch (err) {
-      console.error("Error updating lead", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -316,8 +364,8 @@ export default function App() {
       } : prev);
       toast.info("Lead deleted");
     } catch (err) {
-      console.error("Error deleting lead", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -328,19 +376,27 @@ export default function App() {
       await reloadState();
       toast.success("Opportunity created");
     } catch (err) {
-      console.error("Error creating deal", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
   const handleUpdateDeal = async (id, deal) => {
     try {
-      await updateDeal(id, deal);
+      const existing = state.deals.find(row => row.id === id);
+      const changes = { ...deal };
+      if (deal.stageId && existing && deal.stageId !== existing.stageId) {
+        await transitionDealStage(id, { targetStageId: deal.stageId, note: deal.reason || '', overrideReason: deal.overrideReason, demotionReason: deal.demotionReason });
+      }
+      // Workflow state is written only by the server's transition service.
+      for (const key of ['stageId', 'stageName', 'pendingGateCheck', 'actualCloseDate', 'lostReason', 'lostReasonNote', 'parentDealId', 'leadId', 'isRebuy', 'valueHistory']) delete changes[key];
+      if (deal.stageId && existing && deal.stageId !== existing.stageId) delete changes.status;
+      await updateDeal(id, changes);
       await reloadState();
       toast.success("Deal updated");
     } catch (err) {
-      console.error("Error updating deal", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -350,8 +406,8 @@ export default function App() {
       await reloadState();
       toast.info("Deal deleted");
     } catch (err) {
-      console.error("Error deleting deal", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -373,8 +429,8 @@ export default function App() {
       await reloadState();
       toast.success("Task created");
     } catch (err) {
-      console.error("Error creating task", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -383,8 +439,8 @@ export default function App() {
       await updateTask(id, task);
       await reloadState();
     } catch (err) {
-      console.error("Error updating task", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -394,8 +450,8 @@ export default function App() {
       await reloadState();
       toast.info("Task removed");
     } catch (err) {
-      console.error("Error deleting task", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -406,8 +462,8 @@ export default function App() {
       await reloadState();
       toast.success("Note saved");
     } catch (err) {
-      console.error("Error creating note", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -416,8 +472,8 @@ export default function App() {
       await createActivity(act);
       await reloadState();
     } catch (err) {
-      console.error("Error creating activity", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -428,8 +484,8 @@ export default function App() {
       await reloadState();
       toast.success("Team member added");
     } catch (err) {
-      console.error("Error creating user", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -439,8 +495,8 @@ export default function App() {
       await reloadState();
       toast.success("User profile updated");
     } catch (err) {
-      console.error("Error updating user", err);
-      await reloadState();
+      toast.error(err.message || "Unable to save changes");
+      throw err;
     }
   };
 
@@ -458,21 +514,13 @@ export default function App() {
 
   const handleApproveStageGateCheck = async (id, reviewer) => {
     const cleanId = String(id).replace('v-task-', '');
-    try {
-      await approveStageGateCheck(cleanId, reviewer);
-    } catch (err) {
-      console.warn('approveStageGateCheck error:', err);
-    }
+    await approveStageGateCheck(cleanId, reviewer);
     await reloadState();
   };
 
   const handleRejectStageGateCheck = async (id, reviewer, reason) => {
     const cleanId = String(id).replace('v-task-', '');
-    try {
-      await rejectStageGateCheck(cleanId, reviewer, reason);
-    } catch (err) {
-      console.warn('rejectStageGateCheck error:', err);
-    }
+    await rejectStageGateCheck(cleanId, reviewer, reason);
     await reloadState();
   };
 
@@ -582,7 +630,7 @@ export default function App() {
           users={state.users}
           currentUser={currentUser}
           state={state}
-          onSelectUser={setCurrentUser}
+          onLogout={handleLogout}
           onSelectSearchResult={handleSelectSearchResult}
           onNavigateTab={handleNavigateTab}
           onOpenQuickAction={handleQuickAction}
@@ -602,6 +650,7 @@ export default function App() {
             userRole={currentUser.role}
             pendingTasksCount={pendingTasksCount}
             renewalsDueCount={renewalsDueCount}
+            onLogout={handleLogout}
             onOpenImportExport={() => setIsImportExportOpen(true)}
             isMobileOpen={isMobileMenuOpen}
             onCloseMobile={() => setIsMobileMenuOpen(false)}

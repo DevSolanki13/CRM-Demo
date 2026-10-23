@@ -15,7 +15,11 @@ export const getDeals = async () => {
 export const createDeal = async (deal) => {
   const todayStr = getLocalDateString();
   const stages = await prisma.stage.findMany({ orderBy: { order: 'asc' } });
-  const initialStage = stages.find(s => s.id === deal.stageId) || stages[0] || { id: 'stg-1', name: 'New Lead' };
+  const initialStage = stages[0];
+  if (!initialStage) throw Object.assign(new Error('Configure a starting pipeline stage before creating deals'), { statusCode: 409 });
+  if ((deal.stageId && deal.stageId !== initialStage.id) || (deal.status && !['Open', 'Active'].includes(deal.status)) || deal.parentDealId || deal.isRebuy) {
+    throw Object.assign(new Error('Create deals in the starting stage; use the transition or rebuy endpoint for workflow changes'), { statusCode: 409 });
+  }
 
   const branding = await prisma.branding.findUnique({ where: { id: 'default' } });
   const defaultRecurrenceDays = branding?.defaultRecurrenceDays || 60;
@@ -25,7 +29,7 @@ export const createDeal = async (deal) => {
     leadId: deal.leadId || null,
     parentDealId: deal.parentDealId || null,
     title: deal.title || 'New Sales Deal',
-    value: Number(deal.value) || 10000,
+    value: Number(deal.value ?? 0),
     currency: deal.currency || 'INR',
     stageId: initialStage.id,
     stageName: initialStage.name,
@@ -40,16 +44,16 @@ export const createDeal = async (deal) => {
     isRecurring: deal.isRecurring ?? false,
     isRebuy: deal.isRebuy ?? false,
     recurrenceDays: deal.recurrenceDays || defaultRecurrenceDays,
-    status: deal.status || 'Active',
+    status: 'Active',
     createdAt: deal.createdAt || todayStr,
     updatedAt: deal.updatedAt || todayStr,
     lastActivityDate: deal.lastActivityDate || todayStr,
     daysInStage: deal.daysInStage || 0,
-    valueHistory: deal.valueHistory || [
-      { date: todayStr, value: Number(deal.value) || 10000, stage: initialStage.name, reason: 'Initial deal creation' }
+    valueHistory: [
+      { date: todayStr, value: Number(deal.value ?? 0), stage: initialStage.name, reason: 'Initial deal creation' }
     ],
     partialGateState: deal.partialGateState || null,
-    pendingGateCheck: deal.pendingGateCheck || null,
+    pendingGateCheck: null,
     lostReason: deal.lostReason || null,
     lostReasonNote: deal.lostReasonNote || null,
     actualCloseDate: deal.actualCloseDate || null,
@@ -87,6 +91,16 @@ export const updateDeal = async (id, deal) => {
   const existing = await prisma.deal.findUnique({ where: { id } });
   if (!existing) return null;
 
+  const protectedFields = ['stageId', 'stageName', 'pendingGateCheck', 'actualCloseDate', 'lostReason', 'lostReasonNote', 'parentDealId', 'leadId', 'isRebuy', 'valueHistory'];
+  for (const key of protectedFields) {
+    if (key in deal && JSON.stringify(deal[key]) !== JSON.stringify(existing[key])) {
+      throw Object.assign(new Error('Use the dedicated stage transition endpoint for workflow changes'), { statusCode: 409 });
+    }
+  }
+  if ('status' in deal && deal.status !== existing.status && (!['Active', 'Follow up'].includes(deal.status) || !['Active', 'Follow up'].includes(existing.status))) {
+    throw Object.assign(new Error('Use the dedicated stage transition endpoint to change deal status'), { statusCode: 409 });
+  }
+
   const todayStr = getLocalDateString();
   let valueHistory = Array.isArray(existing.valueHistory) ? [...existing.valueHistory] : [];
 
@@ -111,7 +125,8 @@ export const updateDeal = async (id, deal) => {
     });
   }
 
-  const { customFields, valueChangeReason, updatedById, updatedByName, ...validDealFields } = deal;
+  const editable = ['title', 'value', 'currency', 'expectedCloseDate', 'contactId', 'contactName', 'companyId', 'companyName', 'ownerId', 'ownerName', 'isRecurring', 'recurrenceDays', 'proposalExpiryDate', 'partialGateState', 'status'];
+  const validDealFields = Object.fromEntries(Object.entries(deal).filter(([key]) => editable.includes(key)));
 
   const updatedData = {
     ...existing,
@@ -471,7 +486,7 @@ export const transitionDealStage = async (dealId, payload) => {
 export const closeLostDeal = async (dealId, payload) => {
   const { lostReason, note, user } = payload;
   if (!lostReason) {
-    throw new Error('A mandatory Closed Lost reason is required.');
+    throw Object.assign(new Error('A mandatory Closed Lost reason is required.'), { statusCode: 400 });
   }
   const stages = await prisma.stage.findMany();
   const lostStage = stages.find(s => s.category === 'Lost' || s.name === 'Closed Lost') || { id: 'stg-8', name: 'Closed Lost' };

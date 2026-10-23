@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 
 test.describe('Mobile Responsive Experience E2E Suite', () => {
   // Use mobile viewport (375x667 standard mobile phone)
