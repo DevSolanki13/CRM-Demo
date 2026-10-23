@@ -12,7 +12,7 @@ datasource db {
 // 1. White-label branding & system configuration
 model Branding {
   id                    String   @id @default("default")
-  appName               String   @default("Sales CRM")
+  appName               String   @default("NexusCRM")
   tagline               String   @default("Customizable B2B Sales & Recurring Order Platform")
   logoIcon              String   @default("Building2")
   primaryColor          String   @default("#2563eb")
@@ -83,6 +83,7 @@ model Lead {
   createdAt        String?
   lastActivityDate String?
   pendingGateCheck Json?
+  customFields     Json?
 }
 
 // 7. Deals / Pipeline Opportunities
@@ -118,6 +119,7 @@ model Deal {
   proposalExpiryDate String?
   pendingGateCheck   Json?
   partialGateState   Json?
+  customFields       Json?
 }
 
 // 8. Follow-up Tasks & Manager Approval Ledgers

@@ -227,7 +227,9 @@ export async function createNote(note) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(note)
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.details?.[0]?.message || data.error || 'Could not save note');
+  return data;
 }
 
 export async function createActivity(activity) {
@@ -236,7 +238,9 @@ export async function createActivity(activity) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(activity)
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.details?.[0]?.message || data.error || 'Could not log activity');
+  return data;
 }
 
 // Users
@@ -270,43 +274,29 @@ export async function createStageGateCheck(check) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(check)
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Could not create approval request');
+  return data;
 }
 
 export async function approveStageGateCheck(id, reviewer) {
-  const cleanId = String(id || '').replace('v-task-', '');
-  try {
-    const res = await fetch(`${BASE_URL}/stage-gate-checks/${encodeURIComponent(cleanId)}/approve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reviewer })
-    });
-    if (res.ok) {
-      return res.json();
-    }
-  } catch (err) {
-    console.warn('approveStageGateCheck network call warning:', err);
-  }
-
-  return { success: true };
+  const res = await fetch(`${BASE_URL}/stage-gate-checks/${encodeURIComponent(id)}/approve`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewer })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Approval failed');
+  return data;
 }
 
 export async function rejectStageGateCheck(id, reviewer, reason) {
-  const cleanId = String(id || '').replace('v-task-', '');
-  try {
-    const res = await fetch(`${BASE_URL}/stage-gate-checks/${encodeURIComponent(cleanId)}/reject`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reviewer, reason })
-    });
-    if (res.ok) {
-      return res.json();
-    }
-  } catch (err) {
-    console.warn('rejectStageGateCheck network call warning:', err);
-  }
-
-  return { success: true };
+  const res = await fetch(`${BASE_URL}/stage-gate-checks/${encodeURIComponent(id)}/reject`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewer, reason })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Rejection failed');
+  return data;
 }
 
 // CSV Bulk Import
@@ -316,7 +306,9 @@ export async function importContacts(items) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items })
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.details?.[0]?.message || data.error || 'Could not import contacts');
+  return data;
 }
 
 // Unified Activity Timeline

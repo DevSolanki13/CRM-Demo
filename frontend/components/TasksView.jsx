@@ -66,6 +66,7 @@ export const TasksView = ({
           const targetStageObj = stages.find(s => s.id === check.targetStageId);
           list.push({
             id: `v-task-${lead.id}`,
+            stageGateCheckId: check.id,
             title: `[Stage Approval Required] ${lead.title}: Advance to ${targetStageObj?.name || 'Next Stage'}`,
             dueDate: todayStr,
             type: 'Approval',
@@ -104,6 +105,7 @@ export const TasksView = ({
           const targetStageObj = stages.find(s => s.id === check?.targetStageId);
           list.push({
             id: `v-task-${lead.id}`,
+            stageGateCheckId: check?.id,
             title: `[Stage Approval Required] ${lead.title}: Advance to ${targetStageObj?.name || 'Next Stage'}`,
             dueDate: todayStr,
             type: 'Approval',
@@ -137,6 +139,7 @@ export const TasksView = ({
           const targetStageObj = stages.find(s => s.id === check?.targetStageId);
           list.push({
             id: `v-task-${deal.id}`,
+            stageGateCheckId: check?.id,
             title: `[Stage Approval Required] ${deal.title}: Advance to ${targetStageObj?.name || 'Next Stage'}`,
             dueDate: todayStr,
             type: 'Approval',
@@ -228,23 +231,17 @@ export const TasksView = ({
   };
 
   const handleApproveCheck = async (task) => {
-    const targetId = task.stageGateCheckId || task.linkedId;
+    const targetId = task.stageGateCheckId;
     if (!targetId || !onApproveStageGateCheck) return;
     await onApproveStageGateCheck(targetId, currentUser);
-    if (onUpdateTask && !String(task.id).startsWith('v-task-')) {
-      await onUpdateTask(task.id, { status: 'done', resolution: 'Approved' });
-    }
   };
 
   const handleRejectCheck = async (task) => {
-    const targetId = task.stageGateCheckId || task.linkedId;
+    const targetId = task.stageGateCheckId;
     if (!targetId || !onRejectStageGateCheck) return;
     const reason = window.prompt("Enter rejection reason for this stage change request:", "Requirements incomplete");
     if (reason === null) return;
     await onRejectStageGateCheck(targetId, currentUser, reason);
-    if (onUpdateTask && !String(task.id).startsWith('v-task-')) {
-      await onUpdateTask(task.id, { status: 'done', resolution: 'Rejected', rejectionReason: reason });
-    }
   };
 
   // Helper renderer for a standard rep task card
@@ -666,6 +663,8 @@ export const TasksView = ({
                           <button
                             type="button"
                             onClick={() => handleRejectCheck(task)}
+                            disabled={!task.stageGateCheckId}
+                            title={!task.stageGateCheckId ? 'This approval has no saved request. Refresh or resubmit it.' : undefined}
                             className="px-4 py-2 bg-[#FFFFFF] hover:bg-[#FDF2F1] text-[#922D27] border border-[#F4C4C1] rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
                           >
                             <ThumbsDown className="w-3.5 h-3.5" aria-hidden="true" />
@@ -675,6 +674,8 @@ export const TasksView = ({
                           <button
                             type="button"
                             onClick={() => handleApproveCheck(task)}
+                            disabled={!task.stageGateCheckId}
+                            title={!task.stageGateCheckId ? 'This approval has no saved request. Refresh or resubmit it.' : undefined}
                             className="px-5 py-2 bg-[#255B40] hover:bg-[#1C4530] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
                           >
                             <ThumbsUp className="w-3.5 h-3.5 text-white" aria-hidden="true" />

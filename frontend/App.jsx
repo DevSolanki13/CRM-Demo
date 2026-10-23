@@ -147,7 +147,7 @@ export default function App() {
   }, [state?.tasks, currentUser?.id]);
 
   const renewalsDueCount = useMemo(() => {
-    return (state?.deals || []).filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again')).length;
+    return (state?.deals || []).filter(d => d.status === 'Renewal Due' || d.stageId === 'stg-7').length;
   }, [state?.deals]);
 
   if (loading || !state || !currentUser) {
@@ -201,6 +201,11 @@ export default function App() {
   const handleTriggerRenewalCheck = async () => {
     const res = await triggerRenewalAutomation();
     setState(normalizeStateStages(res.state));
+    if (res.failures?.length) {
+      toast.error(`${res.failures.length} renewal check${res.failures.length === 1 ? '' : 's'} failed: ${res.failures[0].error}`);
+    } else {
+      toast.success(`${res.flippedCount} renewal opportunit${res.flippedCount === 1 ? 'y' : 'ies'} created`);
+    }
   };
 
   const handleResetDemoData = async () => {
@@ -284,12 +289,15 @@ export default function App() {
   // Leads CRUD with targeted local state updates
   const handleCreateLead = async (lead) => {
     try {
-      await createLead(lead);
+      const created = await createLead(lead);
       await reloadState();
       toast.success("Lead created");
+      return created;
     } catch (err) {
       console.error("Error creating lead", err);
       await reloadState();
+      toast.error(err.message || 'Could not create lead');
+      throw err;
     }
   };
 
@@ -301,9 +309,12 @@ export default function App() {
         leads: (prev.leads || []).map(l => l.id === id ? { ...l, ...updated } : l)
       } : prev);
       toast.success("Lead updated");
+      return updated;
     } catch (err) {
       console.error("Error updating lead", err);
       await reloadState();
+      toast.error(err.message || 'Could not update lead');
+      throw err;
     }
   };
 
@@ -330,6 +341,8 @@ export default function App() {
     } catch (err) {
       console.error("Error creating deal", err);
       await reloadState();
+      toast.error(err.message || 'Could not create deal');
+      throw err;
     }
   };
 
@@ -341,6 +354,8 @@ export default function App() {
     } catch (err) {
       console.error("Error updating deal", err);
       await reloadState();
+      toast.error(err.message || 'Could not update deal');
+      throw err;
     }
   };
 
@@ -406,8 +421,8 @@ export default function App() {
       await reloadState();
       toast.success("Note saved");
     } catch (err) {
-      console.error("Error creating note", err);
-      await reloadState();
+      toast.error(err.message || 'Could not save note');
+      throw err;
     }
   };
 
@@ -416,8 +431,7 @@ export default function App() {
       await createActivity(act);
       await reloadState();
     } catch (err) {
-      console.error("Error creating activity", err);
-      await reloadState();
+      throw err;
     }
   };
 
@@ -452,28 +466,34 @@ export default function App() {
 
   // Stage Gate Check Handlers
   const handleCreateStageGateCheck = async (check) => {
-    await createStageGateCheck(check);
-    await reloadState();
+    try {
+      await createStageGateCheck(check);
+      await reloadState();
+      toast.success('Approval request submitted');
+    } catch (err) {
+      toast.error(err.message || 'Approval request failed');
+      throw err;
+    }
   };
 
   const handleApproveStageGateCheck = async (id, reviewer) => {
-    const cleanId = String(id).replace('v-task-', '');
     try {
-      await approveStageGateCheck(cleanId, reviewer);
+      await approveStageGateCheck(id, reviewer);
+      await reloadState();
+      toast.success('Approval completed');
     } catch (err) {
-      console.warn('approveStageGateCheck error:', err);
+      toast.error(err.message || 'Approval failed');
     }
-    await reloadState();
   };
 
   const handleRejectStageGateCheck = async (id, reviewer, reason) => {
-    const cleanId = String(id).replace('v-task-', '');
     try {
-      await rejectStageGateCheck(cleanId, reviewer, reason);
+      await rejectStageGateCheck(id, reviewer, reason);
+      await reloadState();
+      toast.success('Request rejected');
     } catch (err) {
-      console.warn('rejectStageGateCheck error:', err);
+      toast.error(err.message || 'Rejection failed');
     }
-    await reloadState();
   };
 
   const handleSavePartialGateCheck = async (dealId, partialState) => {
@@ -653,8 +673,9 @@ export default function App() {
                   onUpdateLead={handleUpdateLead}
                   onDeleteLead={handleDeleteLead}
                   onConvertToDeal={handleConvertToDeal}
-                  onUpdateDeal={handleUpdateDeal}
                   onCreateActivity={handleCreateActivity}
+                  onCreateNote={handleCreateNote}
+                  onTransitionDealStage={handleTransitionDealStage}
                   onCreateTask={handleCreateTask}
                   onSubmitStageGateCheck={handleCreateStageGateCheck}
                   onApproveStageGateCheck={handleApproveStageGateCheck}
@@ -707,7 +728,7 @@ export default function App() {
                 onCreateNote={handleCreateNote}
                 onCreateActivity={handleCreateActivity}
                 onCreateTask={handleCreateTask}
-                onUpdateDeal={handleUpdateDeal}
+                onTransitionDealStage={handleTransitionDealStage}
               />
             )}
 
@@ -799,6 +820,7 @@ export default function App() {
           onUpdateDeal={handleUpdateDeal}
           onUpdateLead={handleUpdateLead}
           onCreateActivity={handleCreateActivity}
+          onCreateNote={handleCreateNote}
           onCreateTask={handleCreateTask}
           onUpdateTask={handleUpdateTask}
           onOpenStageGateModal={() => {

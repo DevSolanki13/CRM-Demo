@@ -52,6 +52,9 @@ export const getTasks = async () => {
 };
 
 export const createTask = async (task) => {
+  if (task.type === 'Approval' || task.stageGateCheckId) {
+    throw Object.assign(new Error('Approval tasks are created with approval requests.'), { statusCode: 409 });
+  }
   const noteContent = task.priority && !task.note?.includes('[Priority:')
     ? `[Priority: ${task.priority}] ${task.note || ''}`.trim()
     : task.note || null;
@@ -93,6 +96,9 @@ export const createTask = async (task) => {
 export const updateTask = async (id, task) => {
   const existing = await prisma.task.findUnique({ where: { id } });
   if (!existing) return null;
+  if (existing.type === 'Approval' || existing.stageGateCheckId) {
+    throw Object.assign(new Error('Approval tasks are resolved through the approval decision.'), { statusCode: 409 });
+  }
 
   const sanitizedExisting = sanitizeTaskData(existing);
   const sanitizedIncoming = sanitizeTaskData(task);
@@ -112,6 +118,9 @@ export const updateTask = async (id, task) => {
 export const deleteTask = async (id) => {
   const existing = await prisma.task.findUnique({ where: { id } });
   if (!existing) return false;
+  if (existing.type === 'Approval' || existing.stageGateCheckId) {
+    throw Object.assign(new Error('Approval tasks cannot be deleted directly.'), { statusCode: 409 });
+  }
   await prisma.task.delete({ where: { id } });
   return true;
 };

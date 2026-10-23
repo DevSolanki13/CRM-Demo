@@ -1,13 +1,26 @@
-export const ALLOWED_TRANSITIONS = {
-  'New Lead': ['Contacted', 'Closed Lost'],
-  'Contacted': ['Sample Sent', 'Proposal Sent', 'Closed Lost'],
-  'Sample Sent': ['Proposal Sent', 'Closed Lost'],
-  'Proposal Sent': ['Negotiation', 'Closed Won', 'Closed Lost'],
-  'Negotiation': ['Closed Won', 'Closed Lost'],
-  'Buy Again (Renewal)': ['Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'],
-  'Closed Won': [], // Terminal; creates child rebuy deal
-  'Closed Lost': [] // Terminal; requires new opportunity
-};
+export const STAGE_CODES_BY_ID = Object.freeze({
+  'stg-1': 'NEW_LEAD',
+  'stg-2': 'CONTACTED',
+  'stg-3': 'SAMPLE_SENT',
+  'stg-4': 'PROPOSAL_SENT',
+  'stg-5': 'NEGOTIATION',
+  'stg-6': 'CLOSED_WON',
+  'stg-7': 'RENEWAL',
+  'stg-8': 'CLOSED_LOST',
+});
+
+export const stageCode = (stage) => STAGE_CODES_BY_ID[stage.id] || `CUSTOM_${stage.id}`;
+
+export const ALLOWED_TRANSITION_IDS = Object.freeze({
+  'stg-1': ['stg-2', 'stg-8'],
+  'stg-2': ['stg-3', 'stg-4', 'stg-8'],
+  'stg-3': ['stg-4', 'stg-8'],
+  'stg-4': ['stg-5', 'stg-6', 'stg-8'],
+  'stg-5': ['stg-6', 'stg-8'],
+  'stg-6': [],
+  'stg-7': ['stg-4', 'stg-5', 'stg-6', 'stg-8'],
+  'stg-8': [],
+});
 
 export const DEFAULT_STAGE_COLORS = {
   'New Lead': '#FFFFFF',
