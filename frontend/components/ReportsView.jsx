@@ -40,7 +40,7 @@ export const ReportsView = ({
   const avgDealSize = wonDeals.length > 0 ? Math.round(totalRevenue / wonDeals.length) : 0;
 
   // Recurring Order / Renewal Due Deals List
-  const renewalDueDeals = deals.filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again'));
+  const renewalDueDeals = deals.filter(d => d.status === 'Renewal Due' || d.stageId === 'stg-7');
 
   // Rebuy deals stats
   const rebuyDeals = deals.filter(d => Boolean(d.parentDealId));

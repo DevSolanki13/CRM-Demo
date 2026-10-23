@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createTask, updateTask, getTasks, deleteTask } from '../backend/services/taskService.js';
+import { createTask, updateTask, deleteTask } from '../backend/services/taskService.js';
 
 describe('Task Service Field Sanitization & Prisma Integration', () => {
   const testTaskId = `tsk-unit-${Date.now()}`;

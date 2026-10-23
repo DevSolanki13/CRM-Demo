@@ -34,7 +34,7 @@ export const ContactsView = ({
   onCreateNote,
   onCreateActivity,
   onCreateTask,
-  onUpdateDeal
+  onTransitionDealStage
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState('All');
@@ -58,10 +58,12 @@ export const ContactsView = ({
 
     const contactDeal = deals.find(d => d.contactId === targetEntity.id);
 
-    if (outcomeData.shouldAdvanceStage && outcomeData.targetStageObj && contactDeal && onUpdateDeal) {
-      await onUpdateDeal(contactDeal.id, {
-        stageId: outcomeData.targetStageObj.id,
-        stageName: outcomeData.targetStageObj.name
+    if (outcomeData.shouldAdvanceStage && outcomeData.targetStageObj && contactDeal && onTransitionDealStage) {
+      await onTransitionDealStage(contactDeal.id, {
+        targetStageId: outcomeData.targetStageObj.id,
+        user: currentUser,
+        answers: outcomeData.criteriaAnswers || {},
+        note: activityData.description || outcomeData.summaryNote || '',
       });
     }
 

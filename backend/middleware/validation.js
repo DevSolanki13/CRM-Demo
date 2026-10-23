@@ -1,9 +1,15 @@
 import { z } from 'zod';
 
+const customFieldsSchema = z.record(z.string(), z.union([
+  z.string(), z.number().finite(), z.boolean(), z.null()
+]));
+const optionalDate = z.iso.date().optional();
+const taskStatus = z.enum(['pending', 'completed']);
+
 export const validateBody = (schema) => (req, res, next) => {
   const result = schema.safeParse(req.body);
   if (!result.success) {
-    const formatted = result.error.errors.map((err) => ({
+    const formatted = result.error.issues.map((err) => ({
       field: err.path.join('.'),
       message: err.message,
     }));
@@ -41,7 +47,7 @@ export const contactSchema = z.object({
   companyName: z.string().optional().default(''),
   ownerId: z.string().optional().default('u-1'),
   ownerName: z.string().optional().default('Alex Vance'),
-  customFields: z.record(z.any()).optional().default({}),
+  customFields: customFieldsSchema.optional().default({}),
   createdAt: z.string().optional(),
 }).passthrough();
 
@@ -60,7 +66,7 @@ export const leadSchema = z.object({
   status: z.string().optional().default('New'),
   ownerId: z.string().optional().default('u-1'),
   ownerName: z.string().optional().default('Alex Vance'),
-  customFields: z.record(z.any()).optional().default({}),
+  customFields: customFieldsSchema.optional().default({}),
   pendingGateCheck: z.any().optional(),
   createdAt: z.string().optional(),
   lastActivityDate: z.string().optional(),
@@ -78,19 +84,19 @@ export const dealSchema = z.object({
   contactId: z.string().optional().default(''),
   stageId: z.string().optional().default('stg-1'),
   stageName: z.string().optional().default('New Lead'),
-  value: z.number().optional().default(0),
+  value: z.number().finite().nonnegative().optional().default(0),
   leadId: z.string().optional(),
   isRecurring: z.boolean().optional().default(false),
-  recurrenceDays: z.number().optional().default(60),
+  recurrenceDays: z.number().int().positive().max(3650).optional().default(60),
   status: z.string().optional().default('Open'),
-  expectedCloseDate: z.string().optional(),
+  expectedCloseDate: optionalDate,
   ownerId: z.string().optional().default('u-1'),
   ownerName: z.string().optional().default('Alex Vance'),
   valueHistory: z.array(z.any()).optional(),
-  customFields: z.record(z.any()).optional(),
+  customFields: customFieldsSchema.optional(),
   partialGateState: z.any().optional(),
   pendingGateCheck: z.any().optional(),
-  proposalExpiryDate: z.string().optional(),
+  proposalExpiryDate: optionalDate,
   lostReason: z.string().optional(),
   lostReasonNote: z.string().optional(),
   actualCloseDate: z.string().optional(),
@@ -108,12 +114,22 @@ export const dealTransitionSchema = z.object({
     name: z.string().optional(),
     role: z.string().optional(),
   }).optional(),
-  answers: z.record(z.any()).optional(),
+  answers: z.record(z.string(), z.boolean()).optional(),
   overrideReason: z.string().optional(),
   demotionReason: z.string().optional(),
   note: z.string().optional(),
   lostReason: z.string().optional(),
 }).passthrough();
+
+export const closeLostSchema = z.object({
+  lostReason: z.string().trim().min(1, 'A Closed Lost reason is required'),
+  note: z.string().optional(),
+  user: z.object({ id: z.string().min(1), name: z.string().optional(), role: z.string().optional() }).optional(),
+});
+
+export const rebuyRequestSchema = z.object({
+  user: z.object({ id: z.string().min(1), name: z.string().optional() }).optional(),
+});
 
 // 5. Tasks
 export const taskSchema = z.object({
@@ -129,6 +145,7 @@ export const taskSchema = z.object({
   companyId: z.string().optional(),
   linkedTitle: z.string().optional(),
   completed: z.boolean().optional().default(false),
+  status: taskStatus.optional(),
   createdAt: z.string().optional(),
 }).passthrough();
 
@@ -146,7 +163,98 @@ export const updateTaskSchema = z.object({
   leadId: z.string().optional(),
   companyId: z.string().optional(),
   linkedTitle: z.string().optional(),
-  status: z.string().optional(),
+  status: taskStatus.optional(),
   completed: z.boolean().optional(),
   createdAt: z.string().optional(),
 }).passthrough();
+
+export const approvalRequestSchema = z.object({
+  dealId: z.string().min(1, 'A deal is required for approval'),
+  fromStageId: z.string().min(1),
+  targetStageId: z.string().min(1),
+  submittedBy: z.string().optional(),
+  submittedByName: z.string().optional(),
+  outcome: z.enum(['advanced', 'lost', 'demoted']).optional(),
+  answers: z.record(z.string(), z.boolean()).optional(),
+  note: z.string().optional(),
+  lostReason: z.string().optional(),
+}).passthrough().refine(data =>
+  (data.outcome !== 'lost' && data.targetStageId !== 'stg-8') || Boolean(data.lostReason?.trim()), {
+  message: 'A Closed Lost reason is required', path: ['lostReason']
+});
+
+export const approvalDecisionSchema = z.object({
+  reviewer: z.object({ id: z.string().min(1) }).passthrough(),
+});
+
+export const approvalRejectionSchema = approvalDecisionSchema.extend({
+  reason: z.string().trim().min(1, 'A rejection reason is required'),
+});
+
+export const noteSchema = z.object({
+  text: z.string().trim().min(1, 'Note text is required'),
+  linkedType: z.string().optional(),
+  linkedId: z.string().optional(),
+  authorId: z.string().optional(),
+  authorName: z.string().optional(),
+}).passthrough();
+
+export const activitySchema = z.object({
+  type: z.string().trim().min(1, 'Activity type is required'),
+  description: z.string().trim().min(1).optional(),
+  notes: z.string().trim().min(1).optional(),
+  linkedType: z.string().optional(),
+  linkedId: z.string().optional(),
+  timestamp: z.string().refine(value => !Number.isNaN(Date.parse(value)), 'Invalid timestamp').optional(),
+}).passthrough().refine(data => Boolean(data.description || data.notes), {
+  message: 'Activity description is required', path: ['description']
+});
+
+export const contactImportSchema = z.object({
+  items: z.array(contactSchema).min(1).max(500),
+});
+
+const automationRuleSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1),
+  triggerEvent: z.string().min(1),
+  offsetDays: z.number().int().min(0).max(3650),
+  taskType: z.string().min(1),
+  taskTitleTemplate: z.string().min(1),
+  noteTemplate: z.string(),
+  isActive: z.boolean(),
+}).passthrough();
+
+export const automationRulesSchema = z.object({
+  rules: z.array(automationRuleSchema).max(100),
+});
+
+export const brandingSchema = z.object({
+  appName: z.string().trim().min(1).optional(),
+  tagline: z.string().optional(),
+  logoIcon: z.string().optional(),
+  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  defaultRecurrenceDays: z.number().int().positive().max(3650).optional(),
+  customFields: z.record(z.string(), z.unknown()).optional(),
+}).passthrough();
+
+export const stageSchema = z.object({
+  name: z.string().trim().min(1),
+  order: z.number().int().positive().optional(),
+  category: z.string().trim().min(1).optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+});
+
+export const updateStageSchema = stageSchema.partial();
+
+export const userSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().trim().min(1),
+  email: z.email(),
+  role: z.enum(['Sales Rep', 'Manager', 'Admin']),
+  active: z.boolean().optional(),
+  avatarUrl: z.string().optional(),
+});
+
+export const updateUserSchema = userSchema.partial();

@@ -1,24 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { ALLOWED_TRANSITIONS, normalizeStageColor, DEFAULT_STAGE_COLORS, OLD_HEX_MAP } from '../backend/constants/stageConstants.js';
+import { ALLOWED_TRANSITION_IDS, normalizeStageColor, DEFAULT_STAGE_COLORS, OLD_HEX_MAP } from '../backend/constants/stageConstants.js';
 
 describe('Stage Transition Matrix Governance', () => {
   it('allows valid forward stage transitions from New Lead', () => {
-    const allowed = ALLOWED_TRANSITIONS['New Lead'];
-    expect(allowed).toContain('Contacted');
-    expect(allowed).toContain('Closed Lost');
-    expect(allowed).not.toContain('Closed Won');
+    const allowed = ALLOWED_TRANSITION_IDS['stg-1'];
+    expect(allowed).toContain('stg-2');
+    expect(allowed).toContain('stg-8');
+    expect(allowed).not.toContain('stg-6');
   });
 
   it('allows valid forward stage transitions from Proposal Sent', () => {
-    const allowed = ALLOWED_TRANSITIONS['Proposal Sent'];
-    expect(allowed).toContain('Negotiation');
-    expect(allowed).toContain('Closed Won');
-    expect(allowed).toContain('Closed Lost');
+    const allowed = ALLOWED_TRANSITION_IDS['stg-4'];
+    expect(allowed).toContain('stg-5');
+    expect(allowed).toContain('stg-6');
+    expect(allowed).toContain('stg-8');
   });
 
   it('terminal stages have no forward progression', () => {
-    expect(ALLOWED_TRANSITIONS['Closed Won']).toEqual([]);
-    expect(ALLOWED_TRANSITIONS['Closed Lost']).toEqual([]);
+    expect(ALLOWED_TRANSITION_IDS['stg-6']).toEqual([]);
+    expect(ALLOWED_TRANSITION_IDS['stg-8']).toEqual([]);
   });
 
   it('correctly maps legacy hex colors through normalizeStageColor', () => {

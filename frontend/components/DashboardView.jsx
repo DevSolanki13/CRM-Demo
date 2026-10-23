@@ -153,7 +153,7 @@ export const DashboardView = ({
     const wonList = rbacDeals.filter(d => d.status === 'Won');
     const wonVal = wonList.reduce((sum, d) => sum + (d.value || 0), 0);
 
-    const renewals = rbacDeals.filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again'));
+    const renewals = rbacDeals.filter(d => d.status === 'Renewal Due' || d.stageId === 'stg-7');
     const renewalsVal = renewals.reduce((sum, d) => sum + (d.value || 0), 0);
 
     const dueToday = rbacTasks.filter(t => t.status === 'pending' && t.dueDate?.split('T')[0] <= todayStr);
@@ -268,7 +268,7 @@ export const DashboardView = ({
 
     // 4. Renewals due
     const renewalsList = rbacDeals.filter(d =>
-      d.status === 'Renewal Due' || d.stageName?.includes('Buy Again')
+      d.status === 'Renewal Due' || d.stageId === 'stg-7'
     ).map(d => ({
       id: d.id,
       type: 'renewal',

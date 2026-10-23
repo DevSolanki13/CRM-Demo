@@ -13,6 +13,20 @@ import {
   dealTransitionSchema,
   taskSchema,
   updateTaskSchema,
+  approvalRequestSchema,
+  approvalDecisionSchema,
+  approvalRejectionSchema,
+  noteSchema,
+  activitySchema,
+  contactImportSchema,
+  automationRulesSchema,
+  brandingSchema,
+  stageSchema,
+  updateStageSchema,
+  closeLostSchema,
+  rebuyRequestSchema,
+  userSchema,
+  updateUserSchema,
 } from '../middleware/validation.js';
 
 export const crmRouter = Router();
@@ -23,7 +37,7 @@ crmRouter.get('/state', crmController.getState);
 crmRouter.post('/state/reset', crmController.resetState);
 
 // Branding & Settings
-crmRouter.put('/branding', crmController.updateBranding);
+crmRouter.put('/branding', validateBody(brandingSchema), crmController.updateBranding);
 
 // Companies
 crmRouter.get('/companies', crmController.getCompanies);
@@ -45,8 +59,8 @@ crmRouter.delete('/leads/:id', crmController.deleteLead);
 
 // Pipeline Stages
 crmRouter.get('/stages', crmController.getStages);
-crmRouter.post('/stages', crmController.createStage);
-crmRouter.put('/stages/:id', crmController.updateStage);
+crmRouter.post('/stages', validateBody(stageSchema), crmController.createStage);
+crmRouter.put('/stages/:id', validateBody(updateStageSchema), crmController.updateStage);
 
 // Deals
 crmRouter.get('/deals', crmController.getDeals);
@@ -55,8 +69,8 @@ crmRouter.put('/deals/:id', validateBody(updateDealSchema), crmController.update
 crmRouter.delete('/deals/:id', crmController.deleteDeal);
 crmRouter.post('/deals/check-renewals', crmController.checkRenewals);
 crmRouter.post('/deals/:id/stage-transition', validateBody(dealTransitionSchema), crmController.transitionDealStage);
-crmRouter.post('/deals/:id/close-lost', crmController.closeLostDeal);
-crmRouter.post('/deals/:id/create-rebuy', crmController.createRebuyDeal);
+crmRouter.post('/deals/:id/close-lost', validateBody(closeLostSchema), crmController.closeLostDeal);
+crmRouter.post('/deals/:id/create-rebuy', validateBody(rebuyRequestSchema), crmController.createRebuyDeal);
 
 // Audit Logs
 crmRouter.get('/audit-logs', crmController.getAuditLogs);
@@ -69,28 +83,28 @@ crmRouter.delete('/tasks/:id', crmController.deleteTask);
 
 // Notes & Activity Logs
 crmRouter.get('/notes', crmController.getNotes);
-crmRouter.post('/notes', crmController.createNote);
+crmRouter.post('/notes', validateBody(noteSchema), crmController.createNote);
 crmRouter.get('/activities', crmController.getActivities);
-crmRouter.post('/activities', crmController.createActivity);
+crmRouter.post('/activities', validateBody(activitySchema), crmController.createActivity);
 crmRouter.delete('/activities/:id', crmController.deleteActivity);
 
 // Users / Employees
 crmRouter.get('/users', crmController.getUsers);
-crmRouter.post('/users', crmController.createUser);
-crmRouter.put('/users/:id', crmController.updateUser);
+crmRouter.post('/users', validateBody(userSchema), crmController.createUser);
+crmRouter.put('/users/:id', validateBody(updateUserSchema), crmController.updateUser);
 
 // Stage Gate Checks
 crmRouter.get('/stage-gate-checks', crmController.getStageGateChecks);
-crmRouter.post('/stage-gate-checks', crmController.createStageGateCheck);
-crmRouter.post('/stage-gate-checks/:id/approve', crmController.approveStageGateCheck);
-crmRouter.post('/stage-gate-checks/:id/reject', crmController.rejectStageGateCheck);
+crmRouter.post('/stage-gate-checks', validateBody(approvalRequestSchema), crmController.createStageGateCheck);
+crmRouter.post('/stage-gate-checks/:id/approve', validateBody(approvalDecisionSchema), crmController.approveStageGateCheck);
+crmRouter.post('/stage-gate-checks/:id/reject', validateBody(approvalRejectionSchema), crmController.rejectStageGateCheck);
 
 // Bulk Import
-crmRouter.post('/import/contacts', crmController.importContacts);
+crmRouter.post('/import/contacts', validateBody(contactImportSchema), crmController.importContacts);
 
 // Unified Customer Activity Timeline
 crmRouter.get('/timeline', crmController.getTimeline);
 
 // Automation & Follow-up Rules
 crmRouter.get('/settings/automation-rules', crmController.getAutomationRules);
-crmRouter.put('/settings/automation-rules', crmController.updateAutomationRules);
+crmRouter.put('/settings/automation-rules', validateBody(automationRulesSchema), crmController.updateAutomationRules);

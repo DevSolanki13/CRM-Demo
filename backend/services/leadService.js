@@ -1,8 +1,18 @@
 import { prisma } from '../prisma.js';
-import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUtils.js';
-import { createTask } from './taskService.js';
+import { getLocalDateString } from '../utils/dateUtils.js';
 import { logAudit } from './activityNoteService.js';
 import { triggerFollowUp } from './followUpEngine.js';
+
+const LEAD_FIELDS = new Set([
+  'id', 'title', 'contactName', 'contactEmail', 'contactPhone', 'companyName',
+  'source', 'isOutbound', 'status', 'ownerId', 'ownerName', 'createdAt',
+  'lastActivityDate', 'pendingGateCheck', 'customFields'
+]);
+
+const validateLeadFields = (lead) => {
+  const unknown = Object.keys(lead).find(key => !LEAD_FIELDS.has(key));
+  if (unknown) throw Object.assign(new Error(`Unknown lead field: ${unknown}`), { statusCode: 400 });
+};
 
 export const getLeads = async () => {
   return await prisma.lead.findMany({
@@ -11,6 +21,7 @@ export const getLeads = async () => {
 };
 
 export const createLead = async (lead) => {
+  validateLeadFields(lead);
   let title = (lead.title || 'New Lead Inquiry').trim();
   if (/^\d+$/.test(title) || !/[a-zA-Z]/.test(title)) {
     title = `Lead #${title}`;
@@ -30,6 +41,7 @@ export const createLead = async (lead) => {
     ownerId: lead.ownerId || 'u-3',
     ownerName: lead.ownerName || 'Marcus Vance',
     pendingGateCheck: lead.pendingGateCheck || null,
+    customFields: lead.customFields ?? {},
     createdAt: lead.createdAt || todayStr,
     lastActivityDate: lead.lastActivityDate || todayStr,
   };
@@ -58,6 +70,7 @@ export const createLead = async (lead) => {
 };
 
 export const updateLead = async (id, lead) => {
+  validateLeadFields(lead);
   const existing = await prisma.lead.findUnique({ where: { id } });
   if (!existing) return null;
 
@@ -66,13 +79,11 @@ export const updateLead = async (id, lead) => {
     title = `Lead #${title}`;
   }
 
-  const { customFields, ...validFields } = lead;
-
   return await prisma.lead.update({
     where: { id },
     data: {
       ...existing,
-      ...validFields,
+      ...lead,
       title,
       id,
       lastActivityDate: getLocalDateString(),

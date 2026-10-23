@@ -242,209 +242,213 @@ export function getStageBadgeStyle(stageName = '', stageColor = '') {
   };
 }
 
-export const ALLOWED_TRANSITIONS = {
-  'New Lead': ['Contacted', 'Closed Lost'],
-  'Contacted': ['Sample Sent', 'Proposal Sent', 'Closed Lost'],
-  'Sample Sent': ['Proposal Sent', 'Closed Lost'],
-  'Proposal Sent': ['Negotiation', 'Closed Won', 'Closed Lost'],
-  'Negotiation': ['Closed Won', 'Closed Lost'],
-  'Buy Again (Renewal)': ['Proposal Sent', 'Negotiation', 'Closed Won', 'Closed Lost'],
-  'Closed Won': [],
-  'Closed Lost': []
+export const ALLOWED_TRANSITION_IDS = {
+  'stg-1': ['stg-2', 'stg-8'],
+  'stg-2': ['stg-3', 'stg-4', 'stg-8'],
+  'stg-3': ['stg-4', 'stg-8'],
+  'stg-4': ['stg-5', 'stg-6', 'stg-8'],
+  'stg-5': ['stg-6', 'stg-8'],
+  'stg-6': [],
+  'stg-7': ['stg-4', 'stg-5', 'stg-6', 'stg-8'],
+  'stg-8': []
 };
 
-export const STAGE_CRITERIA = {
-  'New Lead->Contacted': [
+const DEFAULT_STAGE_CRITERIA = {
+  'stg-1->stg-2': [
     'Reached decision-maker or identified who they are',
     'Confirmed genuine need/use-case',
     'Rough budget range known',
     'Realistic timeline known'
   ],
-  'Contacted->Sample Sent': [
+  'stg-2->stg-3': [
     'Exact specs/quantity confirmed',
     'Internal evaluation process/timeline known',
     'Competitor also sampling',
     'Shipping/logistics confirmed'
   ],
-  'Contacted->Proposal Sent': [
+  'stg-2->stg-4': [
     'Confirmed physical sample not required for product/service',
     'Decision-maker and budget parameters validated',
     'Scope of proposal and delivery timeline agreed'
   ],
-  'Sample Sent->Proposal Sent': [
+  'stg-3->stg-4': [
     'Sample passed technical/quality requirements',
     'Decision-maker engaged',
     'Target price point known',
     'Defined next step with date'
   ],
-  'Proposal Sent->Negotiation': [
+  'stg-4->stg-5': [
     'Specific feedback received',
     'Pricing is the main blocker vs other issue',
     'Internal approvers identified',
     'Competing vendor still in play'
   ],
-  'Negotiation->Closed Won': [
+  'stg-5->stg-6': [
     'Final pricing/terms agreed',
     'Signed PO or firm signing date',
     'Delivery/renewal terms locked'
   ],
-  'Buy Again (Renewal)->Proposal Sent': [
+  'stg-7->stg-4': [
     'Repeat order specifications and quantity confirmed',
     'Pricing index or repeat discount agreed',
     'Fulfillment timeline verified'
   ]
 };
 
-export const ACTIVITY_STAGE_CRITERIA = {
+export const STAGE_CRITERIA = DEFAULT_STAGE_CRITERIA;
+
+const DEFAULT_ACTIVITY_STAGE_CRITERIA = {
   'Call': {
-    'New Lead->Contacted': [
+    'stg-1->stg-2': [
       'Reached decision-maker or key contact via phone call',
       'Confirmed genuine business requirement over call',
       'Discussed preliminary budget and timeline over call',
       'Agreed on next follow-up action over call'
     ],
-    'Contacted->Sample Sent': [
+    'stg-2->stg-3': [
       'Confirmed exact product specs & sample quantity on call',
       'Verified recipient shipping address & logistics contact',
       'Client agreed to evaluate sample upon arrival',
       'Confirmed competitor involvement over call'
     ],
-    'Sample Sent->Proposal Sent': [
+    'stg-3->stg-4': [
       'Reviewed sample test results with decision-maker over call',
       'Client confirmed sample passed quality requirements',
       'Discussed target price point and volume required over call',
       'Agreed on formal proposal delivery date over call'
     ],
-    'Proposal Sent->Negotiation': [
+    'stg-4->stg-5': [
       'Discussed formal proposal feedback over phone call',
       'Identified specific pricing or commercial blockers',
       'Confirmed internal decision-makers & approvers on call',
       'Agreed on final negotiation schedule over call'
     ],
-    'Negotiation->Closed Won': [
+    'stg-5->stg-6': [
       'Final commercial terms & pricing verbally agreed on call',
       'Confirmed PO issue date & contract signing schedule',
       'Delivery, warranty & renewal terms locked over call'
     ]
   },
   'Meeting': {
-    'New Lead->Contacted': [
+    'stg-1->stg-2': [
       'Conducted discovery meeting/demo with key stakeholders',
       'Presented company capabilities & mapped client pain points',
       'Identified key decision-makers and approval workflow',
       'Agreed on next steps during meeting'
     ],
-    'Contacted->Sample Sent': [
+    'stg-2->stg-3': [
       'Presented product sample specs during meeting/demo',
       'Client requested physical sample testing for verification',
       'Defined testing parameters & sample evaluation criteria',
       'Confirmed sample shipment schedule in meeting'
     ],
-    'Sample Sent->Proposal Sent': [
+    'stg-3->stg-4': [
       'Held sample review meeting & presented test findings',
       'Technical team approved sample quality & specs',
       'Presented preliminary commercial pricing framework in meeting',
       'Agreed on formal proposal presentation meeting'
     ],
-    'Proposal Sent->Negotiation': [
+    'stg-4->stg-5': [
       'Presented formal proposal to executive stakeholders in meeting',
       'Addressed technical, pricing & delivery questions in meeting',
       'Stakeholders agreed to move to contract negotiation stage',
       'Identified legal & commercial review team'
     ],
-    'Negotiation->Closed Won': [
+    'stg-5->stg-6': [
       'Completed final negotiation meeting with executive approvers',
       'All commercial, legal & delivery terms agreed in meeting',
       'PO or contract signed during/after meeting'
     ]
   },
   'Outbound Email': {
-    'New Lead->Contacted': [
+    'stg-1->stg-2': [
       'Received email response from decision-maker',
       'Client confirmed active inquiry/interest in writing',
       'Received initial project scope & spec requirements via email',
       'Email conversation established with primary contact'
     ],
-    'Contacted->Sample Sent': [
+    'stg-2->stg-3': [
       'Sample request details & specs confirmed via email',
       'Shipping address & recipient phone confirmed in writing',
       'Sample dispatch notice & tracking sent to client via email',
       'Evaluation timeline acknowledged by client via email'
     ],
-    'Sample Sent->Proposal Sent': [
+    'stg-3->stg-4': [
       'Written email confirmation received that sample passed testing',
       'Client requested formal quotation / proposal document via email',
       'Target order volume & delivery schedule confirmed in writing',
       'Email confirmation of budget approval received'
     ],
-    'Proposal Sent->Negotiation': [
+    'stg-4->stg-5': [
       'Proposal sent and client acknowledged receipt with feedback',
       'Written feedback / counter-proposal received via email',
       'Specific commercial terms & payment schedule requested via email',
       'Key decision-makers copied on email correspondence'
     ],
-    'Negotiation->Closed Won': [
+    'stg-5->stg-6': [
       'Written PO or signed agreement received via email',
       'Final payment & delivery terms locked in writing',
       'Formal order execution confirmed via email exchange'
     ]
   },
   'Sample Follow-up': {
-    'New Lead->Contacted': [
+    'stg-1->stg-2': [
       'Client expressed interest in physical sample testing',
       'Product application & technical suitability pre-verified',
       'Confirmed sample availability in warehouse'
     ],
-    'Contacted->Sample Sent': [
+    'stg-2->stg-3': [
       'Physical sample dispatched with tracking & spec certificate',
       'Client notified of dispatch and tracking details',
       'Verified delivery receipt with client logistics contact'
     ],
-    'Sample Sent->Proposal Sent': [
+    'stg-3->stg-4': [
       'Client completed physical sample testing / lab evaluation',
       'Sample passed performance, quality & spec tests',
       'Sample approved for production & commercial supply',
       'Client requested bulk supply proposal based on sample'
     ],
-    'Proposal Sent->Negotiation': [
+    'stg-4->stg-5': [
       'Sample performance matched commercial proposal specs',
       'Bulk packaging & batch size confirmed based on sample',
       'Sample quality baseline locked for commercial contract'
     ],
-    'Negotiation->Closed Won': [
+    'stg-5->stg-6': [
       'Golden sample / approved reference sample signed off',
       'Batch quality guarantee & delivery specs locked',
       'Ready for initial production dispatch'
     ]
   },
   'Note': {
-    'New Lead->Contacted': [
+    'stg-1->stg-2': [
       'Verified lead contact details & company background internally',
       'Confirmed lead matches Ideal Customer Profile (ICP)',
       'Assigned sales owner & logged initial outreach strategy'
     ],
-    'Contacted->Sample Sent': [
+    'stg-2->stg-3': [
       'Internal technical review approved sample dispatch',
       'Inventory check confirmed sample stock availability',
       'Shipping costs & logistics plan logged internally'
     ],
-    'Sample Sent->Proposal Sent': [
+    'stg-3->stg-4': [
       'Internal margin calculation & discount approval completed',
       'Formal proposal draft prepared & approved internally',
       'Commercial risk check passed'
     ],
-    'Proposal Sent->Negotiation': [
+    'stg-4->stg-5': [
       'Commercial terms & credit limit checked by finance',
       'Special pricing / payment terms approved by management',
       'Competitor comparison & strategy note documented'
     ],
-    'Negotiation->Closed Won': [
+    'stg-5->stg-6': [
       'Legal, compliance & contract terms approved internally',
       'Credit limit & payment terms signed off by finance',
       'Order booking ready for ERP / fulfillment team'
     ]
   }
 };
+
+export const ACTIVITY_STAGE_CRITERIA = DEFAULT_ACTIVITY_STAGE_CRITERIA;
 
 export function getActivityConnectionInfo(activityType = 'Call') {
   const type = String(activityType || '').toLowerCase();

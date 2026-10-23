@@ -42,6 +42,7 @@ export const DetailDrawer = ({
   onUpdateDeal,
   onUpdateLead,
   onCreateActivity,
+  onCreateNote,
   onCreateTask,
   onUpdateTask,
   onOpenStageGateModal,
@@ -75,7 +76,7 @@ export const DetailDrawer = ({
         value: deal.value || 0,
         stageId: deal.stageId || '',
         expectedCloseDate: deal.expectedCloseDate || '',
-        priority: deal.priority || 'Medium',
+        priority: deal.customFields?.priority || 'Medium',
         ownerId: deal.ownerId || '',
         companyId: deal.companyId || '',
         contactId: deal.contactId || '',
@@ -177,12 +178,24 @@ export const DetailDrawer = ({
     if (e) e.preventDefault();
     setIsSaving(true);
     try {
+      const { notes, priority, ...recordFields } = formData;
       if (type === 'deal' && onUpdateDeal) {
-        await onUpdateDeal(deal.id, formData);
+        await onUpdateDeal(deal.id, {
+          ...recordFields,
+          customFields: { ...(deal.customFields || {}), priority },
+        });
         toast.success("Deal updated successfully");
       } else if (type === 'lead' && onUpdateLead) {
-        await onUpdateLead(lead.id, formData);
+        await onUpdateLead(lead.id, recordFields);
         toast.success("Lead updated successfully");
+      }
+      if (notes?.trim() && onCreateNote) {
+        await onCreateNote({
+          text: notes.trim(), linkedType: type === 'deal' ? 'Deal' : 'Lead',
+          linkedId: type === 'deal' ? deal.id : lead.id,
+          authorId: currentUser?.id, authorName: currentUser?.name,
+        });
+        setFormData(previous => ({ ...previous, notes: '' }));
       }
     } catch (err) {
       toast.error(err.message || "Failed to update record");
@@ -721,7 +734,7 @@ export const DetailDrawer = ({
 
           {/* Drawer Footer Actions */}
           <div className="p-4 border-t border-[#E3E6EA] bg-[#FAFCFD] flex items-center justify-between gap-3">
-            {type === 'deal' && (deal.status === 'Won' || deal.stageName === 'Closed Won') ? (
+            {type === 'deal' && (deal.status === 'Won' || deal.stageId === 'stg-6') ? (
               <button
                 onClick={() => onCreateRebuyDeal && onCreateRebuyDeal(deal)}
                 className="w-full py-2 px-3 bg-[#F0FDF4] hover:bg-[#DCFCE7] border border-[#BBF7D0] text-[#15803D] font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"

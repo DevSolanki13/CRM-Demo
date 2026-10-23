@@ -174,7 +174,7 @@ export const createRebuyDeal = asyncHandler(async (req, res) => {
 export const checkRenewals = asyncHandler(async (_req, res) => {
   const result = await dealService.triggerRenewalCheck();
   const state = await systemService.getState();
-  res.json({ success: true, flippedCount: result.flippedCount, state });
+  res.json({ success: result.failures.length === 0, ...result, state });
 });
 
 // Audit Logs

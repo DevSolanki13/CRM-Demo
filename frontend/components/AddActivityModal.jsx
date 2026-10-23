@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import {
   Calendar,
   X,
@@ -44,16 +45,12 @@ export const AddActivityModal = ({
     : null;
 
   const entityStageId = targetEntity?.stageId || leadDeal?.stageId;
-  const entityStageName = targetEntity?.stageName || leadDeal?.stageName;
 
   const sortedStages = [...stages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   let currentStageIndex = -1;
   if (entityStageId) {
     currentStageIndex = sortedStages.findIndex(s => s.id === entityStageId);
-  }
-  if (currentStageIndex === -1 && entityStageName) {
-    currentStageIndex = sortedStages.findIndex(s => s.name === entityStageName);
   }
   if (currentStageIndex === -1) {
     currentStageIndex = 0;
@@ -78,7 +75,7 @@ export const AddActivityModal = ({
     : 'Call';
 
   const typeCriteria = ACTIVITY_STAGE_CRITERIA[activityKey] || ACTIVITY_STAGE_CRITERIA['Call'];
-  const transitionKey = `${currentStageObj?.name}->${nextStageObj?.name}`;
+  const transitionKey = `${currentStageObj?.id}->${nextStageObj?.id}`;
   
   const criteriaList = typeCriteria[transitionKey] || STAGE_CRITERIA[transitionKey] || [
     `Reached decision-maker or key contact via ${activityType}`,
@@ -181,8 +178,12 @@ export const AddActivityModal = ({
       }
     };
 
-    await onSubmitActivity(payload);
-    onClose();
+    try {
+      await onSubmitActivity(payload);
+      onClose();
+    } catch (error) {
+      toast.error(error.message || 'Could not save activity');
+    }
   };
 
   return (

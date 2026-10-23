@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getEntityTimeline } from '../backend/services/timelineService.js';
 import { createActivity } from '../backend/services/activityNoteService.js';
-import { prisma } from '../backend/prisma.js';
 
 describe('Lead Journey Backend & Timeline Integration', () => {
   it('records activities with stage context, performedBy, and assignedTo separation', async () => {

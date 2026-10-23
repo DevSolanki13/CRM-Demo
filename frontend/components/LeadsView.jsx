@@ -31,8 +31,9 @@ export const LeadsView = ({
   onUpdateLead,
   onDeleteLead,
   onConvertToDeal,
-  onUpdateDeal,
+  onTransitionDealStage,
   onCreateActivity,
+  onCreateNote,
   onCreateTask,
   onSubmitStageGateCheck,
   onApproveStageGateCheck,
@@ -169,14 +170,14 @@ export const LeadsView = ({
 
     // 2. Stage & Status Updates
     if (outcomeData.shouldAdvanceStage && outcomeData.targetStageObj) {
-      if (leadDeal && onUpdateDeal) {
-        await onUpdateDeal(leadDeal.id, {
-          stageId: outcomeData.targetStageObj.id,
-          stageName: outcomeData.targetStageObj.name,
-          pendingGateCheck: null
+      if (leadDeal && onTransitionDealStage) {
+        await onTransitionDealStage(leadDeal.id, {
+          targetStageId: outcomeData.targetStageObj.id,
+          user: currentUser,
+          answers: outcomeData.criteriaAnswers || {},
+          note: activityData.description || outcomeData.summaryNote || '',
         });
-      }
-      if (onUpdateLead) {
+      } else if (onUpdateLead) {
         await onUpdateLead(targetEntity.id, {
           status: outcomeData.newStatus || 'Qualified'
         });
@@ -204,28 +205,12 @@ export const LeadsView = ({
       if (onSubmitStageGateCheck) {
         await onSubmitStageGateCheck(checkPayload);
       } else {
-        if (leadDeal && onUpdateDeal) {
-          await onUpdateDeal(leadDeal.id, {
-            status: 'Pending Review',
-            pendingGateCheck: checkPayload
-          });
-        }
-        if (onUpdateLead) {
-          await onUpdateLead(targetEntity.id, {
-            status: 'Pending Review',
-            pendingGateCheck: checkPayload
-          });
-        }
+        throw new Error('Approval submission is unavailable. Try again after refreshing.');
       }
     } else {
       // Stage remains same, status = 'Follow up'
       if (onUpdateLead) {
         await onUpdateLead(targetEntity.id, {
-          status: 'Follow up'
-        });
-      }
-      if (leadDeal && onUpdateDeal) {
-        await onUpdateDeal(leadDeal.id, {
           status: 'Follow up'
         });
       }
@@ -298,10 +283,19 @@ export const LeadsView = ({
       return;
     }
 
-    if (editingLead) {
-      await onUpdateLead(editingLead.id, formData);
-    } else {
-      await onCreateLead(formData);
+    const { notes, ...leadFields } = formData;
+    const saved = editingLead
+      ? await onUpdateLead(editingLead.id, leadFields)
+      : await onCreateLead(leadFields);
+    if (notes?.trim() && saved?.id && onCreateNote) {
+      try {
+        await onCreateNote({
+          text: notes.trim(), linkedType: 'Lead', linkedId: saved.id,
+          authorId: currentUser.id, authorName: currentUser.name,
+        });
+      } catch {
+        // The lead was saved; the note endpoint already reports its own error.
+      }
     }
     setIsModalOpen(false);
   };

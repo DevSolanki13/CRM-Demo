@@ -14,7 +14,7 @@ export const ManifestStrip = ({ activities = [], tasks = [], deals = [], current
   const pendingTasksToday = userTasks.filter(t => t.status === 'pending' && t.dueDate <= todayStr).length;
 
   // Renewals Due
-  const renewalsDueCount = deals.filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again')).length;
+  const renewalsDueCount = deals.filter(d => d.status === 'Renewal Due' || d.stageId === 'stg-7').length;
 
   return (
     <div className="bg-[#FAFCFD] border-b border-[#E3E6EA] px-6 py-2 flex flex-wrap items-center justify-between text-[11px] font-mono text-[#5B6472] gap-4 select-none shrink-0 shadow-[0_8px_24px_rgba(18,22,28,0.12)] z-10">

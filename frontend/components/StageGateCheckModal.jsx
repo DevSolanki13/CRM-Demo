@@ -66,7 +66,7 @@ export const StageGateCheckModal = ({
   const [submitting, setSubmitting] = useState(false);
   const [forceDirectLost, setForceDirectLost] = useState(false);
 
-  const transitionKey = `${fromStage?.name}->${targetStage?.name}`;
+  const transitionKey = `${fromStage?.id}->${targetStage?.id}`;
 
   const criteriaList = STAGE_CRITERIA[transitionKey] || [
     'Decision-maker verified and aligned',
@@ -100,7 +100,7 @@ export const StageGateCheckModal = ({
 
   if (!isOpen || !deal) return null;
 
-  const isDirectLost = targetStage?.name === 'Closed Lost' || targetStage?.category === 'Lost';
+  const isDirectLost = targetStage?.id === 'stg-8';
   const isReviewMode = deal.pendingGateCheck && (currentUser.role === 'Admin' || currentUser.role === 'Manager');
   const isLostMode = isDirectLost || forceDirectLost || Object.values(answers).some(val => val === false);
   const totalCriteria = criteriaList.length;
@@ -159,7 +159,8 @@ export const StageGateCheckModal = ({
     }
 
     const outcome = allYesAnswers ? 'advanced' : 'lost';
-    const checkStatus = (currentUser.role === 'Admin' || isDirectLost) ? 'approved_and_executed' : 'pending_review';
+    const checkStatus = (['Admin', 'Manager'].includes(currentUser.role) || isDirectLost)
+      ? 'approved_and_executed' : 'pending_review';
 
     const checkData = {
       dealId: deal.id,
@@ -538,7 +539,7 @@ export const StageGateCheckModal = ({
                         <XCircle className="w-4 h-4" />
                         <span>Submit & Move to Closed Lost</span>
                       </>
-                    ) : currentUser.role === 'Admin' ? (
+                    ) : ['Admin', 'Manager'].includes(currentUser.role) ? (
                       <>
                         <CheckCircle2 className="w-4 h-4" />
                         <span>Execute Auto-Advance to {targetStage?.name}</span>

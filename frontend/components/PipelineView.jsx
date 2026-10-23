@@ -28,7 +28,7 @@ import {
   isDealStale,
   isCloseDateOverdue,
   isProposalExpiringSoon,
-  ALLOWED_TRANSITIONS,
+  ALLOWED_TRANSITION_IDS,
   getLocalDateInputValue,
   getLocalDateInputValueAfterDays
 } from '../utils/crmHelpers.js';
@@ -128,7 +128,7 @@ export const PipelineView = ({
   const staleCount = userDeals.filter(d => isDealStale(d.lastActivityDate)).length;
   const agingCount = userDeals.filter(d => getStageAgingStatus(d.daysInStage).level === 'risk').length;
   const overdueCount = userDeals.filter(d => isCloseDateOverdue(d.expectedCloseDate, d.status)).length;
-  const renewalsCount = userDeals.filter(d => d.status === 'Renewal Due' || d.stageName?.includes('Buy Again') || d.isRecurring).length;
+  const renewalsCount = userDeals.filter(d => d.status === 'Renewal Due' || d.stageId === 'stg-7' || d.isRecurring).length;
   const myDealsCount = userDeals.filter(d => d.ownerId === currentUser.id).length;
 
   // Filter deals by search & status
@@ -145,7 +145,7 @@ export const PipelineView = ({
     if (quickFilter === 'Stale') return isDealStale(deal.lastActivityDate);
     if (quickFilter === 'Aging') return getStageAgingStatus(deal.daysInStage).level === 'risk';
     if (quickFilter === 'Overdue') return isCloseDateOverdue(deal.expectedCloseDate, deal.status);
-    if (quickFilter === 'Renewals') return deal.status === 'Renewal Due' || deal.stageName?.includes('Buy Again') || deal.isRecurring;
+    if (quickFilter === 'Renewals') return deal.status === 'Renewal Due' || deal.stageId === 'stg-7' || deal.isRecurring;
     return true;
   });
 
@@ -305,8 +305,8 @@ export const PipelineView = ({
 
   const handleAdvanceStep = (deal) => {
     const currentStage = stages.find(s => s.id === deal.stageId);
-    const currentName = currentStage?.name || deal.stageName || 'New Lead';
-    const allowed = (ALLOWED_TRANSITIONS[currentName] || []).filter(name => name !== 'Closed Lost');
+    const currentName = currentStage?.name || deal.stageName || 'Current Stage';
+    const allowed = (ALLOWED_TRANSITION_IDS[deal.stageId] || []).filter(id => id !== 'stg-8');
 
     if (!allowed || allowed.length === 0) {
       toast.info(`No forward stages available from "${currentName}".`);
@@ -314,13 +314,13 @@ export const PipelineView = ({
     }
 
     if (allowed.length === 1) {
-      const targetStage = stages.find(s => s.name === allowed[0]);
+      const targetStage = stages.find(s => s.id === allowed[0]);
       if (targetStage) {
         handleOpenGateCheckModal(deal, targetStage);
       }
     } else {
       // Multiple options (e.g. Contacted -> Sample Sent OR Proposal Sent)
-      const targetStageObjs = allowed.map(name => stages.find(s => s.name === name)).filter(Boolean);
+      const targetStageObjs = allowed.map(id => stages.find(s => s.id === id)).filter(Boolean);
       setTargetPickerModal({
         isOpen: true,
         deal,
@@ -346,6 +346,32 @@ export const PipelineView = ({
     });
   };
 
+  const handleSubmitGateCheck = async (check) => {
+    if (check.outcome === 'demoted') {
+      await onTransitionDealStage(check.dealId, {
+        targetStageId: check.targetStageId,
+        user: currentUser,
+        demotionReason: check.backwardReason,
+        note: check.note,
+      });
+      return;
+    }
+    if (check.status === 'approved_and_executed') {
+      if (check.outcome === 'lost') {
+        await onCloseLostDeal(check.dealId, {
+          user: currentUser, lostReason: check.lostReason, note: check.note,
+        });
+      } else {
+        await onTransitionDealStage(check.dealId, {
+          targetStageId: check.targetStageId, user: currentUser,
+          answers: check.answers, note: check.note,
+        });
+      }
+      return;
+    }
+    await onSubmitStageGateCheck(check);
+  };
+
   const handleConfirmCloseLost = async (e) => {
     e.preventDefault();
     const { deal, reason, note } = closeLostModal;
@@ -359,17 +385,18 @@ export const PipelineView = ({
     if (onCloseLostDeal) {
       await onCloseLostDeal(deal.id, {
         lostReason: reason,
-        lostNote: note,
+        note,
         user: currentUser
       });
     } else if (onUpdateDeal) {
-      const lostStage = stages.find(s => s.name === 'Closed Lost') || { id: 'stg-lost', name: 'Closed Lost' };
+      const lostStage = stages.find(s => s.id === 'stg-8');
+      if (!lostStage) throw new Error('Closed Lost stage is not configured.');
       await onUpdateDeal(deal.id, {
         stageId: lostStage.id,
         stageName: lostStage.name,
         status: 'Lost',
         lostReason: reason,
-        lostNote: note
+        lostReasonNote: note
       });
     }
 
@@ -408,7 +435,7 @@ export const PipelineView = ({
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.title || !formData.value) return;
+    if (!formData.title || formData.value === '' || formData.value == null) return;
 
     if (editingDeal) {
       await onUpdateDeal(editingDeal.id, formData);
@@ -734,7 +761,7 @@ export const PipelineView = ({
                         {/* Action Buttons */}
                         <div className="space-y-1.5 pt-1">
                           {/* Create Rebuy Button for Won Deals */}
-                          {(deal.status === 'Won' || deal.stageName === 'Closed Won') && (
+                          {(deal.status === 'Won' || deal.stageId === 'stg-6') && (
                             <button
                               onClick={() => handleCreateRebuy(deal)}
                               className="w-full py-1.5 px-2 bg-[#F0FDF4] hover:bg-[#DCFCE7] border border-[#BBF7D0] rounded-lg text-[11px] text-[#15803D] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
@@ -824,7 +851,7 @@ export const PipelineView = ({
 
             <div className="space-y-2.5">
               {targetPickerModal.targets.map(targetStage => {
-                const isSkipSample = targetStage.name === 'Proposal Sent' && targetPickerModal.deal.stageName === 'Contacted';
+                const isSkipSample = targetStage.id === 'stg-4' && targetPickerModal.deal.stageId === 'stg-2';
 
                 return (
                   <button
@@ -1174,7 +1201,7 @@ export const PipelineView = ({
         fromStage={gateCheckFromStage}
         targetStage={gateCheckTargetStage}
         currentUser={currentUser}
-        onSubmitCheck={onSubmitStageGateCheck}
+        onSubmitCheck={handleSubmitGateCheck}
         onApproveCheck={onApproveStageGateCheck}
         onRejectCheck={onRejectStageGateCheck}
         onSaveDraft={onSavePartialGateCheck}

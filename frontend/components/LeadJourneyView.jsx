@@ -164,7 +164,7 @@ export const LeadJourneyView = ({
   // Determine lead's current actual stage
   const currentActualStage = useMemo(() => {
     if (linkedDeal) {
-      const match = sortedStages.find(s => s.id === linkedDeal.stageId || s.name === linkedDeal.stageName);
+      const match = sortedStages.find(s => s.id === linkedDeal.stageId);
       if (match) return match;
     }
     return sortedStages[0] || { id: 'stg-1', name: 'New Lead', order: 1 };
@@ -203,26 +203,11 @@ export const LeadJourneyView = ({
       if (item.stageId) {
         stageMatch = sortedStages.find(s => s.id === item.stageId);
       }
-      if (!stageMatch && item.stageName) {
-        stageMatch = sortedStages.find(s => s.name.toLowerCase() === item.stageName.toLowerCase());
-      }
-      if (!stageMatch && item.toStageName) {
-        stageMatch = sortedStages.find(s => s.name.toLowerCase() === item.toStageName.toLowerCase());
-      }
-      if (!stageMatch && item.metadata?.toStage) {
-        stageMatch = sortedStages.find(s => s.name.toLowerCase() === item.metadata.toStage.toLowerCase());
-      }
-      if (!stageMatch && item.metadata?.stageName) {
-        stageMatch = sortedStages.find(s => s.name.toLowerCase() === item.metadata.stageName.toLowerCase());
-      }
-      if (!stageMatch && item.metadata?.targetStageName) {
-        stageMatch = sortedStages.find(s => s.name.toLowerCase() === item.metadata.targetStageName.toLowerCase());
-      }
 
       return {
         ...item,
         matchedStage: stageMatch || null,
-        stageLabel: stageMatch ? stageMatch.name : 'Stage not recorded'
+        stageLabel: stageMatch?.name || item.toStageName || item.stageName || item.metadata?.toStage || 'Stage not recorded'
       };
     });
   }, [timelineItems, sortedStages]);
@@ -304,46 +289,36 @@ export const LeadJourneyView = ({
   // (lead.status='Converted' does NOT mean Closed Won — it means the lead became a client)
   const isWon = useMemo(() => {
     return (
-      currentActualStage?.category === 'Won' ||
-      currentActualStage?.name === 'Closed Won' ||
+      currentActualStage?.id === 'stg-6' ||
       linkedDeal?.status === 'Won'
     );
   }, [currentActualStage, linkedDeal?.status]);
 
   const isLost = useMemo(() => {
     return (
-      currentActualStage?.category === 'Lost' ||
-      currentActualStage?.name === 'Closed Lost' ||
+      currentActualStage?.id === 'stg-8' ||
       linkedDeal?.status === 'Lost'
     );
   }, [currentActualStage, linkedDeal?.status]);
 
   const isRenewal = useMemo(() => {
-    return currentActualStage?.category === 'Buy Again' || currentActualStage?.name?.includes('Renewal') || currentActualStage?.name?.includes('Buy Again');
+    return currentActualStage?.id === 'stg-7';
   }, [currentActualStage]);
 
   // Qualification pipeline stages (stages 1 to 5: New Lead, Contacted, Sample Sent, Proposal Sent, Negotiation)
   const qualificationStages = useMemo(() => {
-    return sortedStages.filter(s =>
-      s.category !== 'Won' &&
-      s.category !== 'Lost' &&
-      s.category !== 'Buy Again' &&
-      !s.name.includes('Closed') &&
-      !s.name.includes('Renewal') &&
-      !s.name.includes('Buy Again')
-    );
+    return sortedStages.filter(s => !['stg-6', 'stg-7', 'stg-8'].includes(s.id));
   }, [sortedStages]);
 
   // Find where the deal dropped off (off-ramp stage for lost deals)
   const offRampStageInfo = useMemo(() => {
     if (!isLost) return null;
     const lostTransition = timelineWithStage.find(i =>
-      (i.toStageName === 'Closed Lost' || i.eventType?.includes('Stage Change')) &&
-      i.fromStageName &&
-      i.fromStageName !== 'Closed Lost'
+      (i.stageId === 'stg-8' || i.metadata?.toStageId === 'stg-8') &&
+      i.fromStageName
     );
-    const dropOffName = lostTransition?.fromStageName || linkedDeal?.stageName || 'Negotiation';
-    const dropOffStage = qualificationStages.find(s => s.name.toLowerCase() === dropOffName.toLowerCase()) || qualificationStages[qualificationStages.length - 1];
+    const dropOffStage = qualificationStages.find(s => s.id === lostTransition?.metadata?.fromStageId);
+    const dropOffName = dropOffStage?.name || lostTransition?.fromStageName || 'Unknown';
     return {
       stageName: dropOffName,
       stage: dropOffStage,
@@ -356,14 +331,14 @@ export const LeadJourneyView = ({
   const hybridPathStages = useMemo(() => {
     let terminalStage;
     if (isWon) {
-      terminalStage = sortedStages.find(s => s.category === 'Won' || s.name === 'Closed Won') || { id: 'stg-won', name: 'Closed Won', category: 'Won' };
+      terminalStage = sortedStages.find(s => s.id === 'stg-6') || { id: 'stg-6', name: 'Closed Won', category: 'Won' };
     } else if (isLost) {
-      terminalStage = sortedStages.find(s => s.category === 'Lost' || s.name === 'Closed Lost') || { id: 'stg-lost', name: 'Closed Lost', category: 'Lost' };
+      terminalStage = sortedStages.find(s => s.id === 'stg-8') || { id: 'stg-8', name: 'Closed Lost', category: 'Lost' };
     } else if (isRenewal) {
-      terminalStage = sortedStages.find(s => s.category === 'Buy Again') || { id: 'stg-renewal', name: 'Buy Again (Renewal)', category: 'Buy Again' };
+      terminalStage = sortedStages.find(s => s.id === 'stg-7') || { id: 'stg-7', name: 'Buy Again (Renewal)', category: 'Buy Again' };
     } else {
       // In flight: Target destination milestone "Closed"
-      const wonStage = sortedStages.find(s => s.category === 'Won' || s.name === 'Closed Won');
+      const wonStage = sortedStages.find(s => s.id === 'stg-6');
       terminalStage = {
         id: wonStage?.id || 'stg-closed-target',
         name: 'Closed',
@@ -442,7 +417,7 @@ export const LeadJourneyView = ({
 
       if (onUpdateLead) {
         await onUpdateLead(lead.id, {
-          status: destinationStage.name === 'Closed Won' ? 'Converted' : destinationStage.name === 'Closed Lost' ? 'Unqualified' : 'Qualified',
+          status: destinationStage.id === 'stg-6' ? 'Converted' : destinationStage.id === 'stg-8' ? 'Unqualified' : 'Qualified',
           lastActivityDate: new Date().toISOString().split('T')[0]
         });
       }
@@ -1587,4 +1562,3 @@ export const LeadJourneyView = ({
     </div>
   );
 };
-

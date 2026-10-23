@@ -13,7 +13,7 @@ import {
   initialStageGateChecks,
   initialAuditLogs,
 } from '../data/initialData.js';
-import { normalizeStageColor } from '../constants/stageConstants.js';
+import { normalizeStageColor, stageCode } from '../constants/stageConstants.js';
 
 export const getState = async () => {
   const [
@@ -46,6 +46,7 @@ export const getState = async () => {
 
   const normalizedStages = (stages || []).map(stg => ({
     ...stg,
+    code: stageCode(stg),
     color: normalizeStageColor(stg.color, stg.name)
   }));
 

@@ -18,6 +18,8 @@ export default defineConfig(() => {
     test: {
       include: ['tests/**/*.test.{js,ts}'],
       exclude: ['e2e/**', 'node_modules/**'],
+      // Database-backed suites share one test database; keep files isolated.
+      fileParallelism: false,
     },
   };
 });
