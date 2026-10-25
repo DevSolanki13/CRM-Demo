@@ -61,8 +61,8 @@ DIRECT_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].p
 
 ## 3. Database Synchronization & Seeding
 
-### Step 3: Push Prisma Schema
-Push the 12 Prisma data models directly to your PostgreSQL database:
+### Step 3: Apply Prisma migrations
+Apply the versioned migrations, including the public-table RLS and grant lockdown:
 ```bash
 npm run db:migrate
 npx prisma generate --config prisma7.config.ts
@@ -79,6 +79,14 @@ npx prisma generate --config prisma7.config.ts
 ```
 
 Fresh databases need only `npm run db:migrate`; they should not use `migrate resolve`. Do not use `db push` as a substitute for versioned production migrations.
+
+### Supabase Data API access
+
+CRM users authenticate with Express sessions, and the backend accesses customer records through a server-side Prisma connection. CRM tables in `public` have RLS enabled but intentionally have no policies for Supabase's `anon` or `authenticated` roles. Those roles, and `service_role`, also have no table privileges on CRM tables. The Prisma connection uses the `postgres` role; protect its connection string as a server secret. The Storage integration uses a server-side service-role key for the separate private Storage bucket.
+
+Supabase Security Advisor may list `rls_enabled_no_policy` as informational for these tables. It is intentional: this app does not use Supabase Auth identities to query CRM tables, so a permissive policy would expose data rather than fix a problem. The CRM trigger functions use an empty, fixed `search_path` and schema-qualified table names.
+
+If no other application uses Supabase REST or GraphQL data endpoints, turn off **Enable Data API** in the project's Data API integration settings. The database migration protects the tables even while that dashboard setting is still being changed. Before deploying to another database, verify that its runtime connection uses the intended Postgres role, then run the full test suite and inspect Supabase's Security Advisor after migration. Do not add broad `anon` or `authenticated` RLS policies merely to silence a warning.
 
 ### Step 4: Seed Demo Dataset
 For a new disposable development database, populate sample records. Do not run demo seeding against business data: it updates existing demo records. The CRM needs an active administrator record to supply its temporary shared identity.
