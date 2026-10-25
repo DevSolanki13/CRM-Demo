@@ -4,6 +4,8 @@ import { prisma } from '../prisma.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { actorContext, publicUser, ROLES } from './identity.js';
 import { verifyPassword, hashPassword } from './passwords.js';
+import { recordLoginAttempt, clearLoginAttempts } from './loginLimiter.js';
+import { acceptAccountInvitation } from './invitations.js';
 
 const COOKIE = 'crm_session';
 const lifetimeMs = 8 * 60 * 60 * 1000;
@@ -48,36 +50,30 @@ export function requireRole(...roles) {
 
 export const authRouter = Router();
 authRouter.use(protectWrites);
-// Single-process limiter: deploy a shared gateway limiter before running replicas.
-const attempts = new Map();
 const dummyHash = hashPassword(randomBytes(24).toString('hex'));
 authRouter.post('/login', asyncHandler(async (req, res) => {
   const { email, password } = req.body || {};
   if (typeof email !== 'string' || email.length > 254 || typeof password !== 'string' || password.length > 128) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
-  const now = Date.now();
-  for (const [key, entry] of attempts) if (entry.until <= now) attempts.delete(key);
+  const normalizedEmail = email.trim().toLowerCase();
   // req.ip is intentionally not derived from untrusted forwarded headers.
-  const key = req.ip;
-  const attempt = attempts.get(key) || { count: 0, until: now + 15 * 60 * 1000 };
-  if (attempt.count >= 20) {
-    res.set('Retry-After', String(Math.ceil((attempt.until - now) / 1000)));
+  const attempt = await recordLoginAttempt(req.ip, normalizedEmail);
+  if (attempt.blocked) {
+    res.set('Retry-After', String(attempt.retryAfter));
     return res.status(429).json({ error: 'Too many sign-in attempts. Try again later.' });
   }
-  attempt.count++;
-  attempts.set(key, attempt);
-  const users = await prisma.user.findMany({ where: { email: { equals: email.trim().toLowerCase(), mode: 'insensitive' } }, take: 2 });
+  const users = await prisma.user.findMany({ where: { email: { equals: normalizedEmail, mode: 'insensitive' } }, take: 2 });
   const user = users.length === 1 ? users[0] : null;
   const valid = await verifyPassword(password, user?.passwordHash || await dummyHash);
   if (!valid || !user?.active || !ROLES.includes(user.role)) return res.status(401).json({ error: 'Invalid email or password' });
-  attempts.delete(key);
+  await clearLoginAttempts(req.ip, normalizedEmail);
   // Rotate rather than reusing any caller-supplied session.
   const oldToken = sessionToken(req);
   if (oldToken) await prisma.session.deleteMany({ where: { tokenHash: digest(oldToken) } });
   const token = randomBytes(32).toString('hex');
   await prisma.session.deleteMany({ where: { expiresAt: { lte: new Date() } } });
-  await prisma.session.create({ data: { tokenHash: digest(token), userId: user.id, expiresAt: new Date(now + lifetimeMs) } });
+  await prisma.session.create({ data: { tokenHash: digest(token), userId: user.id, expiresAt: new Date(Date.now() + lifetimeMs) } });
   res.set('Cache-Control', 'no-store');
   res.cookie(COOKIE, token, { ...cookieOptions(), maxAge: lifetimeMs });
   res.json({ user: publicUser(user) });
@@ -88,4 +84,8 @@ authRouter.post('/logout', asyncHandler(async (req, res) => {
   if (token) await prisma.session.deleteMany({ where: { tokenHash: digest(token) } });
   res.clearCookie(COOKIE, cookieOptions());
   res.status(204).end();
+}));
+authRouter.post('/accept-invitation', asyncHandler(async (req, res) => {
+  const result = await acceptAccountInvitation(req.body?.token, req.body?.password);
+  res.json(result);
 }));

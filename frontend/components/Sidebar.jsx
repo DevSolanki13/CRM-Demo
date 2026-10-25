@@ -50,8 +50,8 @@ export const Sidebar = ({
       icon: Users2,
       roles: ['Admin', 'Manager']
     },
-    { id: 'reports', label: 'Reports & Renewal Tracker', icon: BarChart3 },
-    { id: 'settings', label: 'Customization Hub', icon: Settings, roles: ['Admin'] },
+    { id: 'reports', label: 'Reports', icon: BarChart3 },
+    { id: 'settings', label: 'Settings', icon: Settings, roles: ['Admin'] },
   ];
 
   const handleItemClick = (id) => {

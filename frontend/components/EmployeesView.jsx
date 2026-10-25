@@ -13,10 +13,13 @@ export const EmployeesView = ({
   deals,
   currentUser,
   onCreateUser,
-  onUpdateUser
+  onUpdateUser,
+  onCreateAccountInvitation,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [invitation, setInvitation] = useState(null);
+  const [creatingInvitation, setCreatingInvitation] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -40,13 +43,33 @@ export const EmployeesView = ({
   const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.email) return;
-
-    if (editingUser) {
-      await onUpdateUser(editingUser.id, { ...formData, password: formData.password || undefined });
-    } else {
-      await onCreateUser(formData);
+    try {
+      if (editingUser) {
+        await onUpdateUser(editingUser.id, { ...formData, password: formData.password || undefined });
+      } else {
+        const issued = await onCreateUser(formData);
+        if (issued) setInvitation({
+          url: `${window.location.origin}${window.location.pathname}#invite=${issued.token}`,
+          expiresAt: issued.expiresAt,
+        });
+      }
+      setIsModalOpen(false);
+    } catch {
+      // The parent handler shows the API error and leaves this form open.
     }
-    setIsModalOpen(false);
+  };
+
+  const handleCreateInvitation = async user => {
+    setCreatingInvitation(true);
+    try {
+      const issued = await onCreateAccountInvitation(user.id);
+      setInvitation({
+        url: `${window.location.origin}${window.location.pathname}#invite=${issued.token}`,
+        expiresAt: issued.expiresAt,
+      });
+    } catch {
+      // The parent handler shows the API error.
+    } finally { setCreatingInvitation(false); }
   };
 
   return (
@@ -103,12 +126,17 @@ export const EmployeesView = ({
                   </div>
 
                   {currentUser.role === 'Admin' && (
-                    <button
-                      onClick={() => handleOpenEdit(u)}
-                      className="text-[#5B6472] hover:text-[#12161C] p-1.5 rounded-lg hover:bg-[#F6F7F8]"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleCreateInvitation(u)} disabled={creatingInvitation || !u.active}
+                        title="Create a one-time account link" aria-label={`Create account link for ${u.name}`}
+                        className="text-xs font-semibold text-[#1D4E63] hover:underline disabled:opacity-50 px-2 py-1">Account link</button>
+                      <button
+                        onClick={() => handleOpenEdit(u)} aria-label={`Edit ${u.name}`}
+                        className="text-[#5B6472] hover:text-[#12161C] p-1.5 rounded-lg hover:bg-[#F6F7F8]"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -181,8 +209,9 @@ export const EmployeesView = ({
               </div>
 
               <div>
-                <label className="block text-[#5B6472] font-semibold mb-1" htmlFor="member-password">{editingUser ? 'New password (optional)' : 'Initial password *'}</label>
-                <input id="member-password" type="password" autoComplete="new-password" required={!editingUser} minLength={12} maxLength={128} value={formData.password || ''} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-xl border p-2.5" />
+                <label className="block text-[#5B6472] font-semibold mb-1" htmlFor="member-password">Password (optional)</label>
+                <input id="member-password" type="password" autoComplete="new-password" minLength={12} maxLength={128} value={formData.password || ''} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-xl border p-2.5" />
+                {!editingUser && <p className="mt-1 text-[#5B6472]">Leave blank to create a one-time setup link.</p>}
               </div>
 
               <div>
@@ -217,6 +246,19 @@ export const EmployeesView = ({
           </div>
         </div>
       )}
+
+      {invitation && <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div role="dialog" aria-modal="true" aria-labelledby="invitation-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-[0_8px_24px_rgba(18,22,28,0.12)] space-y-4">
+          <h2 id="invitation-title" className="text-lg font-bold">Account link ready</h2>
+          <p className="text-sm text-[#5B6472]">Share this link privately with the team member. It can be used once and expires in 48 hours. Creating another link cancels this one.</p>
+          <input aria-label="One-time account link" readOnly value={invitation.url} onFocus={event => event.target.select()}
+            className="w-full rounded-lg border border-[#E3E6EA] bg-[#F6F7F8] p-3 text-sm" />
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => navigator.clipboard?.writeText(invitation.url)} className="rounded-lg border border-[#E3E6EA] px-4 py-2 text-sm font-semibold">Copy link</button>
+            <button type="button" onClick={() => setInvitation(null)} className="rounded-lg bg-[#1D4E63] px-4 py-2 text-sm font-semibold text-white">Done</button>
+          </div>
+        </div>
+      </div>}
 
     </div>
   );

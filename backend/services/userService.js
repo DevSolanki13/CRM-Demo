@@ -31,7 +31,6 @@ async function ensureUniqueEmail(email, id) {
 
 export const createUser = async user => {
   const data = await userData({ role: 'Sales Rep', active: true, ...user }, false);
-  if (!data.passwordHash) throw Object.assign(new Error('Set an initial password for the new user'), { statusCode: 400 });
   await ensureUniqueEmail(data.email);
   return prisma.user.create({ data: { id: randomUUID(), ...data }, select: PUBLIC_USER_SELECT });
 };
