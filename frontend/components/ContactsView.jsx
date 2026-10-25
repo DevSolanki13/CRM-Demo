@@ -18,6 +18,8 @@ import {
 import { formatDate, filterByRole, getLocalDateInputValueAfterDays, formatCurrency } from '../utils/crmHelpers.js';
 import { AddActivityModal } from './AddActivityModal.jsx';
 import { UnifiedTimeline } from './UnifiedTimeline.jsx';
+import { MergeCustomerDialog } from './MergeCustomerDialog.jsx';
+import { AttachmentsPanel } from './AttachmentsPanel.jsx';
 
 export const ContactsView = ({
   contacts = [],
@@ -31,6 +33,7 @@ export const ContactsView = ({
   onCreateContact,
   onUpdateContact,
   onDeleteContact,
+  onMergeContacts,
   onCreateNote,
   onCreateActivity,
   onCreateTask,
@@ -47,6 +50,7 @@ export const ContactsView = ({
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
+  const [mergeTargetId, setMergeTargetId] = useState(null);
   const [activityModalContact, setActivityModalContact] = useState(null);
 
   const handleSubmitActivityFromModal = async (payload) => {
@@ -290,6 +294,9 @@ export const ContactsView = ({
 
                       <td className="px-4 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
+                          {['Admin', 'Manager'].includes(currentUser?.role) && contacts.length > 1 && <button
+                            onClick={() => setMergeTargetId(cnt.id)} aria-label={`Merge ${cnt.name} with another contact`}
+                            className="px-2 py-1 text-[11px] font-semibold text-[#1D4E63] hover:underline">Merge</button>}
                           <button
                             onClick={() => handleOpenEdit(cnt)}
                             aria-label={`Edit ${cnt.name}`}
@@ -442,6 +449,10 @@ export const ContactsView = ({
               </div>
             )}
 
+            <div className="border-t border-[#E3E6EA] pt-4">
+              <AttachmentsPanel key={selectedContact.id} recordType="Contact" recordId={selectedContact.id} />
+            </div>
+
           </div>
         )}
 
@@ -552,6 +563,12 @@ export const ContactsView = ({
         currentUser={currentUser}
         onSubmitActivity={handleSubmitActivityFromModal}
       />
+
+      {mergeTargetId && <MergeCustomerDialog kind="Contact" records={contacts} initialTargetId={mergeTargetId}
+        onClose={() => setMergeTargetId(null)} onMerge={async (targetId, sourceId) => {
+          await onMergeContacts(targetId, sourceId);
+          setSelectedContact(null);
+        }} />}
 
     </div>
   );

@@ -24,6 +24,8 @@ import {
   getLocalDateInputValueAfterDays
 } from '../utils/crmHelpers.js';
 import { UnifiedTimeline } from './UnifiedTimeline.jsx';
+import { AttachmentsPanel } from './AttachmentsPanel.jsx';
+import { isRenewalStage } from '../../backend/constants/stageConstants.js';
 import { toast } from 'sonner';
 
 export const DetailDrawer = ({
@@ -432,6 +434,11 @@ export const DetailDrawer = ({
                 <CheckSquare className="w-3.5 h-3.5" />
                 <span>Tasks ({connectedTasks.length})</span>
               </button>
+              <button role="tab" id="tab-files" aria-controls="panel-files"
+                aria-selected={activeTab === 'files'} onClick={() => setActiveTab('files')}
+                className={`px-3 py-2 text-xs font-bold border-b-2 transition-colors focus-visible:outline-2 focus-visible:outline-[#1D4E63] ${activeTab === 'files' ? 'border-[#1D4E63] text-[#1D4E63]' : 'border-transparent text-[#5B6472] hover:text-[#12161C]'}`}>
+                Files
+              </button>
             </div>
           </div>
 
@@ -648,6 +655,12 @@ export const DetailDrawer = ({
               </div>
             )}
 
+            {activeTab === 'files' && (deal || lead) && (
+              <div role="tabpanel" id="panel-files" aria-labelledby="tab-files">
+                <AttachmentsPanel recordType={type === 'deal' ? 'Deal' : 'Lead'} recordId={(deal || lead).id} />
+              </div>
+            )}
+
             {/* TAB 4: TASKS */}
             {activeTab === 'tasks' && (
               <div role="tabpanel" id="panel-tasks" aria-labelledby="tab-tasks" className="space-y-4 text-xs">
@@ -734,9 +747,10 @@ export const DetailDrawer = ({
 
           {/* Drawer Footer Actions */}
           <div className="p-4 border-t border-[#E3E6EA] bg-[#FAFCFD] flex items-center justify-between gap-3">
-            {type === 'deal' && (deal.status === 'Won' || deal.stageId === 'stg-6') ? (
+            {type === 'deal' && deal.status === 'Won' &&
+              stages.some(stage => stage.pipelineId === deal.pipelineId && isRenewalStage(stage)) ? (
               <button
-                onClick={() => onCreateRebuyDeal && onCreateRebuyDeal(deal)}
+                onClick={() => onCreateRebuyDeal && onCreateRebuyDeal(deal.id)}
                 className="w-full py-2 px-3 bg-[#F0FDF4] hover:bg-[#DCFCE7] border border-[#BBF7D0] text-[#15803D] font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
               >
                 <RefreshCw className="w-3.5 h-3.5 text-[#15803D]" />

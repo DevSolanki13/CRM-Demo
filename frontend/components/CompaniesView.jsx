@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../utils/crmHelpers.js';
 import { UnifiedTimeline } from './UnifiedTimeline.jsx';
+import { MergeCustomerDialog } from './MergeCustomerDialog.jsx';
+import { AttachmentsPanel } from './AttachmentsPanel.jsx';
 
 export const CompaniesView = ({
   companies = [],
@@ -24,6 +26,7 @@ export const CompaniesView = ({
   onCreateCompany,
   onUpdateCompany,
   onDeleteCompany,
+  onMergeCompanies,
   onCreateActivity
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,6 +36,7 @@ export const CompaniesView = ({
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
+  const [mergeTargetId, setMergeTargetId] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -199,6 +203,9 @@ export const CompaniesView = ({
 
                         <td className="px-4 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1">
+                            {['Admin', 'Manager'].includes(currentUser?.role) && companies.length > 1 && <button
+                              onClick={() => setMergeTargetId(comp.id)} aria-label={`Merge ${comp.name} with another company`}
+                              className="px-2 py-1 text-[11px] font-semibold text-[#1D4E63] hover:underline">Merge</button>}
                             <button
                               onClick={() => handleOpenEdit(comp)}
                               aria-label={`Edit ${comp.name}`}
@@ -332,6 +339,10 @@ export const CompaniesView = ({
               </div>
             )}
 
+            <div className="border-t border-[#E3E6EA] pt-4">
+              <AttachmentsPanel key={selectedCompany.id} recordType="Company" recordId={selectedCompany.id} />
+            </div>
+
           </div>
         )}
 
@@ -429,6 +440,11 @@ export const CompaniesView = ({
         </div>
       )}
 
+      {mergeTargetId && <MergeCustomerDialog kind="Company" records={companies} initialTargetId={mergeTargetId}
+        onClose={() => setMergeTargetId(null)} onMerge={async (targetId, sourceId) => {
+          await onMergeCompanies(targetId, sourceId);
+          setSelectedCompany(null);
+        }} />}
     </div>
   );
 };
