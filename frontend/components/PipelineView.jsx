@@ -28,10 +28,10 @@ import {
   isDealStale,
   isCloseDateOverdue,
   isProposalExpiringSoon,
-  ALLOWED_TRANSITION_IDS,
   getLocalDateInputValue,
   getLocalDateInputValueAfterDays
 } from '../utils/crmHelpers.js';
+import { allowedStageTargets, isLostStage, isWonStage, isRenewalStage } from '../../backend/constants/stageConstants.js';
 import { StageGateCheckModal } from './StageGateCheckModal.jsx';
 import { AddActivityModal } from './AddActivityModal.jsx';
 
@@ -117,7 +117,7 @@ export const PipelineView = ({
     contactId: '',
     companyId: '',
     ownerId: currentUser.id,
-    isRecurring: true,
+    isRecurring: stages.some(isRenewalStage),
     recurrenceDays: branding?.defaultRecurrenceDays || 60
   });
 
@@ -128,7 +128,7 @@ export const PipelineView = ({
   const staleCount = userDeals.filter(d => isDealStale(d.lastActivityDate)).length;
   const agingCount = userDeals.filter(d => getStageAgingStatus(d.daysInStage).level === 'risk').length;
   const overdueCount = userDeals.filter(d => isCloseDateOverdue(d.expectedCloseDate, d.status)).length;
-  const renewalsCount = userDeals.filter(d => d.status === 'Renewal Due' || d.stageId === 'stg-7' || d.isRecurring).length;
+  const renewalsCount = userDeals.filter(d => d.status === 'Renewal Due' || isRenewalStage(stages.find(s => s.id === d.stageId)) || d.isRecurring).length;
   const myDealsCount = userDeals.filter(d => d.ownerId === currentUser.id).length;
 
   // Filter deals by search & status
@@ -145,7 +145,7 @@ export const PipelineView = ({
     if (quickFilter === 'Stale') return isDealStale(deal.lastActivityDate);
     if (quickFilter === 'Aging') return getStageAgingStatus(deal.daysInStage).level === 'risk';
     if (quickFilter === 'Overdue') return isCloseDateOverdue(deal.expectedCloseDate, deal.status);
-    if (quickFilter === 'Renewals') return deal.status === 'Renewal Due' || deal.stageId === 'stg-7' || deal.isRecurring;
+    if (quickFilter === 'Renewals') return deal.status === 'Renewal Due' || isRenewalStage(stages.find(s => s.id === deal.stageId)) || deal.isRecurring;
     return true;
   });
 
@@ -306,7 +306,7 @@ export const PipelineView = ({
   const handleAdvanceStep = (deal) => {
     const currentStage = stages.find(s => s.id === deal.stageId);
     const currentName = currentStage?.name || deal.stageName || 'Current Stage';
-    const allowed = (ALLOWED_TRANSITION_IDS[deal.stageId] || []).filter(id => id !== 'stg-8');
+    const allowed = currentStage ? allowedStageTargets(currentStage, stages).filter(stage => !isLostStage(stage)) : [];
 
     if (!allowed || allowed.length === 0) {
       toast.info(`No forward stages available from "${currentName}".`);
@@ -314,13 +314,13 @@ export const PipelineView = ({
     }
 
     if (allowed.length === 1) {
-      const targetStage = stages.find(s => s.id === allowed[0]);
+      const targetStage = allowed[0];
       if (targetStage) {
         handleOpenGateCheckModal(deal, targetStage);
       }
     } else {
       // Multiple options (e.g. Contacted -> Sample Sent OR Proposal Sent)
-      const targetStageObjs = allowed.map(id => stages.find(s => s.id === id)).filter(Boolean);
+      const targetStageObjs = allowed;
       setTargetPickerModal({
         isOpen: true,
         deal,
@@ -389,7 +389,7 @@ export const PipelineView = ({
         user: currentUser
       });
     } else if (onUpdateDeal) {
-      const lostStage = stages.find(s => s.id === 'stg-8');
+      const lostStage = stages.find(isLostStage);
       if (!lostStage) throw new Error('Closed Lost stage is not configured.');
       await onUpdateDeal(deal.id, {
         stageId: lostStage.id,
@@ -421,7 +421,7 @@ export const PipelineView = ({
       contactId: contacts[0]?.id || '',
       companyId: companies[0]?.id || '',
       ownerId: currentUser.id,
-      isRecurring: true,
+      isRecurring: stages.some(isRenewalStage),
       recurrenceDays: branding?.defaultRecurrenceDays || 60
     });
     setIsModalOpen(true);
@@ -761,7 +761,7 @@ export const PipelineView = ({
                         {/* Action Buttons */}
                         <div className="space-y-1.5 pt-1">
                           {/* Create Rebuy Button for Won Deals */}
-                          {(deal.status === 'Won' || deal.stageId === 'stg-6') && (
+                          {(deal.status === 'Won' || isWonStage(stages.find(s => s.id === deal.stageId))) && stages.some(isRenewalStage) && (
                             <button
                               onClick={() => handleCreateRebuy(deal)}
                               className="w-full py-1.5 px-2 bg-[#F0FDF4] hover:bg-[#DCFCE7] border border-[#BBF7D0] rounded-lg text-[11px] text-[#15803D] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"

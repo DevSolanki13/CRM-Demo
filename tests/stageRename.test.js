@@ -15,7 +15,7 @@ describe('stage rename consistency', () => {
     const newName = `Renamed Stage ${suffix}`;
     try {
       await prisma.stage.create({ data: {
-        id: stageId, name: oldName, order: 99, category: 'Pipeline'
+        id: stageId, code: `TEST_${suffix}`, name: oldName, order: 99, category: 'Pipeline'
       } });
       await prisma.deal.create({ data: {
         id: dealId, title: 'Stage rename test', stageId,
@@ -38,12 +38,12 @@ describe('stage rename consistency', () => {
       } });
       await prisma.task.create({ data: {
         id: taskId, title: 'Approval', type: 'Approval', status: 'pending',
-        stageGateCheckId: checkId, linkedId: dealId, linkedTitle: 'Stage rename test',
+        stageGateCheckId: checkId, linkedType: 'Deal', linkedId: dealId, linkedTitle: 'Stage rename test',
         fromStageName: oldName, targetStageName: 'New Lead'
       } });
       const stage = await updateStage(stageId, { name: newName });
       expect(stage.name).toBe(newName);
-      expect(stage.code).toBe(`CUSTOM_${stageId}`);
+      expect(stage.code).toBe(`TEST_${suffix}`);
       const deal = await prisma.deal.findUnique({ where: { id: dealId } });
       expect(deal.stageName).toBe(newName);
       expect(deal.pendingGateCheck.fromStageName).toBe(newName);

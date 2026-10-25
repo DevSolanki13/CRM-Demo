@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { isWonStage, isLostStage, isRenewalStage } from '../../backend/constants/stageConstants.js';
 import {
   ArrowLeft,
   ExternalLink,
@@ -158,8 +159,9 @@ export const LeadJourneyView = ({
 
   // Sort stages by pipeline order
   const sortedStages = useMemo(() => {
-    return [...stages].sort((a, b) => (a.order || 0) - (b.order || 0));
-  }, [stages]);
+    return stages.filter(stage => stage.pipelineId === (linkedDeal?.pipelineId || 'pipeline-sales'))
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+  }, [stages, linkedDeal?.pipelineId]);
 
   // Determine lead's current actual stage
   const currentActualStage = useMemo(() => {
@@ -289,32 +291,33 @@ export const LeadJourneyView = ({
   // (lead.status='Converted' does NOT mean Closed Won — it means the lead became a client)
   const isWon = useMemo(() => {
     return (
-      currentActualStage?.id === 'stg-6' ||
+      isWonStage(currentActualStage) ||
       linkedDeal?.status === 'Won'
     );
   }, [currentActualStage, linkedDeal?.status]);
 
   const isLost = useMemo(() => {
     return (
-      currentActualStage?.id === 'stg-8' ||
+      isLostStage(currentActualStage) ||
       linkedDeal?.status === 'Lost'
     );
   }, [currentActualStage, linkedDeal?.status]);
 
   const isRenewal = useMemo(() => {
-    return currentActualStage?.id === 'stg-7';
+    return isRenewalStage(currentActualStage);
   }, [currentActualStage]);
 
   // Qualification pipeline stages (stages 1 to 5: New Lead, Contacted, Sample Sent, Proposal Sent, Negotiation)
   const qualificationStages = useMemo(() => {
-    return sortedStages.filter(s => !['stg-6', 'stg-7', 'stg-8'].includes(s.id));
+    return sortedStages.filter(s => !isWonStage(s) && !isLostStage(s) && !isRenewalStage(s));
   }, [sortedStages]);
 
   // Find where the deal dropped off (off-ramp stage for lost deals)
   const offRampStageInfo = useMemo(() => {
     if (!isLost) return null;
+    const lostStage = sortedStages.find(isLostStage);
     const lostTransition = timelineWithStage.find(i =>
-      (i.stageId === 'stg-8' || i.metadata?.toStageId === 'stg-8') &&
+      (i.stageId === lostStage?.id || i.metadata?.toStageId === lostStage?.id) &&
       i.fromStageName
     );
     const dropOffStage = qualificationStages.find(s => s.id === lostTransition?.metadata?.fromStageId);
@@ -325,20 +328,20 @@ export const LeadJourneyView = ({
       reason: linkedDeal?.lostReason || lostTransition?.metadata?.reason || 'Pricing or competitor won',
       note: linkedDeal?.lostNote || ''
     };
-  }, [isLost, timelineWithStage, qualificationStages, linkedDeal]);
+  }, [isLost, timelineWithStage, qualificationStages, linkedDeal, sortedStages]);
 
   // Unified 6-Chevron Hybrid Pipeline Path (Qual Stages 1-5 + Adaptive Terminal Milestone)
   const hybridPathStages = useMemo(() => {
     let terminalStage;
     if (isWon) {
-      terminalStage = sortedStages.find(s => s.id === 'stg-6') || { id: 'stg-6', name: 'Closed Won', category: 'Won' };
+      terminalStage = sortedStages.find(isWonStage) || { id: 'stg-6', name: 'Closed Won', category: 'Won' };
     } else if (isLost) {
-      terminalStage = sortedStages.find(s => s.id === 'stg-8') || { id: 'stg-8', name: 'Closed Lost', category: 'Lost' };
+      terminalStage = sortedStages.find(isLostStage) || { id: 'stg-8', name: 'Closed Lost', category: 'Lost' };
     } else if (isRenewal) {
-      terminalStage = sortedStages.find(s => s.id === 'stg-7') || { id: 'stg-7', name: 'Buy Again (Renewal)', category: 'Buy Again' };
+      terminalStage = sortedStages.find(isRenewalStage) || { id: 'stg-7', name: 'Buy Again (Renewal)', category: 'Buy Again' };
     } else {
       // In flight: Target destination milestone "Closed"
-      const wonStage = sortedStages.find(s => s.id === 'stg-6');
+      const wonStage = sortedStages.find(isWonStage);
       terminalStage = {
         id: wonStage?.id || 'stg-closed-target',
         name: 'Closed',
@@ -417,7 +420,7 @@ export const LeadJourneyView = ({
 
       if (onUpdateLead) {
         await onUpdateLead(lead.id, {
-          status: destinationStage.id === 'stg-6' ? 'Converted' : destinationStage.id === 'stg-8' ? 'Unqualified' : 'Qualified',
+          status: isWonStage(destinationStage) ? 'Converted' : isLostStage(destinationStage) ? 'Unqualified' : 'Qualified',
           lastActivityDate: new Date().toISOString().split('T')[0]
         });
       }

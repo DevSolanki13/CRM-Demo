@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import { STAGE_CRITERIA } from '../utils/crmHelpers.js';
+import { isLostStage } from '../../backend/constants/stageConstants.js';
 
 const LOST_REASONS = [
   'Budget mismatch',
@@ -100,7 +101,7 @@ export const StageGateCheckModal = ({
 
   if (!isOpen || !deal) return null;
 
-  const isDirectLost = targetStage?.id === 'stg-8';
+  const isDirectLost = isLostStage(targetStage);
   const isReviewMode = deal.pendingGateCheck && (currentUser.role === 'Admin' || currentUser.role === 'Manager');
   const isLostMode = isDirectLost || forceDirectLost || Object.values(answers).some(val => val === false);
   const totalCriteria = criteriaList.length;

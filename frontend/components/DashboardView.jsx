@@ -37,6 +37,7 @@ import {
   getLocalDateInputValueAfterDays
 } from '../utils/crmHelpers.js';
 import { ManifestStrip } from './ManifestStrip.jsx';
+import { isRenewalStage } from '../../backend/constants/stageConstants.js';
 
 const getStageBarColor = (stageName, category) => {
   const name = stageName || '';
@@ -153,7 +154,7 @@ export const DashboardView = ({
     const wonList = rbacDeals.filter(d => d.status === 'Won');
     const wonVal = wonList.reduce((sum, d) => sum + (d.value || 0), 0);
 
-    const renewals = rbacDeals.filter(d => d.status === 'Renewal Due' || d.stageId === 'stg-7');
+    const renewals = rbacDeals.filter(d => d.status === 'Renewal Due' || isRenewalStage(stages.find(stage => stage.id === d.stageId)));
     const renewalsVal = renewals.reduce((sum, d) => sum + (d.value || 0), 0);
 
     const dueToday = rbacTasks.filter(t => t.status === 'pending' && t.dueDate?.split('T')[0] <= todayStr);
@@ -268,7 +269,7 @@ export const DashboardView = ({
 
     // 4. Renewals due
     const renewalsList = rbacDeals.filter(d =>
-      d.status === 'Renewal Due' || d.stageId === 'stg-7'
+      d.status === 'Renewal Due' || isRenewalStage(stages.find(stage => stage.id === d.stageId))
     ).map(d => ({
       id: d.id,
       type: 'renewal',

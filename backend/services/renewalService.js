@@ -52,11 +52,11 @@ export const ensureRebuyDeal = async (parentDealId, actor = { id: 'system', name
       const today = getLocalDateString();
       if (dueDate > today) return { deal: null, created: false, dueDate };
 
-      const renewalStage = await tx.stage.findUnique({ where: { id: 'stg-7' } });
+      const renewalStage = await tx.stage.findFirst({ where: { pipelineId: parent.pipelineId, category: 'Buy Again' } });
       if (!renewalStage) throw conflict('A renewal pipeline stage is required.');
       const id = `dl-rebuy-${randomUUID()}`;
       const deal = await tx.deal.create({ data: {
-        id, parentDealId, leadId: parent.leadId, title: `${parent.companyName || parent.title} (Renewal Rebuy)`,
+        id, pipelineId: parent.pipelineId, parentDealId, leadId: parent.leadId, title: `${parent.companyName || parent.title} (Renewal Rebuy)`,
         value: parent.value, currency: parent.currency, stageId: renewalStage.id,
         stageName: renewalStage.name, expectedCloseDate: dueDate,
         contactId: parent.contactId, contactName: parent.contactName,
