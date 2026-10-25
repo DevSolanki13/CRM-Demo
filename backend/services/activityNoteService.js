@@ -100,6 +100,5 @@ export const createActivity = async (activity) => {
 export const deleteActivity = async (id) => {
   const existing = await prisma.activity.findUnique({ where: { id } });
   if (!existing) return false;
-  await prisma.activity.delete({ where: { id } });
-  return true;
+  throw Object.assign(new Error('Activity history cannot be deleted.'), { statusCode: 409 });
 };

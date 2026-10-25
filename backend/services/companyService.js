@@ -1,4 +1,5 @@
 import { prisma } from '../prisma.js';
+import { deleteUnlinkedCustomerRecord } from './deletionPolicy.js';
 
 const VALID_COMPANY_KEYS = new Set([
   'id',
@@ -49,14 +50,13 @@ export const updateCompany = async (id, data) => {
     data: {
       ...sanitizeCompanyData(existing),
       ...sanitizeCompanyData(data),
+      ...('ownerId' in data ? { ownerId: data.ownerId || null } : {}),
       id, // Preserve immutable ID
     }
   });
 };
 
 export const deleteCompany = async (id) => {
-  const existing = await prisma.company.findUnique({ where: { id } });
-  if (!existing) return false;
-  await prisma.company.delete({ where: { id } });
-  return true;
+  return prisma.$transaction(tx => deleteUnlinkedCustomerRecord(tx, 'Company', id),
+    { isolationLevel: 'Serializable' });
 };

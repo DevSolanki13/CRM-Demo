@@ -1,4 +1,5 @@
 import { prisma } from '../prisma.js';
+import { deleteUnlinkedCustomerRecord } from './deletionPolicy.js';
 
 const VALID_CONTACT_KEYS = new Set([
   'id',
@@ -37,7 +38,7 @@ export const createContact = async (data) => {
     email: data.email || '',
     phone: data.phone || '',
     jobTitle: data.jobTitle || '',
-    companyId: data.companyId || '',
+    companyId: data.companyId || null,
     companyName: data.companyName || '',
     ownerId: data.ownerId || 'u-1',
     ownerName: data.ownerName || 'Alex Vance',
@@ -55,16 +56,15 @@ export const updateContact = async (id, data) => {
     data: {
       ...sanitizeContactData(existing),
       ...sanitizeContactData(data),
+      ...('companyId' in data ? { companyId: data.companyId || null } : {}),
       id,
     }
   });
 };
 
 export const deleteContact = async (id) => {
-  const existing = await prisma.contact.findUnique({ where: { id } });
-  if (!existing) return false;
-  await prisma.contact.delete({ where: { id } });
-  return true;
+  return prisma.$transaction(tx => deleteUnlinkedCustomerRecord(tx, 'Contact', id),
+    { isolationLevel: 'Serializable' });
 };
 
 export const importContacts = async (items = []) => {
@@ -77,7 +77,7 @@ export const importContacts = async (items = []) => {
       email: item.email || '',
       phone: item.phone || '',
       jobTitle: item.jobTitle || 'Business Contact',
-      companyId: item.companyId || '',
+      companyId: item.companyId || null,
       companyName: item.companyName || 'Unknown Corp',
       ownerId: item.ownerId || 'u-1',
       ownerName: item.ownerName || 'Alex Vance',

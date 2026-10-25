@@ -2,6 +2,7 @@ import { prisma } from '../prisma.js';
 import { getLocalDateString } from '../utils/dateUtils.js';
 import { logAudit } from './activityNoteService.js';
 import { triggerFollowUp } from './followUpEngine.js';
+import { deleteUnlinkedCustomerRecord } from './deletionPolicy.js';
 
 const LEAD_FIELDS = new Set([
   'id', 'title', 'contactName', 'contactEmail', 'contactPhone', 'companyName',
@@ -92,10 +93,6 @@ export const updateLead = async (id, lead) => {
 };
 
 export const deleteLead = async (id) => {
-  const existing = await prisma.lead.findUnique({ where: { id } });
-  if (!existing) return false;
-  await prisma.task.deleteMany({ where: { linkedId: id } });
-  await prisma.activity.deleteMany({ where: { linkedId: id } });
-  await prisma.lead.delete({ where: { id } });
-  return true;
+  return prisma.$transaction(tx => deleteUnlinkedCustomerRecord(tx, 'Lead', id),
+    { isolationLevel: 'Serializable' });
 };
