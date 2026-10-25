@@ -1,18 +1,22 @@
 import { prisma } from '../prisma.js';
-import { ALLOWED_TRANSITION_IDS } from '../constants/stageConstants.js';
+import { allowedStageTargets, isWonStage, isLostStage, stageCode } from '../constants/stageConstants.js';
 import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUtils.js';
 import { createTask } from './taskService.js';
 import { logAudit, createActivity } from './activityNoteService.js';
 import { createStageGateCheck } from './stageGateService.js';
 import { triggerFollowUp } from './followUpEngine.js';
 import { ensureRebuyDeal, runRenewalCheck } from './renewalService.js';
+import { deleteUnlinkedCustomerRecord } from './deletionPolicy.js';
+import { requiresManagerApproval } from './approvalPolicy.js';
+import { requirePipelineQualification } from './pipelineRules.js';
 
 const DEAL_FIELDS = new Set([
-  'id', 'parentDealId', 'leadId', 'title', 'value', 'currency', 'stageId',
+  'id', 'pipelineId', 'parentDealId', 'leadId', 'title', 'value', 'currency', 'stageId',
   'stageName', 'expectedCloseDate', 'actualCloseDate', 'contactId', 'contactName',
   'companyId', 'companyName', 'ownerId', 'ownerName', 'isRecurring', 'isRebuy',
   'recurrenceDays', 'status', 'createdAt', 'updatedAt', 'lastActivityDate',
   'daysInStage', 'valueHistory', 'reason', 'lostReason', 'lostReasonNote',
+  'lostStageId', 'lostStageName',
   'proposalExpiryDate', 'pendingGateCheck', 'partialGateState', 'customFields',
   'valueChangeReason', 'updatedById', 'updatedByName'
 ]);
@@ -31,7 +35,10 @@ export const getDeals = async () => {
 export const createDeal = async (deal) => {
   validateDealFields(deal);
   const todayStr = getLocalDateString();
-  const stages = await prisma.stage.findMany({ orderBy: { order: 'asc' } });
+  const pipelineId = deal.pipelineId || 'pipeline-sales';
+  const pipeline = await prisma.pipeline.findUnique({ where: { id: pipelineId } });
+  if (!pipeline?.active) throw Object.assign(new Error('Choose an active pipeline.'), { statusCode: 400 });
+  const stages = await prisma.stage.findMany({ where: { pipelineId }, orderBy: { order: 'asc' } });
   const initialStage = stages[0];
   if (!initialStage) throw Object.assign(new Error('No pipeline stages are configured.'), { statusCode: 409 });
   if ((deal.stageId && deal.stageId !== initialStage.id) ||
@@ -45,6 +52,7 @@ export const createDeal = async (deal) => {
 
   const newDeal = {
     id: deal.id || `dl-${Date.now()}`,
+    pipelineId,
     leadId: deal.leadId || null,
     parentDealId: deal.parentDealId || null,
     title: deal.title || 'New Sales Deal',
@@ -54,9 +62,9 @@ export const createDeal = async (deal) => {
     stageName: initialStage.name,
     expectedCloseDate: deal.expectedCloseDate || getLocalDateStringAfterDays(30),
     proposalExpiryDate: deal.proposalExpiryDate || null,
-    contactId: deal.contactId || '',
+    contactId: deal.contactId || null,
     contactName: deal.contactName || '',
-    companyId: deal.companyId || '',
+    companyId: deal.companyId || null,
     companyName: deal.companyName || '',
     ownerId: deal.ownerId || 'u-3',
     ownerName: deal.ownerName || 'Marcus Vance',
@@ -76,6 +84,8 @@ export const createDeal = async (deal) => {
     pendingGateCheck: null,
     lostReason: deal.lostReason || null,
     lostReasonNote: deal.lostReasonNote || null,
+    lostStageId: null,
+    lostStageName: null,
     actualCloseDate: deal.actualCloseDate || null,
   };
 
@@ -113,7 +123,8 @@ export const updateDeal = async (id, deal) => {
   if (!existing) return null;
 
   const managedFields = ['stageId', 'stageName', 'status', 'pendingGateCheck',
-    'actualCloseDate', 'lostReason', 'lostReasonNote', 'parentDealId',
+    'pipelineId',
+    'actualCloseDate', 'lostReason', 'lostReasonNote', 'lostStageId', 'lostStageName', 'parentDealId',
     'leadId', 'isRebuy', 'valueHistory'];
   if (managedFields.some(key => Object.hasOwn(deal, key) &&
       JSON.stringify(deal[key]) !== JSON.stringify(existing[key]))) {
@@ -147,6 +158,9 @@ export const updateDeal = async (id, deal) => {
 
   const validDealFields = Object.fromEntries(Object.entries(deal).filter(([key]) =>
     !['valueChangeReason', 'updatedById', 'updatedByName', ...managedFields].includes(key)));
+  for (const key of ['contactId', 'companyId']) {
+    if (validDealFields[key] === '') validDealFields[key] = null;
+  }
 
   const updatedData = {
     ...existing,
@@ -164,10 +178,8 @@ export const updateDeal = async (id, deal) => {
 };
 
 export const deleteDeal = async (id) => {
-  const existing = await prisma.deal.findUnique({ where: { id } });
-  if (!existing) return false;
-  await prisma.deal.delete({ where: { id } });
-  return true;
+  return prisma.$transaction(tx => deleteUnlinkedCustomerRecord(tx, 'Deal', id),
+    { isolationLevel: 'Serializable' });
 };
 
 export const createRebuyDeal = async (parentDealId, user) => {
@@ -190,29 +202,32 @@ export const transitionDealStage = async (dealId, payload) => {
     throw Object.assign(new Error('Resolve the pending approval before moving this deal.'), { statusCode: 409 });
   }
 
-  const stages = await prisma.stage.findMany({ orderBy: { order: 'asc' } });
+  const stages = await prisma.stage.findMany({ where: { pipelineId: deal.pipelineId }, orderBy: { order: 'asc' } });
   const fromStage = stages.find(s => s.id === deal.stageId);
   if (!fromStage) {
     throw Object.assign(new Error('The deal references a stage that no longer exists.'), { statusCode: 409 });
   }
   const targetStage = stages.find(s => s.id === targetStageId);
   if (!targetStage) {
-    throw Object.assign(new Error('Target stage not found'), { statusCode: 404 });
+    throw Object.assign(new Error('Target stage is not in this deal’s pipeline.'), { statusCode: 409 });
   }
+  const pipeline = await prisma.pipeline.findUnique({ where: { id: deal.pipelineId } });
+  if (!pipeline?.active) throw Object.assign(new Error('This pipeline is inactive.'), { statusCode: 409 });
+  requirePipelineQualification(deal, targetStage, pipeline);
 
   const fromName = fromStage.name;
   const targetName = targetStage.name;
 
   const isBackward = targetStage.order < fromStage.order;
-  const isAllowedForward = (ALLOWED_TRANSITION_IDS[fromStage.id] || []).includes(targetStage.id);
+  const allowedForward = allowedStageTargets(fromStage, stages);
+  const isAllowedForward = allowedForward.some(stage => stage.id === targetStage.id);
   const isAdmin = user?.role === 'Admin';
   const isManager = user?.role === 'Manager';
 
   // Validate forward jumps against transition matrix
   if (!isAllowedForward && !isBackward) {
     if (!isAdmin || !overrideReason) {
-      const allowed = (ALLOWED_TRANSITION_IDS[fromStage.id] || [])
-        .map(id => stages.find(stage => stage.id === id)?.name).filter(Boolean).join(', ');
+      const allowed = allowedForward.map(stage => stage.name).join(', ');
       throw Object.assign(new Error(`Invalid stage transition from "${fromName}" to "${targetName}". Allowed next stages: ${allowed || 'None'}`), { statusCode: 409 });
     }
   }
@@ -222,8 +237,11 @@ export const transitionDealStage = async (dealId, payload) => {
     throw Object.assign(new Error('Backward stage demotion requires a mandatory demotion reason.'), { statusCode: 400 });
   }
 
-  // If Sales Rep advancing to a forward stage, submit for Manager Review
-  if (!isAdmin && !isManager && !isBackward && targetStage.id !== 'stg-8') {
+  const approvalSettings = (await prisma.branding.findUnique({ where: { id: 'default' } }))
+    ?.customFields?.approvalPolicy;
+  // Review can be focused on exceptions configured by the administrator.
+  if (!isAdmin && !isManager && !isBackward && !isLostStage(targetStage) &&
+      requiresManagerApproval(deal, targetStage.id, answers, approvalSettings)) {
     const newCheck = await createStageGateCheck({
       dealId: deal.id,
       dealTitle: deal.title,
@@ -249,11 +267,11 @@ export const transitionDealStage = async (dealId, payload) => {
   // Execute stage transition immediately
   const todayStr = getLocalDateString();
   let status = 'Active';
-  let actualCloseDate = targetStage.id === 'stg-6' ? deal.actualCloseDate : null;
-  let dealLostReason = targetStage.id === 'stg-8' ? deal.lostReason : null;
-  let dealLostReasonNote = targetStage.id === 'stg-8' ? deal.lostReasonNote : null;
+  let actualCloseDate = isWonStage(targetStage) ? deal.actualCloseDate : null;
+  let dealLostReason = isLostStage(targetStage) ? deal.lostReason : null;
+  let dealLostReasonNote = isLostStage(targetStage) ? deal.lostReasonNote : null;
 
-  if (targetStage.id === 'stg-6') {
+  if (isWonStage(targetStage)) {
     status = 'Won';
     actualCloseDate = todayStr;
     const sevenDaysStr = getLocalDateStringAfterDays(7);
@@ -269,13 +287,13 @@ export const transitionDealStage = async (dealId, payload) => {
       status: 'pending',
       note: 'Closed Won deal converted. Confirm order delivery and client satisfaction.'
     });
-  } else if (targetStage.id === 'stg-8') {
+  } else if (isLostStage(targetStage)) {
     status = 'Lost';
     dealLostReason = lostReason || overrideReason || 'Unspecified';
     dealLostReasonNote = note || '';
   } else if (!isBackward) {
     status = 'Active';
-    if (targetStage.id === 'stg-3') {
+    if (stageCode(targetStage) === 'SAMPLE_SENT') {
       await triggerFollowUp('SAMPLE_SENT', {
         id: deal.id,
         title: deal.title,
@@ -286,7 +304,7 @@ export const transitionDealStage = async (dealId, payload) => {
         value: deal.value,
         stageName: targetName
       });
-    } else if (targetStage.id === 'stg-4') {
+    } else if (stageCode(targetStage) === 'PROPOSAL_SENT') {
       await triggerFollowUp('PROPOSAL_SENT', {
         id: deal.id,
         title: deal.title,
@@ -312,6 +330,8 @@ export const transitionDealStage = async (dealId, payload) => {
       actualCloseDate,
       lostReason: dealLostReason,
       lostReasonNote: dealLostReasonNote,
+      lostStageId: isLostStage(targetStage) ? fromStage.id : null,
+      lostStageName: isLostStage(targetStage) ? fromStage.name : null,
       pendingGateCheck: null,
     }
   });
@@ -322,7 +342,7 @@ export const transitionDealStage = async (dealId, payload) => {
       await prisma.lead.update({
         where: { id: deal.leadId },
         data: {
-          status: targetStage.id === 'stg-6' ? 'Converted' : targetStage.id === 'stg-8' ? 'Unqualified' : 'Converted',
+          status: isLostStage(targetStage) ? 'Unqualified' : 'Converted',
           lastActivityDate: todayStr,
           pendingGateCheck: null,
         }
@@ -334,7 +354,7 @@ export const transitionDealStage = async (dealId, payload) => {
 
   // Activity Log
   await createActivity({
-    type: isBackward ? 'Stage Demoted' : targetStage.id === 'stg-6' ? 'Deal Won' : targetStage.id === 'stg-8' ? 'Deal Lost' : 'Stage Advanced',
+    type: isBackward ? 'Stage Demoted' : isWonStage(targetStage) ? 'Deal Won' : isLostStage(targetStage) ? 'Deal Lost' : 'Stage Advanced',
     description: isBackward 
       ? `Stage demoted to "${targetName}". Reason: ${demotionReason || 'N/A'}. Note: ${note || 'N/A'}`
       : overrideReason
@@ -351,7 +371,7 @@ export const transitionDealStage = async (dealId, payload) => {
   await logAudit({
     actorId: user?.id || 'u-1',
     actorName: user?.name || 'User',
-    action: isBackward ? 'STAGE_DEMOTED' : overrideReason ? 'ADMIN_OVERRIDE' : targetStage.id === 'stg-6' ? 'DEAL_WON' : targetStage.id === 'stg-8' ? 'DEAL_LOST' : 'STAGE_TRANSITION',
+    action: isBackward ? 'STAGE_DEMOTED' : overrideReason ? 'ADMIN_OVERRIDE' : isWonStage(targetStage) ? 'DEAL_WON' : isLostStage(targetStage) ? 'DEAL_LOST' : 'STAGE_TRANSITION',
     entityType: 'Deal',
     entityId: deal.id,
     entityTitle: deal.title,
@@ -370,8 +390,10 @@ export const closeLostDeal = async (dealId, payload) => {
   if (!lostReason) {
     throw Object.assign(new Error('A mandatory Closed Lost reason is required.'), { statusCode: 400 });
   }
-  const stages = await prisma.stage.findMany();
-  const lostStage = stages.find(s => s.id === 'stg-8');
+  const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { pipelineId: true } });
+  if (!deal) throw Object.assign(new Error('Deal not found.'), { statusCode: 404 });
+  const stages = await prisma.stage.findMany({ where: { pipelineId: deal.pipelineId } });
+  const lostStage = stages.find(isLostStage);
   if (!lostStage) throw Object.assign(new Error('Closed Lost stage is not configured.'), { statusCode: 409 });
   return await transitionDealStage(dealId, {
     targetStageId: lostStage.id,

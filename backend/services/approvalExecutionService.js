@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '../prisma.js';
 import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUtils.js';
 import { DEFAULT_FOLLOW_UP_RULES } from './followUpEngine.js';
-import { ALLOWED_TRANSITION_IDS } from '../constants/stageConstants.js';
+import { allowedStageTargets, isWonStage, isLostStage, stageCode } from '../constants/stageConstants.js';
+import { requirePipelineQualification } from './pipelineRules.js';
 
 const fail = (message, statusCode) => Object.assign(new Error(message), { statusCode });
 
@@ -44,12 +45,13 @@ export const decideApproval = async (id, reviewer, decision, reason) => {
     }
     const target = await tx.stage.findUnique({ where: { id: check.targetStageId } });
     if (!target) throw fail('The target stage no longer exists.', 409);
+    if (target.pipelineId !== current.pipelineId) throw fail('Approval target belongs to another pipeline.', 409);
     const today = getLocalDateString();
-    const won = target.id === 'stg-6' && check.outcome !== 'lost';
-    const lost = target.id === 'stg-8' || check.outcome === 'lost';
+    const won = isWonStage(target) && check.outcome !== 'lost';
+    const lost = isLostStage(target) || check.outcome === 'lost';
     const approved = decision === 'approved';
     const nextStage = lost && approved
-      ? await tx.stage.findUnique({ where: { id: 'stg-8' } })
+      ? await tx.stage.findFirst({ where: { pipelineId: current.pipelineId, category: 'Lost' } })
       : target;
     if (lost && approved && !nextStage) throw fail('Closed Lost stage no longer exists.', 409);
 
@@ -63,6 +65,8 @@ export const decideApproval = async (id, reviewer, decision, reason) => {
           actualCloseDate: won ? today : current.actualCloseDate,
           lostReason: lost ? (check.lostReason || 'Unspecified') : current.lostReason,
           lostReasonNote: lost ? (check.note || '') : current.lostReasonNote,
+          lostStageId: lost ? check.fromStageId : null,
+          lostStageName: lost ? check.fromStageName : null,
           pendingGateCheck: null,
         }
       });
@@ -109,8 +113,7 @@ export const decideApproval = async (id, reviewer, decision, reason) => {
           note: 'Confirm order delivery and client satisfaction.'
         } });
       }
-      const event = target.id === 'stg-3' ? 'SAMPLE_SENT'
-        : target.id === 'stg-4' ? 'PROPOSAL_SENT' : null;
+      const event = ['SAMPLE_SENT', 'PROPOSAL_SENT'].includes(stageCode(target)) ? stageCode(target) : null;
       if (event) {
         const branding = await tx.branding.findUnique({ where: { id: 'default' } });
         const rules = branding?.customFields?.followUpRules || DEFAULT_FOLLOW_UP_RULES;
@@ -176,13 +179,19 @@ export const createApprovalRequest = async (input) => {
     const source = await tx.stage.findUnique({ where: { id: input.fromStageId } });
     const target = await tx.stage.findUnique({ where: { id: input.targetStageId } });
     if (!source || !target) throw fail('Source or target stage not found.', 400);
+    if (source.pipelineId !== deal.pipelineId || target.pipelineId !== deal.pipelineId) {
+      throw fail('Approval stages must belong to the deal’s pipeline.', 409);
+    }
     if (input.outcome === 'demoted') {
       throw fail('Backward movement must use a stage transition with a reason.', 409);
     }
-    if (!(ALLOWED_TRANSITION_IDS[source.id] || []).includes(target.id)) {
+    const pipelineStages = await tx.stage.findMany({ where: { pipelineId: deal.pipelineId } });
+    if (!allowedStageTargets(source, pipelineStages).some(stage => stage.id === target.id)) {
       throw fail('This approval request is not an allowed pipeline transition.', 409);
     }
-    if ((input.outcome === 'lost' || target.id === 'stg-8') && !input.lostReason?.trim()) {
+    const pipeline = await tx.pipeline.findUnique({ where: { id: deal.pipelineId } });
+    requirePipelineQualification(deal, target, pipeline);
+    if ((input.outcome === 'lost' || isLostStage(target)) && !input.lostReason?.trim()) {
       throw fail('A Closed Lost reason is required.', 400);
     }
     const id = `sgc-${randomUUID()}`;

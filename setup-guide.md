@@ -90,11 +90,17 @@ npm run seed
 
 ## 4. Running Locally
 
-### Temporary direct access
+### Administrator setup and sign-in
 
-The CRM currently opens without sign-in or sign-out. Every visitor uses the first active administrator as a shared actor and can perform administrator actions. Use a private or disposable database and deployment for this phase. The previous session and password code remains in the repository for the later login and landing-page work, but its routes are not mounted.
+Before starting a production deployment, create an administrator login with `npm run admin:create`. The command prompts for an email and hidden password in a terminal, or accepts `ADMIN_EMAIL` and `ADMIN_PASSWORD` from a secure environment. Until an active administrator has a password, production CRM routes return a setup error. Development keeps the shared administrator workspace available during the transition.
 
-Set `APP_ORIGIN` to the exact external origin (for example `https://crm.example.com`) behind a reverse proxy. Keep the frontend and API on one origin for API write protection.
+After setup, every CRM request requires an individual session. Administrators can create team members without a password and generate one-time account links from the Team screen. Links expire after 48 hours, can be used once, and must be shared privately. An administrator can generate a new link for password recovery; doing so invalidates the earlier link. An external email provider is not yet connected, so links are delivered manually.
+
+Set `APP_ORIGIN` to the exact external HTTPS origin (for example `https://crm.example.com`) behind a reverse proxy. Keep the frontend and API on one origin for API write protection, and verify Secure cookies through the deployed proxy.
+
+### Scheduled automation
+
+Run `npm run worker` as a separate long-running process, schedule `npm run automation:once`, or call `POST /api/internal/automation/run` from an external scheduler with `Authorization: Bearer <CRON_SECRET>`. Set a random `CRON_SECRET` of at least 32 characters in the deployment environment. The database lease prevents multiple workers from executing the same renewal run concurrently. The scheduler must be configured on the actual hosting platform; the API server alone does not schedule background work.
 
 ### Step 5: Start Unified Development Server
 ```bash
@@ -167,6 +173,10 @@ npm run start
   - Build Command: `npm install && npm run build`
   - Start Command: `npm run start`
 
+### Private attachment storage
+
+Create a **private** Supabase Storage bucket called `crm-attachments`. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` only on the server; set `CRM_ATTACHMENTS_BUCKET` if you use another bucket name. Do not expose the service-role key in a `VITE_` variable or the browser. Uploads are limited to 5 MB and supported document/image formats. The API checks the current CRM user's access to the linked record before listing, uploading, downloading, or deleting files. Files are retained until a user removes them; deletion keeps an audit tombstone and the worker retries Storage cleanup if an immediate purge fails. Storage credentials and bucket creation are required before uploads work.
+
 ---
 
 ## 8. Troubleshooting Common Issues
@@ -177,7 +187,7 @@ npm run start
 
 ### Issue 2: Prisma Client Out of Sync
 - **Cause**: Schema changes made without regenerating the client.
-- **Solution**: Run `npx prisma generate` followed by `npx prisma db push`.
+- **Solution**: Run `npm run db:migrate` and `npx prisma generate --config prisma7.config.ts`. Do not replace versioned migrations with `db push` on a business database.
 
 ### Issue 3: Corrupted or Stale Demo Data
-- **Solution**: Click the **"Reset Demo State"** button in **Settings** or run `npm run seed` to restore pristine data.
+- **Solution**: Inspect and back up the database first. Demo reset is restricted to an empty workspace; never run `npm run seed` against customer data to restore a "pristine" state.

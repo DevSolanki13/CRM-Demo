@@ -417,6 +417,8 @@ export const initialDeals = [
     status: 'Lost',
     lostReason: 'Losing to competitor',
     lostReasonNote: 'Competitor offered lower pricing on bulk volume.',
+    lostStageId: 'stg-5',
+    lostStageName: 'Negotiation',
     createdAt: '2026-07-05',
     updatedAt: '2026-07-30',
     daysInStage: 12,

@@ -1,12 +1,14 @@
 # CRM implementation progress
 
+> Historical milestones are recorded below. The temporary direct-access description is superseded by the current authentication work in [CHANGES_3_TO_8_PROGRESS.md](./CHANGES_3_TO_8_PROGRESS.md). The public deployment has not yet been updated and verified.
+
 The detailed outstanding backlog is in [REMAINING_CHANGES.md](REMAINING_CHANGES.md).
 
 ## Temporary direct-access mode (2026-10-24)
 
 - Login and sign-out are removed from the active UI and API routes. The server selects the first active administrator as a shared actor for every visitor, including production visitors. Account login and a landing page are deferred.
 - The former authentication implementation remains in the repository for later restoration, but its routes are not mounted. This mode grants every reachable visitor administrator access; restrict the deployment and use disposable data until login returns.
-- The current development database lacks `Company.ownerId` from the authentication migration and has a different recorded baseline name. The direct-access profile endpoint works, but the full CRM state cannot load against that database until its schema and migration history are safely reconciled. No database migration or reset was run for this mode change.
+- The development database's mismatched baseline history and missing authentication schema were reconciled on 2026-10-24. A PostgreSQL 17 custom-format backup was saved to `.local-backups/before-auth-schema-reconcile-20261024.dump` before applying the authentication, task-status, and branding-default migrations. Prisma now reports no schema difference, `/api/state` returns the existing CRM records, all 56 tests pass, and the dashboard renders in the browser.
 
 ## Access control and initial correctness milestone
 

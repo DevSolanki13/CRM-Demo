@@ -1,4 +1,5 @@
 import { prisma } from '../backend/prisma.js';
+import { stageCode } from '../backend/constants/stageConstants.js';
 import {
   initialBranding,
   initialUsers,
@@ -53,11 +54,14 @@ async function main() {
   console.log(`✔ ${initialUsers.length} Users seeded`);
 
   // 3. Stages
+  await prisma.pipeline.upsert({ where: { id: 'pipeline-sales' },
+    update: {}, create: { id: 'pipeline-sales', name: 'Sales', qualificationRules: {} } });
   for (const s of initialStages) {
+    const data = { ...s, pipelineId: 'pipeline-sales', code: stageCode(s) };
     await prisma.stage.upsert({
       where: { id: s.id },
-      update: s,
-      create: s
+      update: data,
+      create: data
     });
   }
   console.log(`✔ ${initialStages.length} Stages seeded`);

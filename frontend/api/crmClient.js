@@ -16,12 +16,36 @@ async function apiFetch(url, options = {}) {
 }
 
 export async function fetchCurrentUser() {
-  return (await (await apiFetch(`${BASE_URL}/me`)).json()).user;
+  return (await apiFetch(`${BASE_URL}/me`)).json();
 }
 
-export async function fetchCRMState() {
+export async function signIn(email, password) {
+  const response = await apiFetch(`${BASE_URL}/auth/login`, {
+    method: 'POST', body: JSON.stringify({ email, password }),
+  });
+  return (await response.json()).user;
+}
+
+export async function signOut() {
+  await apiFetch(`${BASE_URL}/auth/logout`, { method: 'POST' });
+}
+
+export async function acceptInvitation(token, password) {
+  return (await apiFetch(`${BASE_URL}/auth/accept-invitation`, {
+    method: 'POST', body: JSON.stringify({ token, password }),
+  })).json();
+}
+
+export async function createAccountInvitation(userId) {
+  return (await apiFetch(`${BASE_URL}/users/${encodeURIComponent(userId)}/invite`, {
+    method: 'POST',
+  })).json();
+}
+
+export async function fetchCRMState(collections = []) {
   try {
-    const res = await apiFetch(`${BASE_URL}/state`);
+    const query = collections.length ? `?collections=${encodeURIComponent(collections.join(','))}` : '';
+    const res = await apiFetch(`${BASE_URL}/state${query}`);
     if (!res.ok) throw new Error('Failed to load state');
     return await res.json();
   } catch (err) {
@@ -70,6 +94,12 @@ export async function deleteCompany(id) {
   return data.success;
 }
 
+export async function mergeCompanies(targetId, sourceId) {
+  return (await apiFetch(`${BASE_URL}/companies/${encodeURIComponent(targetId)}/merge`, {
+    method: 'POST', body: JSON.stringify({ sourceId }),
+  })).json();
+}
+
 // Contacts
 export async function createContact(contact) {
   const res = await apiFetch(`${BASE_URL}/contacts`, {
@@ -93,6 +123,12 @@ export async function deleteContact(id) {
   const res = await apiFetch(`${BASE_URL}/contacts/${id}`, { method: 'DELETE' });
   const data = await res.json();
   return data.success;
+}
+
+export async function mergeContacts(targetId, sourceId) {
+  return (await apiFetch(`${BASE_URL}/contacts/${encodeURIComponent(targetId)}/merge`, {
+    method: 'POST', body: JSON.stringify({ sourceId }),
+  })).json();
 }
 
 // Leads
@@ -303,6 +339,49 @@ export async function approveStageGateCheck(id, _reviewer) {
   return res.json();
 }
 
+export async function createPipeline(pipeline) {
+  return (await apiFetch(`${BASE_URL}/pipelines`, {
+    method: 'POST', body: JSON.stringify(pipeline),
+  })).json();
+}
+
+export async function updatePipeline(id, pipeline) {
+  return (await apiFetch(`${BASE_URL}/pipelines/${encodeURIComponent(id)}`, {
+    method: 'PUT', body: JSON.stringify(pipeline),
+  })).json();
+}
+
+export async function listAttachments(recordType, recordId) {
+  const query = new URLSearchParams({ recordType, recordId });
+  return (await apiFetch(`${BASE_URL}/attachments?${query}`)).json();
+}
+
+export async function uploadAttachment(attachment) {
+  return (await apiFetch(`${BASE_URL}/attachments`, {
+    method: 'POST', body: JSON.stringify(attachment),
+  })).json();
+}
+
+export async function getAttachmentDownload(id) {
+  return (await apiFetch(`${BASE_URL}/attachments/${encodeURIComponent(id)}/download`)).json();
+}
+
+export async function deleteAttachment(id) {
+  return (await apiFetch(`${BASE_URL}/attachments/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })).json();
+}
+
+export async function fetchReportSummary(rep, month, pipeline = 'All') {
+  const query = new URLSearchParams({ rep, month, pipeline });
+  return (await apiFetch(`${BASE_URL}/reports/summary?${query}`)).json();
+}
+
+export async function fetchReportAuditPage(rep, action, cursor = '', pipeline = 'All') {
+  const query = new URLSearchParams({ rep, action, cursor, pipeline, limit: '25' });
+  return (await apiFetch(`${BASE_URL}/reports/audit?${query}`)).json();
+}
+
 export async function rejectStageGateCheck(id, _reviewer, reason) {
   const res = await apiFetch(`${BASE_URL}/stage-gate-checks/${encodeURIComponent(id)}/reject`, {
     method: 'POST', body: JSON.stringify({ reason })
@@ -338,6 +417,20 @@ export async function fetchAutomationRules() {
     throw new Error('Failed to fetch automation rules');
   }
   return res.json();
+}
+
+export async function fetchAutomationStatus() {
+  return (await apiFetch(`${BASE_URL}/settings/automation-status`)).json();
+}
+
+export async function fetchUnresolvedLinks() {
+  return (await apiFetch(`${BASE_URL}/settings/unresolved-links`)).json();
+}
+
+export async function resolveHistoricalLink(id, targetId) {
+  return (await apiFetch(`${BASE_URL}/settings/unresolved-links/${encodeURIComponent(id)}/resolve`, {
+    method: 'POST', body: JSON.stringify({ targetId }),
+  })).json();
 }
 
 export async function updateAutomationRules(rules) {

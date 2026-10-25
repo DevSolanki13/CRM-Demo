@@ -4,22 +4,51 @@ import * as companyService from '../services/companyService.js';
 import * as contactService from '../services/contactService.js';
 import * as leadService from '../services/leadService.js';
 import * as stageService from '../services/stageService.js';
+import * as pipelineService from '../services/pipelineService.js';
 import * as dealService from '../services/dealService.js';
 import * as taskService from '../services/taskService.js';
 import * as activityNoteService from '../services/activityNoteService.js';
+import * as attachmentService from '../services/attachmentService.js';
 import * as userService from '../services/userService.js';
+import { createAccountInvitation as issueAccountInvitation } from '../auth/invitations.js';
 import * as stageGateService from '../services/stageGateService.js';
 import * as timelineService from '../services/timelineService.js';
 import * as followUpEngine from '../services/followUpEngine.js';
+import * as customerMergeService from '../services/customerMergeService.js';
+import { getAutomationStatus } from '../services/automationScheduler.js';
+import { listRecordsPage } from '../services/paginatedRecords.js';
+import { listUnresolvedReferences, resolveReference } from '../services/referenceReconciliationService.js';
+import { getReportSummary as buildReportSummary, getReportAuditPage as listReportAuditPage } from '../services/reportService.js';
 
 // Health & System State
 export const getHealth = (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 };
 
+export const getAutomationRunStatus = asyncHandler(async (_req, res) => {
+  res.json(await getAutomationStatus());
+});
+
+export const getRecordsPage = asyncHandler(async (req, res) => {
+  res.json(await listRecordsPage(req.params.resource, req.user, req.query));
+});
+
+export const getReportSummary = asyncHandler(async (req, res) => {
+  res.json(await buildReportSummary(req.user, req.query));
+});
+
+export const getReportAuditPage = asyncHandler(async (req, res) => {
+  res.json(await listReportAuditPage(req.user, req.query));
+});
+
 export const getState = asyncHandler(async (req, res) => {
-  const state = req.crmState;
-  res.json(state);
+  const requested = typeof req.query.collections === 'string'
+    ? req.query.collections.split(',').filter(Boolean) : systemService.STATE_COLLECTIONS;
+  if (requested.length > systemService.STATE_COLLECTIONS.length ||
+      requested.some(key => !systemService.STATE_COLLECTIONS.includes(key))) {
+    return res.status(400).json({ error: 'Unknown state collection' });
+  }
+  res.json(await systemService.getStateCollections(req.user, requested));
 });
 
 export const resetState = asyncHandler(async (_req, res) => {
@@ -56,9 +85,17 @@ export const deleteCompany = asyncHandler(async (req, res) => {
   res.json({ success });
 });
 
+export const mergeCompanies = asyncHandler(async (req, res) => {
+  res.json(await customerMergeService.mergeCustomerRecords('Company', req.params.id, req.body.sourceId));
+});
+
 // Contacts
 export const getContacts = asyncHandler(async (req, res) => {
   res.json(req.crmState.contacts);
+});
+
+export const duplicateContacts = asyncHandler(async (req, res) => {
+  res.json(customerMergeService.duplicateContactGroups(req.crmState.contacts));
 });
 
 export const createContact = asyncHandler(async (req, res) => {
@@ -78,6 +115,10 @@ export const updateContact = asyncHandler(async (req, res) => {
 export const deleteContact = asyncHandler(async (req, res) => {
   const success = await contactService.deleteContact(req.params.id);
   res.json({ success });
+});
+
+export const mergeContacts = asyncHandler(async (req, res) => {
+  res.json(await customerMergeService.mergeCustomerRecords('Contact', req.params.id, req.body.sourceId));
 });
 
 export const importContacts = asyncHandler(async (req, res) => {
@@ -173,8 +214,19 @@ export const createRebuyDeal = asyncHandler(async (req, res) => {
 
 export const checkRenewals = asyncHandler(async (_req, res) => {
   const result = await dealService.triggerRenewalCheck();
-  const state = await systemService.getState();
-  res.json({ success: result.failures.length === 0, ...result, state });
+  res.json({ success: result.failures.length === 0, ...result });
+});
+
+export const getPipelines = asyncHandler(async (_req, res) => {
+  res.json(await pipelineService.listPipelines());
+});
+
+export const createPipeline = asyncHandler(async (req, res) => {
+  res.status(201).json(await pipelineService.createPipeline(req.body));
+});
+
+export const updatePipeline = asyncHandler(async (req, res) => {
+  res.json(await pipelineService.updatePipeline(req.params.id, req.body));
 });
 
 // Audit Logs
@@ -260,6 +312,26 @@ export const createStageGateCheck = asyncHandler(async (req, res) => {
   res.status(201).json(result);
 });
 
+export const getAttachments = asyncHandler(async (req, res) => {
+  res.json(await attachmentService.listAttachments(req.query.recordType, req.query.recordId, req.user));
+});
+
+export const uploadAttachment = asyncHandler(async (req, res) => {
+  res.status(201).json(await attachmentService.uploadAttachment(req.body, req.user));
+});
+
+export const downloadAttachment = asyncHandler(async (req, res) => {
+  res.json(await attachmentService.downloadAttachment(req.params.id, req.user));
+});
+
+export const deleteAttachment = asyncHandler(async (req, res) => {
+  res.json(await attachmentService.deleteAttachment(req.params.id, req.user));
+});
+
+export const createAccountInvitation = asyncHandler(async (req, res) => {
+  res.status(201).json(await issueAccountInvitation(req.params.id, req.user));
+});
+
 export const approveStageGateCheck = asyncHandler(async (req, res) => {
   const updated = await stageGateService.approveStageGateCheck(req.params.id, req.user);
   res.json(updated || { success: true });
@@ -293,4 +365,12 @@ export const updateAutomationRules = asyncHandler(async (req, res) => {
   const rules = req.body.rules || req.body;
   const updated = await followUpEngine.updateFollowUpRules(rules);
   res.json(updated);
+});
+
+export const getUnresolvedLinks = asyncHandler(async (_req, res) => {
+  res.json(await listUnresolvedReferences());
+});
+
+export const resolveHistoricalLink = asyncHandler(async (req, res) => {
+  res.json(await resolveReference(req.params.id, req.body.targetId, req.user));
 });

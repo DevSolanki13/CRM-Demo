@@ -1,5 +1,5 @@
 import { protectWrites } from '../auth/sessions.js';
-import { attachDemoActor } from '../auth/demoActor.js';
+import { attachWorkspaceActor } from '../auth/demoActor.js';
 import { authorizeCRM } from '../auth/permissions.js';
 import { Router } from 'express';
 import * as crmController from '../controllers/crmController.js';
@@ -26,19 +26,27 @@ import {
   brandingSchema,
   stageSchema,
   updateStageSchema,
+  pipelineSchema,
+  updatePipelineSchema,
+  attachmentSchema,
   closeLostSchema,
   rebuyRequestSchema,
   userSchema,
   updateUserSchema,
+  mergeCustomerSchema,
+  resolveReferenceSchema,
 } from '../middleware/validation.js';
 
 export const crmRouter = Router();
 
 // Health & System State
 crmRouter.get('/health', crmController.getHealth);
-crmRouter.get('/me', attachDemoActor, (req, res) => res.json({ user: req.user }));
-crmRouter.use(protectWrites, attachDemoActor, authorizeCRM);
-crmRouter.get('/state', crmController.getState);
+crmRouter.get('/pages/:resource', attachWorkspaceActor, crmController.getRecordsPage);
+crmRouter.get('/reports/summary', attachWorkspaceActor, crmController.getReportSummary);
+crmRouter.get('/reports/audit', attachWorkspaceActor, crmController.getReportAuditPage);
+crmRouter.get('/me', attachWorkspaceActor, (req, res) => res.json({ user: req.user, authMode: req.authMode }));
+crmRouter.get('/state', attachWorkspaceActor, crmController.getState);
+crmRouter.use(protectWrites, attachWorkspaceActor, authorizeCRM);
 crmRouter.post('/state/reset', crmController.resetState);
 
 // Branding & Settings
@@ -49,12 +57,15 @@ crmRouter.get('/companies', crmController.getCompanies);
 crmRouter.post('/companies', validateBody(companySchema), crmController.createCompany);
 crmRouter.put('/companies/:id', validateBody(updateCompanySchema), crmController.updateCompany);
 crmRouter.delete('/companies/:id', crmController.deleteCompany);
+crmRouter.post('/companies/:id/merge', validateBody(mergeCustomerSchema), crmController.mergeCompanies);
 
 // Contacts
 crmRouter.get('/contacts', crmController.getContacts);
+crmRouter.get('/contacts/duplicates', crmController.duplicateContacts);
 crmRouter.post('/contacts', validateBody(contactSchema), crmController.createContact);
 crmRouter.put('/contacts/:id', validateBody(updateContactSchema), crmController.updateContact);
 crmRouter.delete('/contacts/:id', crmController.deleteContact);
+crmRouter.post('/contacts/:id/merge', validateBody(mergeCustomerSchema), crmController.mergeContacts);
 
 // Leads
 crmRouter.get('/leads', crmController.getLeads);
@@ -66,6 +77,9 @@ crmRouter.delete('/leads/:id', crmController.deleteLead);
 crmRouter.get('/stages', crmController.getStages);
 crmRouter.post('/stages', validateBody(stageSchema), crmController.createStage);
 crmRouter.put('/stages/:id', validateBody(updateStageSchema), crmController.updateStage);
+crmRouter.get('/pipelines', crmController.getPipelines);
+crmRouter.post('/pipelines', validateBody(pipelineSchema), crmController.createPipeline);
+crmRouter.put('/pipelines/:id', validateBody(updatePipelineSchema), crmController.updatePipeline);
 
 // Deals
 crmRouter.get('/deals', crmController.getDeals);
@@ -92,11 +106,16 @@ crmRouter.post('/notes', validateBody(noteSchema), crmController.createNote);
 crmRouter.get('/activities', crmController.getActivities);
 crmRouter.post('/activities', validateBody(activitySchema), crmController.createActivity);
 crmRouter.delete('/activities/:id', crmController.deleteActivity);
+crmRouter.get('/attachments', crmController.getAttachments);
+crmRouter.post('/attachments', validateBody(attachmentSchema), crmController.uploadAttachment);
+crmRouter.get('/attachments/:id/download', crmController.downloadAttachment);
+crmRouter.delete('/attachments/:id', crmController.deleteAttachment);
 
 // Users / Employees
 crmRouter.get('/users', crmController.getUsers);
 crmRouter.post('/users', validateBody(userSchema), crmController.createUser);
 crmRouter.put('/users/:id', validateBody(updateUserSchema), crmController.updateUser);
+crmRouter.post('/users/:id/invite', crmController.createAccountInvitation);
 
 // Stage Gate Checks
 crmRouter.get('/stage-gate-checks', crmController.getStageGateChecks);
@@ -112,4 +131,7 @@ crmRouter.get('/timeline', crmController.getTimeline);
 
 // Automation & Follow-up Rules
 crmRouter.get('/settings/automation-rules', crmController.getAutomationRules);
+crmRouter.get('/settings/automation-status', crmController.getAutomationRunStatus);
 crmRouter.put('/settings/automation-rules', validateBody(automationRulesSchema), crmController.updateAutomationRules);
+crmRouter.get('/settings/unresolved-links', crmController.getUnresolvedLinks);
+crmRouter.post('/settings/unresolved-links/:id/resolve', validateBody(resolveReferenceSchema), crmController.resolveHistoricalLink);

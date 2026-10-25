@@ -15,6 +15,72 @@ import {
   initialAuditLogs,
 } from '../data/initialData.js';
 import { normalizeStageColor, stageCode } from '../constants/stageConstants.js';
+import { listRecordsPage } from './paginatedRecords.js';
+
+async function allVisiblePages(resource, user) {
+  const rows = [];
+  let cursor = '';
+  do {
+    const page = await listRecordsPage(resource, user, { cursor, limit: 100 });
+    rows.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
+  return rows;
+}
+
+export const STATE_COLLECTIONS = ['branding', 'users', 'stages', 'companies', 'contacts',
+  'leads', 'deals', 'tasks', 'notes', 'activities', 'stageGateChecks', 'auditLogs', 'pipelines'];
+
+export async function getStateCollections(user, requested = STATE_COLLECTIONS) {
+  const managed = ['Admin', 'Manager'].includes(user.role);
+  const queries = {
+    branding: () => prisma.branding.findUnique({ where: { id: 'default' } }),
+    users: () => prisma.user.findMany({ orderBy: { name: 'asc' }, select: PUBLIC_USER_SELECT }),
+    stages: () => prisma.stage.findMany({ orderBy: { order: 'asc' } }),
+    pipelines: () => prisma.pipeline.findMany({ orderBy: { name: 'asc' } }),
+    companies: () => managed ? prisma.company.findMany({ orderBy: { createdAt: 'desc' } }) : allVisiblePages('companies', user),
+    contacts: () => managed ? prisma.contact.findMany({ orderBy: { createdAt: 'desc' } }) : allVisiblePages('contacts', user),
+    leads: () => managed ? prisma.lead.findMany({ orderBy: { createdAt: 'desc' } }) : allVisiblePages('leads', user),
+    deals: () => managed ? prisma.deal.findMany({ orderBy: { createdAt: 'desc' } }) : allVisiblePages('deals', user),
+    tasks: () => managed ? prisma.task.findMany({ orderBy: { createdAt: 'desc' } }) : allVisiblePages('tasks', user),
+    notes: () => managed ? prisma.note.findMany({ orderBy: { timestamp: 'desc' } }) : allVisiblePages('notes', user),
+    activities: () => managed ? prisma.activity.findMany({ orderBy: { timestamp: 'desc' } }) : allVisiblePages('activities', user),
+    auditLogs: () => managed ? prisma.auditLog.findMany({ orderBy: { timestamp: 'desc' } }) : allVisiblePages('audit-logs', user),
+    stageGateChecks: () => managed ? prisma.stageGateCheck.findMany({ orderBy: { timestamp: 'desc' } })
+      : prisma.$queryRaw`SELECT check_row.* FROM "StageGateCheck" check_row
+        WHERE EXISTS (SELECT 1 FROM "Deal" deal WHERE deal.id = check_row."dealId" AND deal."ownerId" = ${user.id})
+          OR EXISTS (SELECT 1 FROM "Lead" lead WHERE lead.id = check_row."dealId" AND lead."ownerId" = ${user.id})
+        ORDER BY check_row.timestamp DESC`,
+  };
+  const values = await Promise.all(requested.map(key => queries[key]()));
+  const result = Object.fromEntries(requested.map((key, index) => [key, values[index]]));
+  if ('branding' in result) result.branding ||= initialBranding;
+  if ('stages' in result) result.stages = result.stages.map(stage => ({ ...stage,
+    code: stageCode(stage), color: normalizeStageColor(stage.color, stage.name) }));
+  return result;
+}
+
+export const getScopedState = async (user) => {
+  const [branding, users, stages, companies, contacts, leads, deals,
+    tasks, notes, activities, auditLogs] = await Promise.all([
+    prisma.branding.findUnique({ where: { id: 'default' } }),
+    prisma.user.findMany({ orderBy: { name: 'asc' }, select: PUBLIC_USER_SELECT }),
+    prisma.stage.findMany({ orderBy: { order: 'asc' } }),
+    ...['companies', 'contacts', 'leads', 'deals', 'tasks', 'notes', 'activities', 'audit-logs']
+      .map(resource => allVisiblePages(resource, user)),
+  ]);
+  const visibleIds = [...deals, ...leads].map(row => row.id);
+  const stageGateChecks = await prisma.stageGateCheck.findMany({
+    where: { dealId: { in: visibleIds } }, orderBy: { timestamp: 'desc' }
+  });
+  return {
+    branding: branding || initialBranding, users,
+    pipelines: await prisma.pipeline.findMany({ orderBy: { name: 'asc' } }),
+    stages: stages.map(stage => ({ ...stage, code: stageCode(stage),
+      color: normalizeStageColor(stage.color, stage.name) })),
+    companies, contacts, leads, deals, tasks, notes, activities, stageGateChecks, auditLogs,
+  };
+};
 
 export const getState = async () => {
   const [
@@ -53,6 +119,7 @@ export const getState = async () => {
 
   return {
     branding: branding || initialBranding,
+    pipelines: await prisma.pipeline.findMany({ orderBy: { name: 'asc' } }),
     users: users || [],
     stages: normalizedStages,
     companies: companies || [],
@@ -68,7 +135,17 @@ export const getState = async () => {
 };
 
 export const resetState = async () => {
-  // Re-seed all tables directly in PostgreSQL
+  // Demo data may only be installed into a genuinely empty workspace. An
+  // upsert against real records can overwrite customer and audit history.
+  const existingRows = await Promise.all([
+    prisma.company.count(), prisma.contact.count(), prisma.lead.count(),
+    prisma.deal.count(), prisma.task.count(), prisma.note.count(),
+    prisma.activity.count(), prisma.stageGateCheck.count(), prisma.auditLog.count(),
+  ]);
+  if (existingRows.some(Boolean)) {
+    throw Object.assign(new Error('The workspace contains records or history. Reset is only available before first use.'),
+      { statusCode: 409 });
+  }
   await prisma.branding.upsert({
     where: { id: 'default' },
     update: initialBranding,
@@ -76,7 +153,10 @@ export const resetState = async () => {
   });
 
   for (const u of initialUsers) await prisma.user.upsert({ where: { id: u.id }, update: u, create: u });
-  for (const s of initialStages) await prisma.stage.upsert({ where: { id: s.id }, update: s, create: s });
+  for (const s of initialStages) {
+    const data = { ...s, pipelineId: 'pipeline-sales', code: stageCode(s) };
+    await prisma.stage.upsert({ where: { id: s.id }, update: data, create: data });
+  }
   for (const c of initialCompanies) await prisma.company.upsert({ where: { id: c.id }, update: c, create: c });
   for (const cnt of initialContacts) await prisma.contact.upsert({ where: { id: cnt.id }, update: cnt, create: cnt });
   for (const ld of initialLeads) await prisma.lead.upsert({ where: { id: ld.id }, update: ld, create: ld });

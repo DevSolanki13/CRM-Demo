@@ -83,13 +83,14 @@ export const updateLeadSchema = updateSchema(leadSchema);
 // 4. Deals
 export const dealSchema = z.object({
   id: z.string().optional(),
+  pipelineId: z.string().trim().min(1).optional(),
   title: z.string().min(1, 'Deal title is required'),
   companyName: z.string().optional().default(''),
   companyId: z.string().optional().default(''),
   contactName: z.string().optional().default(''),
   contactId: z.string().optional().default(''),
-  stageId: z.string().optional().default('stg-1'),
-  stageName: z.string().optional().default('New Lead'),
+  stageId: z.string().optional(),
+  stageName: z.string().optional(),
   value: z.number().finite().nonnegative().optional().default(0),
   leadId: z.string().optional(),
   isRecurring: z.boolean().optional().default(false),
@@ -233,6 +234,14 @@ export const automationRulesSchema = z.object({
   rules: z.array(automationRuleSchema).max(100),
 });
 
+const approvalPolicySchema = z.object({
+  alwaysRequireReview: z.boolean(),
+  largeDealThreshold: z.number().nonnegative(),
+  discountThresholdPercent: z.number().min(0).max(100),
+  requireIncompleteChecklist: z.boolean(),
+  requiredAnswersByStage: z.record(z.string(), z.array(z.string().min(1))).optional(),
+}).strict();
+
 export const brandingSchema = z.object({
   appName: z.string().trim().min(1).optional(),
   tagline: z.string().optional(),
@@ -240,17 +249,42 @@ export const brandingSchema = z.object({
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   defaultRecurrenceDays: z.number().int().positive().max(3650).optional(),
-  customFields: z.record(z.string(), z.unknown()).optional(),
+  customFields: z.object({ approvalPolicy: approvalPolicySchema.optional() }).passthrough().optional(),
 }).passthrough();
 
 export const stageSchema = z.object({
   name: z.string().trim().min(1),
+  pipelineId: z.string().trim().min(1).optional(),
   order: z.number().int().positive().optional(),
   category: z.string().trim().min(1).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
 });
 
 export const updateStageSchema = stageSchema.partial();
+
+export const pipelineSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  stages: z.array(z.object({
+    name: z.string().trim().min(1).max(80),
+    category: z.enum(['New', 'Pipeline', 'Won', 'Lost', 'Buy Again']),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  })).min(3).max(20).optional(),
+  qualificationRules: z.record(z.string(), z.array(z.enum(['contactId', 'companyId', 'expectedCloseDate']))).optional(),
+}).strict();
+
+export const updatePipelineSchema = pipelineSchema.pick({ name: true, qualificationRules: true })
+  .partial().extend({ active: z.boolean().optional() }).strict();
+
+export const attachmentSchema = z.object({
+  recordType: z.enum(['Deal', 'Lead', 'Contact', 'Company']),
+  recordId: z.string().min(1).max(180),
+  filename: z.string().trim().min(1).max(180),
+  contentType: z.enum(['application/pdf', 'image/png', 'image/jpeg', 'text/plain', 'text/csv',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']),
+  size: z.number().int().positive().max(5 * 1024 * 1024),
+  data: z.string().min(1).max(7 * 1024 * 1024),
+}).strict();
 
 export const userSchema = z.object({
   id: z.string().optional(),
@@ -259,6 +293,15 @@ export const userSchema = z.object({
   role: z.enum(['Sales Rep', 'Manager', 'Admin']),
   active: z.boolean().optional(),
   avatarUrl: z.string().optional(),
+  password: z.string().min(12).max(128).optional(),
 });
 
 export const updateUserSchema = userSchema.partial();
+
+export const mergeCustomerSchema = z.object({
+  sourceId: z.string().trim().min(1),
+}).strict();
+
+export const resolveReferenceSchema = z.object({
+  targetId: z.string().trim().min(1),
+}).strict();

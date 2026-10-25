@@ -1,5 +1,7 @@
 import express from 'express';
 import { crmRouter } from './routes/crmRoutes.js';
+import { authRouter } from './auth/sessions.js';
+import { automationCronRouter } from './routes/automationCronRoutes.js';
 
 export function createApp() {
   const app = express();
@@ -9,6 +11,8 @@ export function createApp() {
     res.set('Cache-Control', 'no-store');
     next();
   });
+  app.use('/api/auth', authRouter);
+  app.use('/api/internal/automation', automationCronRouter);
   app.use('/api', crmRouter);
   app.all('/api/*', (_req, res) => res.status(404).json({ error: 'API endpoint not found' }));
   app.use((err, _req, res, _next) => {

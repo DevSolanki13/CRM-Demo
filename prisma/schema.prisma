@@ -32,6 +32,10 @@ model User {
   avatarUrl String?
   passwordHash String?
   sessions Session[]
+  companies Company[] @relation("CompanyOwner")
+  contacts Contact[] @relation("ContactOwner")
+  leads Lead[] @relation("LeadOwner")
+  deals Deal[] @relation("DealOwner")
 }
 
 model Session {
@@ -45,13 +49,30 @@ model Session {
   @@index([expiresAt])
 }
 
-// 3. Pipeline Stages
+// 3. Sales pipelines and their stages
+model Pipeline {
+  id                 String @id
+  name               String @unique
+  active             Boolean @default(true)
+  qualificationRules Json?
+  stages             Stage[]
+  deals              Deal[]
+}
+
 model Stage {
   id       String @id
-  name     String @unique
+  pipelineId String @default("pipeline-sales")
+  code     String
+  name     String
   order    Int
   category String
   color    String @default("#FFFFFF")
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
+  deals Deal[]
+
+  @@unique([pipelineId, name])
+  @@unique([pipelineId, code])
+  @@index([pipelineId, order])
 }
 
 // 4. Accounts / Companies
@@ -64,6 +85,11 @@ model Company {
   address   String?
   notes     String?
   createdAt String?
+  owner User? @relation("CompanyOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  contacts Contact[]
+  deals Deal[]
+
+  @@index([ownerId])
 }
 
 // 5. Contacts
@@ -79,6 +105,12 @@ model Contact {
   ownerName    String?
   customFields Json?
   createdAt    String?
+  owner User? @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  deals Deal[]
+
+  @@index([ownerId])
+  @@index([companyId])
 }
 
 // 6. Leads
@@ -98,11 +130,16 @@ model Lead {
   lastActivityDate String?
   pendingGateCheck Json?
   customFields     Json?
+  owner User? @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  deals Deal[]
+
+  @@index([ownerId])
 }
 
 // 7. Deals / Pipeline Opportunities
 model Deal {
   id                 String  @id
+  pipelineId         String  @default("pipeline-sales")
   parentDealId       String?
   leadId             String?
   title              String
@@ -130,10 +167,29 @@ model Deal {
   reason             String?
   lostReason         String?
   lostReasonNote     String?
+  lostStageId        String?
+  lostStageName      String?
   proposalExpiryDate String?
   pendingGateCheck   Json?
   partialGateState   Json?
   customFields       Json?
+  owner User? @relation("DealOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Restrict)
+  stage Stage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  parentDeal Deal? @relation("DealLineage", fields: [parentDealId], references: [id], onDelete: Restrict)
+  rebuyDeals Deal[] @relation("DealLineage")
+  approvalChecks StageGateCheck[]
+
+  @@index([ownerId, status])
+  @@index([pipelineId, stageId])
+  @@index([stageId])
+  @@index([leadId])
+  @@index([contactId])
+  @@index([companyId])
+  @@index([parentDealId])
 }
 
 // 8. Follow-up Tasks & Manager Approval Ledgers
@@ -160,6 +216,9 @@ model Task {
   fromStageName    String?
   targetStageName  String?
   createdAt        String?
+  approvalCheck StageGateCheck? @relation(fields: [stageGateCheckId], references: [id], onDelete: Restrict)
+
+  @@index([stageGateCheckId])
 }
 
 // 9. Notes
@@ -214,6 +273,10 @@ model StageGateCheck {
   note            String?
   timestamp       String?
   createdAt       String?
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  tasks Task[]
+
+  @@index([dealId])
 }
 
 // 12. Permanent Audit Trail
@@ -230,4 +293,89 @@ model AuditLog {
   toStage     String?
   reason      String?
   metadata    Json?
+}
+
+model LoginAttempt {
+  keyHash      String   @id
+  count        Int      @default(0)
+  windowEndsAt DateTime
+
+  @@index([windowEndsAt])
+}
+
+model AccountInvitation {
+  tokenHash String   @id
+  userId    String
+  createdBy String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  @@index([userId, usedAt])
+  @@index([expiresAt])
+}
+
+model Attachment {
+  id          String   @id
+  recordType  String
+  recordId    String
+  storagePath String   @unique
+  filename    String
+  contentType String
+  size        Int
+  createdById String
+  createdAt   DateTime @default(now())
+  deletedAt   DateTime?
+  purgedAt    DateTime?
+
+  @@index([recordType, recordId, deletedAt])
+  @@index([createdAt])
+}
+
+model AutomationRun {
+  id              String   @id
+  status          String   @default("idle")
+  nextRunAt       DateTime @default(now())
+  lockedUntil     DateTime?
+  leaseToken      String?
+  lastStartedAt   DateTime?
+  lastCompletedAt DateTime?
+  attempts        Int      @default(0)
+  runCount        Int      @default(0)
+  lastError       String?
+  updatedAt       DateTime @updatedAt
+
+  @@index([nextRunAt, lockedUntil])
+}
+
+model AutomationEvent {
+  id          String   @id
+  trigger     String
+  context     Json
+  status      String   @default("pending")
+  attempts    Int      @default(0)
+  nextRunAt   DateTime @default(now())
+  lockedUntil DateTime?
+  leaseToken  String?
+  lastError   String?
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+
+  @@index([status, nextRunAt, lockedUntil])
+}
+
+// Keeps source IDs when historical records refer to deleted or missing records.
+model OrphanReference {
+  id           String   @id
+  recordType   String
+  recordId     String
+  field        String
+  targetType   String
+  targetId     String
+  detectedAt   DateTime @default(now())
+  resolvedAt   DateTime?
+  resolvedTargetId String?
+
+  @@unique([recordType, recordId, field])
+  @@index([targetType, targetId])
 }

@@ -1,21 +1,29 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useMemo } from 'react';
 import { getLocalDateInputValueAfterDays } from './utils/crmHelpers.js';
 import {
   fetchCRMState,
   fetchCurrentUser,
+  signIn,
+  signOut,
+  acceptInvitation,
+  createAccountInvitation,
   resetCRMState,
   updateBranding,
   createCompany,
   updateCompany,
   deleteCompany,
+  mergeCompanies,
   createContact,
   updateContact,
   deleteContact,
+  mergeContacts,
   createLead,
   updateLead,
   deleteLead,
   createStage,
   updateStage,
+  createPipeline,
+  updatePipeline,
   createDeal,
   updateDeal,
   deleteDeal,
@@ -36,17 +44,18 @@ import {
   rejectStageGateCheck
 } from './api/crmClient.js';
 import { Header } from './components/Header.jsx';
+import { LoginView, AcceptInvitationView } from './components/LoginView.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
 import { DashboardView } from './components/DashboardView.jsx';
-import { LeadsView } from './components/LeadsView.jsx';
-import { LeadJourneyView } from './components/LeadJourneyView.jsx';
-import { PipelineView } from './components/PipelineView.jsx';
-import { ContactsView } from './components/ContactsView.jsx';
-import { CompaniesView } from './components/CompaniesView.jsx';
-import { TasksView } from './components/TasksView.jsx';
-import { EmployeesView } from './components/EmployeesView.jsx';
-import { ReportsView } from './components/ReportsView.jsx';
-import { SettingsView } from './components/SettingsView.jsx';
+const LeadsView = lazy(() => import('./components/LeadsView.jsx').then(module => ({ default: module.LeadsView })));
+const LeadJourneyView = lazy(() => import('./components/LeadJourneyView.jsx').then(module => ({ default: module.LeadJourneyView })));
+const PipelineView = lazy(() => import('./components/PipelineView.jsx').then(module => ({ default: module.PipelineView })));
+const ContactsView = lazy(() => import('./components/ContactsView.jsx').then(module => ({ default: module.ContactsView })));
+const CompaniesView = lazy(() => import('./components/CompaniesView.jsx').then(module => ({ default: module.CompaniesView })));
+const TasksView = lazy(() => import('./components/TasksView.jsx').then(module => ({ default: module.TasksView })));
+const EmployeesView = lazy(() => import('./components/EmployeesView.jsx').then(module => ({ default: module.EmployeesView })));
+const ReportsView = lazy(() => import('./components/ReportsView.jsx').then(module => ({ default: module.ReportsView })));
+const SettingsView = lazy(() => import('./components/SettingsView.jsx').then(module => ({ default: module.SettingsView })));
 import { ImportExportModal } from './components/ImportExportModal.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import { NotFoundView } from './components/NotFoundView.jsx';
@@ -60,9 +69,17 @@ import {
   Menu 
 } from 'lucide-react';
 
-import { normalizeStageColor } from '../backend/constants/stageConstants.js';
+import { normalizeStageColor, isRenewalStage } from '../backend/constants/stageConstants.js';
 
 const KNOWN_TABS = ['dashboard', 'leads', 'pipeline', 'contacts', 'companies', 'tasks', 'employees', 'reports', 'settings'];
+const INITIAL_COLLECTIONS = ['branding', 'users', 'stages', 'pipelines', 'leads',
+  'deals', 'tasks', 'activities'];
+const TAB_COLLECTIONS = {
+  pipeline: ['companies', 'contacts', 'stageGateChecks'],
+  contacts: ['companies', 'contacts', 'notes'],
+  companies: ['companies', 'contacts'],
+  settings: ['companies', 'contacts', 'notes', 'stageGateChecks'],
+};
 
 const normalizeStateStages = (data) => {
   if (!data || !data.stages) return data;
@@ -76,9 +93,15 @@ const normalizeStateStages = (data) => {
 export default function App() {
   const [state, setState] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [selectedPipelineId, setSelectedPipelineId] = useState('pipeline-sales');
   const [currentUser, setCurrentUser] = useState(null);
+  const [canSignOut, setCanSignOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [tabLoadError, setTabLoadError] = useState('');
+  const [tabRetry, setTabRetry] = useState(0);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('invite'));
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Modals & Drawer
@@ -129,14 +152,18 @@ export default function App() {
     let cancelled = false;
     async function loadData() {
       try {
-        const user = await fetchCurrentUser();
-        const data = await fetchCRMState();
+        const { user, authMode } = await fetchCurrentUser();
+        const data = await fetchCRMState(INITIAL_COLLECTIONS);
         if (!cancelled) {
-          setState(normalizeStateStages(data));
+          setState(normalizeStateStages({ ...data, auditLogs: [] }));
           setCurrentUser(user);
+          setCanSignOut(authMode === 'session');
         }
       } catch (err) {
-        if (!cancelled) setLoadError(err.message);
+        if (!cancelled) {
+          if (err.status === 401) setAuthRequired(true);
+          else setLoadError(err.message);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -145,15 +172,64 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    const missing = (TAB_COLLECTIONS[activeTab] || []).filter(key => state && state[key] === undefined);
+    if (!missing.length) return;
+    let cancelled = false;
+    setTabLoadError('');
+    fetchCRMState(missing).then(data => {
+      if (!cancelled) setState(previous => normalizeStateStages({ ...previous, ...data }));
+    }).catch(error => {
+      if (!cancelled) setTabLoadError(error.message || 'Could not load this view.');
+    });
+    return () => { cancelled = true; };
+  }, [activeTab, state, tabRetry]);
+
   // Memoized Pending Tasks and Renewals Count for badges (placed before any early return)
   const pendingTasksCount = useMemo(() => {
     return (state?.tasks || []).filter(t => t.status === 'pending' && t.ownerId === currentUser?.id).length;
   }, [state?.tasks, currentUser?.id]);
 
   const renewalsDueCount = useMemo(() => {
-    return (state?.deals || []).filter(d => d.status === 'Renewal Due' || d.stageId === 'stg-7').length;
-  }, [state?.deals]);
+    return (state?.deals || []).filter(d => d.status === 'Renewal Due' ||
+      isRenewalStage(state?.stages?.find(stage => stage.id === d.stageId))).length;
+  }, [state?.deals, state?.stages]);
 
+  const handleLogin = async (email, password) => {
+    const user = await signIn(email, password);
+    const data = await fetchCRMState(INITIAL_COLLECTIONS);
+    setState(normalizeStateStages({ ...data, auditLogs: [] }));
+    setCurrentUser(user);
+    setCanSignOut(true);
+    setAuthRequired(false);
+    setLoadError('');
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      setState(null);
+      setCurrentUser(null);
+      setAuthRequired(true);
+      setActiveTab('dashboard');
+    } catch (error) {
+      toast.error(error.message || 'Could not sign out');
+    }
+  };
+
+  const handleAcceptInvitation = async password => {
+    await acceptInvitation(inviteToken, password);
+    await signOut().catch(() => {});
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    setInviteToken(null);
+    setState(null);
+    setCurrentUser(null);
+    setAuthRequired(true);
+    toast.success('Password set. Sign in to continue.');
+  };
+
+  if (inviteToken) return <AcceptInvitationView onAccept={handleAcceptInvitation} />;
+  if (authRequired) return <LoginView onLogin={handleLogin} />;
   if (!loading && loadError) return <main className="p-8"><p role="alert">{loadError}</p><button onClick={() => window.location.reload()}>Retry</button></main>;
   if (loading || !state || !currentUser) {
     return (
@@ -198,15 +274,17 @@ export default function App() {
 
   // --- HANDLERS ---
 
-  const reloadState = async () => {
-    const updated = await fetchCRMState();
-    setState(normalizeStateStages(updated));
+  const reloadState = async (...collections) => {
+    const requested = collections.filter(key => key !== 'auditLogs');
+    if (collections.length && !requested.length) return;
+    const updated = normalizeStateStages(await fetchCRMState(requested));
+    setState(prev => requested.length && prev ? { ...prev, ...updated } : updated);
   };
 
   const handleTriggerRenewalCheck = async () => {
     try {
       const res = await triggerRenewalAutomation();
-      setState(normalizeStateStages(res.state));
+      await reloadState('deals', 'tasks', 'auditLogs');
       if (res.failures?.length) {
         toast.error(`${res.failures.length} renewal check${res.failures.length === 1 ? '' : 's'} failed: ${res.failures[0].error}`);
       } else {
@@ -225,13 +303,14 @@ export default function App() {
   const handleUpdateBranding = async (branding) => {
     const updated = await updateBranding(branding);
     setState(prev => prev ? { ...prev, branding: updated } : prev);
+    return updated;
   };
 
   // Companies CRUD with full state reload
   const handleCreateCompany = async (comp) => {
     try {
       await createCompany(comp);
-      await reloadState();
+      await reloadState('companies', 'auditLogs');
       toast.success("Company created successfully");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
@@ -242,7 +321,7 @@ export default function App() {
   const handleUpdateCompany = async (id, comp) => {
     try {
       await updateCompany(id, comp);
-      await reloadState();
+      await reloadState('companies');
       toast.success("Company updated");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
@@ -253,7 +332,7 @@ export default function App() {
   const handleDeleteCompany = async (id) => {
     try {
       await deleteCompany(id);
-      await reloadState();
+      await reloadState('companies', 'auditLogs');
       toast.info("Company deleted");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
@@ -261,11 +340,17 @@ export default function App() {
     }
   };
 
+  const handleMergeCompanies = async (targetId, sourceId) => {
+    await mergeCompanies(targetId, sourceId);
+    await reloadState('companies', 'contacts', 'deals', 'tasks', 'notes', 'activities', 'auditLogs');
+    toast.success('Companies merged');
+  };
+
   // Contacts CRUD with full state reload
   const handleCreateContact = async (cnt) => {
     try {
       await createContact(cnt);
-      await reloadState();
+      await reloadState('contacts');
       toast.success("Contact created");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
@@ -276,7 +361,7 @@ export default function App() {
   const handleUpdateContact = async (id, cnt) => {
     try {
       await updateContact(id, cnt);
-      await reloadState();
+      await reloadState('contacts');
       toast.success("Contact updated");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
@@ -287,7 +372,7 @@ export default function App() {
   const handleDeleteContact = async (id) => {
     try {
       await deleteContact(id);
-      await reloadState();
+      await reloadState('contacts', 'auditLogs');
       toast.info("Contact deleted");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
@@ -295,16 +380,22 @@ export default function App() {
     }
   };
 
+  const handleMergeContacts = async (targetId, sourceId) => {
+    await mergeContacts(targetId, sourceId);
+    await reloadState('contacts', 'deals', 'tasks', 'notes', 'activities', 'auditLogs');
+    toast.success('Contacts merged');
+  };
+
   // Leads CRUD with targeted local state updates
   const handleCreateLead = async (lead) => {
     try {
       const created = await createLead(lead);
-      await reloadState();
+      await reloadState('leads', 'tasks', 'auditLogs');
       toast.success("Lead created");
       return created;
     } catch (err) {
       console.error("Error creating lead", err);
-      await reloadState();
+      await reloadState('leads', 'tasks', 'auditLogs');
       toast.error(err.message || 'Could not create lead');
       throw err;
     }
@@ -321,7 +412,7 @@ export default function App() {
       return updated;
     } catch (err) {
       console.error("Error updating lead", err);
-      await reloadState();
+      await reloadState('leads');
       toast.error(err.message || 'Could not update lead');
       throw err;
     }
@@ -345,11 +436,11 @@ export default function App() {
   const handleCreateDeal = async (deal) => {
     try {
       await createDeal(deal);
-      await reloadState();
+      await reloadState('deals', 'leads', 'auditLogs');
       toast.success("Opportunity created");
     } catch (err) {
       console.error("Error creating deal", err);
-      await reloadState();
+      await reloadState('deals', 'leads', 'auditLogs');
       toast.error(err.message || 'Could not create deal');
       throw err;
     }
@@ -363,14 +454,14 @@ export default function App() {
         await transitionDealStage(id, { targetStageId: deal.stageId, note: deal.reason || '', overrideReason: deal.overrideReason, demotionReason: deal.demotionReason });
       }
       // Workflow state is written only by the server's transition service.
-      for (const key of ['stageId', 'stageName', 'pendingGateCheck', 'actualCloseDate', 'lostReason', 'lostReasonNote', 'parentDealId', 'leadId', 'isRebuy', 'valueHistory']) delete changes[key];
+      for (const key of ['stageId', 'stageName', 'pendingGateCheck', 'actualCloseDate', 'lostReason', 'lostReasonNote', 'lostStageId', 'lostStageName', 'parentDealId', 'leadId', 'isRebuy', 'valueHistory']) delete changes[key];
       if (deal.stageId && existing && deal.stageId !== existing.stageId) delete changes.status;
       await updateDeal(id, changes);
-      await reloadState();
+      await reloadState('deals', 'leads', 'tasks', 'activities', 'auditLogs', 'stageGateChecks');
       toast.success("Deal updated");
     } catch (err) {
       console.error("Error updating deal", err);
-      await reloadState();
+      await reloadState('deals', 'leads', 'tasks', 'activities', 'auditLogs', 'stageGateChecks');
       toast.error(err.message || 'Could not update deal');
       throw err;
     }
@@ -379,7 +470,7 @@ export default function App() {
   const handleDeleteDeal = async (id) => {
     try {
       await deleteDeal(id);
-      await reloadState();
+      await reloadState('deals', 'auditLogs');
       toast.info("Deal deleted");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
@@ -390,19 +481,19 @@ export default function App() {
   // Stages CRUD
   const handleCreateStage = async (stage) => {
     await createStage(stage);
-    await reloadState();
+    await reloadState('stages');
   };
 
   const handleUpdateStage = async (id, stage) => {
     await updateStage(id, stage);
-    await reloadState();
+    await reloadState('stages', 'deals', 'tasks', 'stageGateChecks', 'leads');
   };
 
   // Tasks CRUD with full state reload
   const handleCreateTask = async (task) => {
     try {
       await createTask(task);
-      await reloadState();
+      await reloadState('tasks');
       toast.success("Task created");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
@@ -413,7 +504,7 @@ export default function App() {
   const handleUpdateTask = async (id, task) => {
     try {
       await updateTask(id, task);
-      await reloadState();
+      await reloadState('tasks');
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
       throw err;
@@ -423,7 +514,7 @@ export default function App() {
   const handleDeleteTask = async (id) => {
     try {
       await deleteTask(id);
-      await reloadState();
+      await reloadState('tasks');
       toast.info("Task removed");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
@@ -435,7 +526,7 @@ export default function App() {
   const handleCreateNote = async (note) => {
     try {
       await createNote(note);
-      await reloadState();
+      await reloadState('notes');
       toast.success("Note saved");
     } catch (err) {
       toast.error(err.message || 'Could not save note');
@@ -446,7 +537,7 @@ export default function App() {
   const handleCreateActivity = async (act) => {
     try {
       await createActivity(act);
-      await reloadState();
+      await reloadState('activities', 'deals', 'leads');
     } catch (err) {
       throw err;
     }
@@ -455,19 +546,40 @@ export default function App() {
   // Users with full state reload
   const handleCreateUser = async (u) => {
     try {
-      await createUser(u);
-      await reloadState();
+      const created = await createUser(u);
+      await reloadState('users');
       toast.success("Team member added");
+      return u.password ? null : createAccountInvitation(created.id);
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
       throw err;
     }
   };
 
+  const handleCreatePipeline = async data => {
+    const created = await createPipeline(data);
+    await reloadState('pipelines', 'stages');
+    setSelectedPipelineId(created.id);
+    toast.success('Pipeline created');
+    return created;
+  };
+
+  const handleUpdatePipeline = async (id, data) => {
+    const updated = await updatePipeline(id, data);
+    await reloadState('pipelines');
+    toast.success('Pipeline updated');
+    return updated;
+  };
+
+  const handleCreateAccountInvitation = async id => {
+    try { return await createAccountInvitation(id); }
+    catch (err) { toast.error(err.message || 'Could not create invitation link'); throw err; }
+  };
+
   const handleUpdateUser = async (id, u) => {
     try {
       await updateUser(id, u);
-      await reloadState();
+      await reloadState('users');
       toast.success("User profile updated");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
@@ -478,14 +590,21 @@ export default function App() {
   // CSV Import
   const handleImportContacts = async (items) => {
     await importContacts(items);
-    await reloadState();
+    await reloadState('contacts');
+  };
+
+  const handleOpenImportExport = async () => {
+    try {
+      if (!state.contacts) await reloadState('contacts');
+      setIsImportExportOpen(true);
+    } catch (error) { toast.error(error.message || 'Could not load records for export'); }
   };
 
   // Stage Gate Check Handlers
   const handleCreateStageGateCheck = async (check) => {
     try {
       await createStageGateCheck(check);
-      await reloadState();
+      await reloadState('deals', 'leads', 'tasks', 'stageGateChecks', 'auditLogs');
       toast.success('Approval request submitted');
     } catch (err) {
       toast.error(err.message || 'Approval request failed');
@@ -496,7 +615,7 @@ export default function App() {
   const handleApproveStageGateCheck = async (id, reviewer) => {
     try {
       await approveStageGateCheck(id, reviewer);
-      await reloadState();
+      await reloadState('deals', 'leads', 'tasks', 'activities', 'stageGateChecks', 'auditLogs');
       toast.success('Approval completed');
     } catch (err) {
       toast.error(err.message || 'Approval failed');
@@ -506,7 +625,7 @@ export default function App() {
   const handleRejectStageGateCheck = async (id, reviewer, reason) => {
     try {
       await rejectStageGateCheck(id, reviewer, reason);
-      await reloadState();
+      await reloadState('deals', 'leads', 'tasks', 'activities', 'stageGateChecks', 'auditLogs');
       toast.success('Request rejected');
     } catch (err) {
       toast.error(err.message || 'Rejection failed');
@@ -515,14 +634,14 @@ export default function App() {
 
   const handleSavePartialGateCheck = async (dealId, partialState) => {
     await updateDeal(dealId, { partialGateState: partialState });
-    await reloadState();
+    await reloadState('deals');
   };
 
   // Stage Transition Handlers
   const handleTransitionDealStage = async (dealId, payload) => {
     try {
       const res = await transitionDealStage(dealId, payload);
-      await reloadState();
+      await reloadState('deals', 'leads', 'tasks', 'activities', 'stageGateChecks', 'auditLogs');
       toast.success("Deal stage updated successfully");
       return res;
     } catch (err) {
@@ -534,7 +653,7 @@ export default function App() {
   const handleCloseLostDeal = async (dealId, payload) => {
     try {
       const res = await closeLostDeal(dealId, payload);
-      await reloadState();
+      await reloadState('deals', 'leads', 'tasks', 'activities', 'stageGateChecks', 'auditLogs');
       toast.info("Deal marked as Closed Lost");
       return res;
     } catch (err) {
@@ -546,7 +665,7 @@ export default function App() {
   const handleCreateRebuyDeal = async (parentDealId) => {
     try {
       const res = await createRebuyDeal(parentDealId, currentUser);
-      await reloadState();
+      await reloadState('deals', 'tasks', 'auditLogs');
       toast.success("Child rebuy opportunity generated");
       return res;
     } catch (err) {
@@ -557,7 +676,7 @@ export default function App() {
 
   const handleConvertToDeal = async (lead) => {
     try {
-      const initialStage = state.stages.find(s => s.order === 1) || state.stages[0];
+      const initialStage = state.stages.find(s => s.pipelineId === 'pipeline-sales' && s.order === 1);
       const newDeal = {
         title: `${lead.companyName || lead.title} - Opportunity`,
         value: 35000,
@@ -576,7 +695,7 @@ export default function App() {
         recurrenceDays: 60
       };
       await createDeal(newDeal);
-      await reloadState();
+      await reloadState('deals', 'leads', 'auditLogs');
       toast.success("Lead converted to Deal successfully");
     } catch (err) {
       toast.error(err.message || 'Failed to convert lead to deal');
@@ -618,6 +737,7 @@ export default function App() {
           branding={state.branding}
           users={state.users}
           currentUser={currentUser}
+          onLogout={canSignOut ? handleLogout : undefined}
           state={state}
           onSelectSearchResult={handleSelectSearchResult}
           onNavigateTab={handleNavigateTab}
@@ -636,15 +756,23 @@ export default function App() {
             activeTab={activeTab}
             setActiveTab={handleNavigateTab}
             userRole={currentUser.role}
+            onLogout={canSignOut ? handleLogout : undefined}
             pendingTasksCount={pendingTasksCount}
             renewalsDueCount={renewalsDueCount}
-            onOpenImportExport={() => setIsImportExportOpen(true)}
+            onOpenImportExport={handleOpenImportExport}
             isMobileOpen={isMobileMenuOpen}
             onCloseMobile={() => setIsMobileMenuOpen(false)}
           />
 
           {/* Dynamic Tab Content View */}
           <main className="flex-1 overflow-y-auto bg-[var(--canvas)] pb-16 md:pb-0">
+            <Suspense fallback={<div className="p-8 text-sm text-[#5B6472]" role="status">Loading view…</div>}>
+            {(TAB_COLLECTIONS[activeTab] || []).some(key => state[key] === undefined)
+              ? <div className="p-8 text-sm text-[#5B6472]" role={tabLoadError ? 'alert' : 'status'}>
+                  {tabLoadError || 'Loading view…'}
+                  {tabLoadError && <button className="ml-3 underline" onClick={() => setTabRetry(value => value + 1)}>Retry</button>}
+                </div>
+              : <>
             {activeTab === 'dashboard' && (
               <DashboardView
                 state={state}
@@ -680,7 +808,7 @@ export default function App() {
               ) : (
                 <LeadsView
                   leads={state.leads}
-                  stages={state.stages}
+                  stages={state.stages.filter(stage => stage.pipelineId === 'pipeline-sales')}
                   deals={state.deals}
                   users={state.users}
                   currentUser={currentUser}
@@ -703,15 +831,24 @@ export default function App() {
             )}
 
             {activeTab === 'pipeline' && (
-              <PipelineView
-                deals={state.deals}
-                stages={state.stages}
+              <div>
+              <div className="px-4 pt-4 sm:px-6 md:px-8 flex items-center gap-3 bg-[#F6F7F8]">
+                <label htmlFor="active-pipeline" className="text-xs font-bold text-[#5B6472]">Pipeline</label>
+                <select id="active-pipeline" value={selectedPipelineId} onChange={event => setSelectedPipelineId(event.target.value)}
+                  className="rounded-lg border border-[#CBD2D8] bg-white px-3 py-2 text-sm text-[#12161C] focus-visible:outline-2 focus-visible:outline-[#1D4E63]">
+                  {(state.pipelines || []).filter(pipeline => pipeline.active || pipeline.id === selectedPipelineId).map(pipeline =>
+                    <option key={pipeline.id} value={pipeline.id}>{pipeline.name}</option>)}
+                </select>
+              </div>
+              <PipelineView key={selectedPipelineId}
+                deals={state.deals.filter(deal => deal.pipelineId === selectedPipelineId)}
+                stages={state.stages.filter(stage => stage.pipelineId === selectedPipelineId)}
                 users={state.users}
                 companies={state.companies}
                 contacts={state.contacts}
                 currentUser={currentUser}
                 branding={state.branding}
-                onCreateDeal={handleCreateDeal}
+                onCreateDeal={deal => handleCreateDeal({ ...deal, pipelineId: selectedPipelineId })}
                 onUpdateDeal={handleUpdateDeal}
                 onDeleteDeal={handleDeleteDeal}
                 onCreateActivity={handleCreateActivity}
@@ -726,6 +863,7 @@ export default function App() {
                 onCreateRebuyDeal={handleCreateRebuyDeal}
                 onOpenDrawer={handleOpenDrawer}
               />
+              </div>
             )}
 
             {activeTab === 'contacts' && (
@@ -741,6 +879,7 @@ export default function App() {
                 onCreateContact={handleCreateContact}
                 onUpdateContact={handleUpdateContact}
                 onDeleteContact={handleDeleteContact}
+                onMergeContacts={handleMergeContacts}
                 onCreateNote={handleCreateNote}
                 onCreateActivity={handleCreateActivity}
                 onCreateTask={handleCreateTask}
@@ -757,6 +896,7 @@ export default function App() {
                 onCreateCompany={handleCreateCompany}
                 onUpdateCompany={handleUpdateCompany}
                 onDeleteCompany={handleDeleteCompany}
+                onMergeCompanies={handleMergeCompanies}
                 onCreateActivity={handleCreateActivity}
               />
             )}
@@ -785,6 +925,7 @@ export default function App() {
                 currentUser={currentUser}
                 onCreateUser={handleCreateUser}
                 onUpdateUser={handleUpdateUser}
+                onCreateAccountInvitation={handleCreateAccountInvitation}
               />
             )}
 
@@ -800,9 +941,15 @@ export default function App() {
               <SettingsView
                 branding={state.branding}
                 stages={state.stages}
+                pipelines={state.pipelines || []}
+                users={state.users}
+                records={state}
+                onHistoricalLinkResolved={() => reloadState('deals', 'tasks', 'activities', 'auditLogs')}
                 onUpdateBranding={handleUpdateBranding}
                 onCreateStage={handleCreateStage}
                 onUpdateStage={handleUpdateStage}
+                onCreatePipeline={handleCreatePipeline}
+                onUpdatePipeline={handleUpdatePipeline}
                 onResetDemoData={handleResetDemoData}
               />
             )}
@@ -815,6 +962,8 @@ export default function App() {
                 onOpenSearch={() => document.querySelector('header input')?.focus()}
               />
             )}
+            </>}
+            </Suspense>
           </main>
 
         </div>
