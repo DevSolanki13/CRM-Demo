@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -13,122 +13,68 @@ import {
   Building2
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/crmHelpers.js';
+import { fetchReportSummary, fetchReportAuditPage } from '../api/crmClient.js';
 
 export const ReportsView = ({
   state,
   currentUser,
-  onCreateDeal
 }) => {
-  const { deals = [], users = [], stages = [], stageGateChecks = [], auditLogs = [] } = state;
+  const { users = [], pipelines = [] } = state;
 
-  const [selectedRep, setSelectedRep] = useState('All');
+  const [selectedRep, setSelectedRep] = useState(currentUser?.role === 'Sales Rep' ? currentUser.id : 'All');
+  const [selectedPipeline, setSelectedPipeline] = useState('All');
   const [auditFilterAction, setAuditFilterAction] = useState('All');
+  const [summary, setSummary] = useState(null);
+  const [summaryError, setSummaryError] = useState('');
+  const [auditRows, setAuditRows] = useState([]);
+  const [auditCursor, setAuditCursor] = useState(null);
+  const [auditError, setAuditError] = useState('');
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const [month] = useState(() => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 7));
 
-  // Filter deals based on selection
-  const filteredDeals = deals.filter(d => {
-    const matchesRep = selectedRep === 'All' || d.ownerId === selectedRep;
-    return matchesRep;
-  });
+  useEffect(() => {
+    let active = true;
+    setSummary(null);
+    setSummaryError('');
+    fetchReportSummary(selectedRep, month, selectedPipeline).then(data => { if (active) setSummary(data); })
+      .catch(error => { if (active) setSummaryError(error.message || 'Could not load reports.'); });
+    return () => { active = false; };
+  }, [selectedRep, selectedPipeline, month, state.deals, retryKey]);
 
-  // Won & Lost
-  const wonDeals = filteredDeals.filter(d => d.status === 'Won');
-  const lostDeals = filteredDeals.filter(d => d.status === 'Lost');
-  const totalRevenue = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+  useEffect(() => {
+    let active = true;
+    setAuditRows([]);
+    setAuditCursor(null);
+    setAuditError('');
+    setAuditLoading(true);
+    fetchReportAuditPage(selectedRep, auditFilterAction, '', selectedPipeline).then(page => {
+      if (active) { setAuditRows(page.items); setAuditCursor(page.nextCursor); }
+    }).catch(error => { if (active) setAuditError(error.message || 'Could not load change history.'); })
+      .finally(() => { if (active) setAuditLoading(false); });
+    return () => { active = false; };
+  }, [selectedRep, selectedPipeline, auditFilterAction, state.deals, retryKey]);
 
-  const totalClosed = wonDeals.length + lostDeals.length;
-  const winRate = totalClosed > 0 ? Math.round((wonDeals.length / totalClosed) * 100) : 0;
-  const avgDealSize = wonDeals.length > 0 ? Math.round(totalRevenue / wonDeals.length) : 0;
+  const loadMoreAudit = async () => {
+    if (!auditCursor || auditLoading) return;
+    setAuditLoading(true);
+    setAuditError('');
+    try {
+      const page = await fetchReportAuditPage(selectedRep, auditFilterAction, auditCursor, selectedPipeline);
+      setAuditRows(previous => [...previous, ...page.items]);
+      setAuditCursor(page.nextCursor);
+    } catch (error) { setAuditError(error.message || 'Could not load more change history.'); }
+    finally { setAuditLoading(false); }
+  };
 
-  // Recurring Order / Renewal Due Deals List
-  const renewalDueDeals = deals.filter(d => d.status === 'Renewal Due' || d.stageId === 'stg-7');
+  if (summaryError) return <div className="p-8" role="alert">{summaryError} <button onClick={() => setRetryKey(key => key + 1)} className="underline">Retry</button></div>;
+  if (!summary) return <div className="p-8 text-sm text-[#5B6472]" role="status">Loading reports…</div>;
 
-  // Rebuy deals stats
-  const rebuyDeals = deals.filter(d => Boolean(d.parentDealId));
-  const rebuyRevenue = rebuyDeals.filter(d => d.status === 'Won').reduce((sum, d) => sum + (d.value || 0), 0);
-
-  // Lost Deals by Reason Breakdown
-  const lostReasonOptions = [
-    'Price / Budget mismatch',
-    'Competitor won',
-    'Timeline / Project postponed',
-    'Product fit / Specifications mismatch',
-    'No decision / Lead went silent',
-    'Internal reorganization / Decision-maker left',
-    'Other (see note)'
-  ];
-
-  const lostByReason = lostReasonOptions.map(reason => {
-    const matching = lostDeals.filter(d => d.lostReason?.includes(reason.split(' ')[0]) || d.lostReason === reason);
-    const value = matching.reduce((sum, d) => sum + (d.value || 0), 0);
-    return {
-      reason,
-      count: matching.length,
-      value
-    };
-  });
-
-  // Lost Deals by Stage Breakdown
-  const lostByStage = stages.map(stg => {
-    const matching = lostDeals.filter(d => d.stageId === stg.id || d.stageName === stg.name);
-    const value = matching.reduce((sum, d) => sum + (d.value || 0), 0);
-    return {
-      stage: stg,
-      count: matching.length,
-      value
-    };
-  });
+  const { wonCount, lostCount, totalRevenue, winRate, avgDealSize,
+    renewalDueCount, activeRebuyCount, rebuyRevenue, lostByStage, lostByReason, accountLTV,
+    accountCount, forecast, target, forecastMonth } = summary;
 
   const maxLostStageVal = Math.max(...lostByStage.map(s => s.value), 1);
-
-  // Account LTV calculation
-  const accountLTV = useMemo(() => {
-    const map = {};
-    deals.forEach(d => {
-      const key = d.companyName || 'Unassigned Account';
-      if (!map[key]) {
-        map[key] = {
-          name: key,
-          wonTotal: 0,
-          wonCount: 0,
-          rebuyCount: 0,
-          activeCount: 0,
-          totalValue: 0
-        };
-      }
-      map[key].totalValue += d.value || 0;
-      if (d.status === 'Won') {
-        map[key].wonTotal += d.value || 0;
-        map[key].wonCount += 1;
-      }
-      if (d.parentDealId) {
-        map[key].rebuyCount += 1;
-      }
-      if (d.status === 'Active') {
-        map[key].activeCount += 1;
-      }
-    });
-    return Object.values(map).sort((a, b) => b.wonTotal - a.wonTotal);
-  }, [deals]);
-
-  // Filtered Audit Logs
-  const filteredAuditLogs = auditLogs.filter(log => {
-    if (auditFilterAction === 'All') return true;
-    return log.action === auditFilterAction;
-  });
-
-  // Quick Action to create new repeat deal
-  const handleCreateRenewalDeal = async (oldDeal) => {
-    await onCreateDeal({
-      title: `${oldDeal.companyName || 'Repeat'} Renewal Order`,
-      value: oldDeal.value,
-      stageId: stages[0]?.id || '',
-      contactId: oldDeal.contactId,
-      companyId: oldDeal.companyId,
-      ownerId: oldDeal.ownerId,
-      isRecurring: true,
-      recurrenceDays: oldDeal.recurrenceDays || 60
-    });
-  };
 
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">
@@ -138,23 +84,30 @@ export const ReportsView = ({
         <div>
           <h1 className="font-display text-2xl font-extrabold text-[#12161C] flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-[#1D4E63]" />
-            <span>Reports, Rebuy LTV &amp; Governance Ledger</span>
+            <span>Sales reports</span>
           </h1>
           <p className="text-xs text-[#5B6472] mt-1 font-medium">
-            Analyze win rates, physical sample dropouts, account lifetime value &amp; audited pipeline compliance
+            Review revenue, renewals, lost deals and customer value.
           </p>
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="report-pipeline" className="text-xs text-[#5B6472] font-semibold">Pipeline:</label>
+          <select id="report-pipeline" value={selectedPipeline} onChange={event => setSelectedPipeline(event.target.value)}
+            className="bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3 py-1.5 text-xs text-[#12161C] focus-visible:outline-2 focus-visible:outline-[#1D4E63]">
+            <option value="All">All pipelines</option>
+            {pipelines.map(pipeline => <option key={pipeline.id} value={pipeline.id}>{pipeline.name}</option>)}
+          </select>
           <span className="text-xs text-[#5B6472] font-semibold">Sales Rep:</span>
           <select
             value={selectedRep}
             onChange={(e) => setSelectedRep(e.target.value)}
+            disabled={currentUser?.role === 'Sales Rep'}
             className="bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3 py-1.5 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
           >
-            <option value="All">All Team Members</option>
-            {users.map(u => (
+            {currentUser?.role !== 'Sales Rep' && <option value="All">All Team Members</option>}
+            {users.filter(u => currentUser?.role !== 'Sales Rep' || u.id === currentUser.id).map(u => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}
           </select>
@@ -170,7 +123,7 @@ export const ReportsView = ({
             <Trophy className="w-4 h-4 text-[#255B40]" />
           </div>
           <div className="font-mono text-2xl font-extrabold text-[#255B40] mt-2">{formatCurrency(totalRevenue)}</div>
-          <div className="text-[11px] text-[#5B6472] mt-1 font-mono">{wonDeals.length} closed won contracts</div>
+          <div className="text-[11px] text-[#5B6472] mt-1 font-mono">{wonCount} closed won contracts</div>
         </div>
 
         <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-5 rounded-2xl shadow-2xs">
@@ -179,7 +132,7 @@ export const ReportsView = ({
             <TrendingUp className="w-4 h-4 text-[#1D4E63]" />
           </div>
           <div className="font-mono text-2xl font-extrabold text-[#12161C] mt-2">{winRate}%</div>
-          <div className="text-[11px] text-[#5B6472] mt-1 font-mono">{wonDeals.length} won vs {lostDeals.length} lost</div>
+          <div className="text-[11px] text-[#5B6472] mt-1 font-mono">{wonCount} won vs {lostCount} lost</div>
         </div>
 
         <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-5 rounded-2xl shadow-2xs">
@@ -196,7 +149,7 @@ export const ReportsView = ({
             <span className="font-display text-xs text-[#5B6472] font-semibold uppercase tracking-wider">Rebuy Deals Active</span>
             <RefreshCw className="w-4 h-4 text-[#1D4E63]" />
           </div>
-          <div className="font-mono text-2xl font-extrabold text-[#1D4E63] mt-2">{rebuyDeals.length}</div>
+          <div className="font-mono text-2xl font-extrabold text-[#1D4E63] mt-2">{activeRebuyCount}</div>
           <div className="text-[11px] text-[#5B6472] mt-1 font-medium">{formatCurrency(rebuyRevenue)} rebuy revenue</div>
         </div>
 
@@ -205,10 +158,23 @@ export const ReportsView = ({
             <span className="font-display text-xs text-[#5B6472] font-semibold uppercase tracking-wider">Renewals Due</span>
             <RefreshCw className="w-4 h-4 text-[#965700]" />
           </div>
-          <div className="font-mono text-2xl font-extrabold text-[#965700] mt-2">{renewalDueDeals.length}</div>
+          <div className="font-mono text-2xl font-extrabold text-[#965700] mt-2">{renewalDueCount}</div>
           <div className="text-[11px] text-[#5B6472] mt-1 font-medium">Repeat order cycle reached</div>
         </div>
 
+      </div>
+
+      <div className="bg-white border border-[#E3E6EA] rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h2 className="font-display text-sm font-bold">Forecast for {forecastMonth}</h2>
+          <p className="text-xs text-[#5B6472] mt-1">Open deals expected this month, weighted by their configured stage probability.</p>
+          <p className="font-mono text-2xl font-bold text-[#1D4E63] mt-2">{formatCurrency(forecast)}</p>
+        </div>
+        <div className="sm:text-right">
+          <p className="text-xs font-semibold text-[#5B6472]">Sales target</p>
+          <p className="font-mono text-xl font-bold">{formatCurrency(target)}</p>
+          <p className="text-xs text-[#5B6472]">{target > 0 ? `${Math.round(forecast / target * 100)}% of target forecast` : 'Set a target in Settings'}</p>
+        </div>
       </div>
 
       {/* ACCOUNT LIFETIME VALUE (LTV) LEADERBOARD */}
@@ -217,14 +183,14 @@ export const ReportsView = ({
           <div>
             <h2 className="font-display text-sm font-bold text-[#12161C] flex items-center gap-2">
               <Building2 className="w-4 h-4 text-[#1D4E63]" />
-              <span>Account Lifetime Value (LTV) &amp; Rebuy Performance</span>
+              <span>Customer value &amp; repeat orders</span>
             </h2>
             <p className="text-xs text-[#5B6472] mt-0.5">
-              Cumulative won value across parent contracts and child rebuy orders per account
+              Won value across original and repeat orders for each customer
             </p>
           </div>
           <span className="text-xs font-mono font-bold text-[#1D4E63] bg-[#EFF6F9] border border-[#D8E8EF] px-2.5 py-1 rounded-full">
-            {accountLTV.length} Accounts Tracked
+            {accountCount} Accounts Tracked
           </span>
         </div>
 
@@ -249,7 +215,7 @@ export const ReportsView = ({
                     : { label: 'Standard Account', bg: 'bg-[#F6F7F8] text-[#5B6472] border-[#E3E6EA]' };
 
                 return (
-                  <tr key={acc.name} className="hover:bg-[#F6F7F8]/60 transition-colors">
+                  <tr key={acc.id} className="hover:bg-[#F6F7F8]/60 transition-colors">
                     <td className="px-4 py-3.5">
                       <div className="font-bold text-[#12161C] flex items-center gap-2">
                         <span className="w-5 h-5 rounded-full bg-[#1D4E63] text-white text-[10px] flex items-center justify-center font-mono">
@@ -304,7 +270,7 @@ export const ReportsView = ({
               <p className="text-xs text-[#5B6472] mt-0.5 font-medium">Identifies where deals drop out during qualification check</p>
             </div>
             <span className="text-xs font-mono font-bold text-[#922D27] bg-[#FDF2F1] border border-[#F4C4C1] px-2.5 py-0.5 rounded-full">
-              {lostDeals.length} Lost Total
+              {lostCount} Lost Total
             </span>
           </div>
 
@@ -364,10 +330,10 @@ export const ReportsView = ({
           <div>
             <h2 className="font-display text-sm font-bold text-[#12161C] flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-[#1D4E63]" />
-              <span>Permanent Audit Trail &amp; Governance Ledger</span>
+              <span>Change history</span>
             </h2>
             <p className="text-xs text-[#5B6472] mt-0.5">
-              Chronological log of all transitions, admin overrides, backward demotions &amp; rebuy events
+              Stage changes, manager decisions and repeat-order activity
             </p>
           </div>
 
@@ -402,14 +368,14 @@ export const ReportsView = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E3E6EA]">
-              {filteredAuditLogs.length === 0 ? (
+              {auditRows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-[#5B6472] italic">
-                    No matching audit records in ledger.
+                    {auditLoading ? 'Loading change history…' : 'No matching audit records in ledger.'}
                   </td>
                 </tr>
               ) : (
-                filteredAuditLogs.map(log => {
+                auditRows.map(log => {
                   const isAdminOverride = log.action === 'ADMIN_OVERRIDE';
                   const isRebuy = log.action === 'REBUY_CREATED';
                   const isLost = log.action === 'DEAL_LOST';
@@ -477,6 +443,11 @@ export const ReportsView = ({
             </tbody>
           </table>
         </div>
+        {auditError && <p role="alert" className="text-sm text-red-700">{auditError}</p>}
+        {auditCursor && <button type="button" onClick={loadMoreAudit} disabled={auditLoading}
+          className="rounded-lg border border-[#E3E6EA] px-4 py-2 text-sm font-semibold text-[#1D4E63] disabled:opacity-50">
+          {auditLoading ? 'Loading…' : 'Load more history'}
+        </button>}
       </div>
 
     </div>
