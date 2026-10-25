@@ -1,7 +1,6 @@
 import { prisma } from '../prisma.js';
+import { randomUUID } from 'node:crypto';
 import { getLocalDateStringAfterDays, getLocalDateString } from '../utils/dateUtils.js';
-import { createTask } from './taskService.js';
-import { logAudit } from './activityNoteService.js';
 
 export const DEFAULT_FOLLOW_UP_RULES = [
   {
@@ -110,70 +109,83 @@ const renderTemplate = (template, context) => {
  * @param {string} triggerEvent - 'LEAD_CREATED' | 'SAMPLE_SENT' | 'PROPOSAL_SENT' | 'RENEWAL_APPROACHING' | 'STAGE_CHANGED'
  * @param {object} context - Entity information (lead, deal, contact, etc.)
  */
-export const triggerFollowUp = async (triggerEvent, context = {}) => {
+export const processFollowUpEvent = async (id, now = new Date()) => {
+  const leaseToken = randomUUID();
+  const claim = await prisma.automationEvent.updateMany({
+    where: { id, status: { in: ['pending', 'failed', 'running'] }, nextRunAt: { lte: now },
+      OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }] },
+    data: { status: 'running', leaseToken,
+      lockedUntil: new Date(now.getTime() + 10 * 60_000), attempts: { increment: 1 } }
+  });
+  if (!claim.count) return { claimed: false, createdTasks: [] };
+  const event = await prisma.automationEvent.findUnique({ where: { id } });
+  const context = event.context;
+  const createdTasks = [];
   try {
-    const rules = await getFollowUpRules();
-    const activeRules = rules.filter(r => r.isActive && r.triggerEvent === triggerEvent);
-
-    if (activeRules.length === 0) return [];
-
-    const createdTasks = [];
-    const linkedType = context.leadId || context.contactPhone ? 'Lead' : (context.value !== undefined ? 'Deal' : 'Lead');
+    const rules = (await getFollowUpRules()).filter(rule => rule.isActive && rule.triggerEvent === event.trigger);
+    const linkedType = context.leadId || context.contactPhone ? 'Lead'
+      : context.value !== undefined ? 'Deal' : 'Lead';
     const linkedId = context.id || context.dealId || context.leadId || '';
     const linkedTitle = context.title || context.name || context.companyName || 'CRM Opportunity';
-    const ownerId = context.ownerId || 'u-3';
-    const ownerName = context.ownerName || 'Sales Rep';
-
-    for (const rule of activeRules) {
-      const taskTitle = renderTemplate(rule.taskTitleTemplate, context);
-      const taskNote = renderTemplate(rule.noteTemplate, context);
+    for (const rule of rules) {
+      const taskId = `tsk-auto-${event.id}-${rule.id}`;
       const dueDate = getLocalDateStringAfterDays(Number(rule.offsetDays) || 1);
-
-      // Check if a similar pending task already exists for this entity to prevent duplicate spamming
-      const existingTask = await prisma.task.findFirst({
-        where: {
-          linkedId,
-          title: taskTitle,
-          status: 'pending'
-        }
-      });
-
-      if (!existingTask) {
-        const newTask = await createTask({
-          id: `tsk-auto-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          title: taskTitle,
-          dueDate,
-          type: rule.taskType || 'Call',
-          priority: rule.priority || 'Medium',
-          linkedType,
-          linkedId,
-          linkedTitle,
-          ownerId,
-          ownerName,
-          status: 'pending',
-          note: `[Automated Task: ${rule.name}] ${taskNote}`,
+      const task = await prisma.$transaction(async tx => {
+        const existing = await tx.task.findUnique({ where: { id: taskId } });
+        if (existing) return null;
+        const saved = await tx.task.create({ data: {
+          id: taskId, title: renderTemplate(rule.taskTitleTemplate, context),
+          dueDate, type: rule.taskType || 'Call', linkedType, linkedId, linkedTitle,
+          ownerId: context.ownerId || null, ownerName: context.ownerName || null,
+          status: 'pending', note: `[Automated Task: ${rule.name}] ${renderTemplate(rule.noteTemplate, context)}`,
           createdAt: getLocalDateString()
-        });
-
-        createdTasks.push(newTask);
-
-        // Log audit event for automated task generation
-        await logAudit({
-          actorId: 'system-automation',
-          actorName: 'Follow-Up Engine',
-          action: 'AUTOMATION_TASK_CREATED',
-          entityType: linkedType,
-          entityId: linkedId,
-          entityTitle: linkedTitle,
+        } });
+        await tx.auditLog.create({ data: {
+          id: `aud-${taskId}`, timestamp: new Date().toISOString(),
+          actorId: 'system-automation', actorName: 'Follow-Up Engine',
+          action: 'AUTOMATION_TASK_CREATED', entityType: linkedType,
+          entityId: linkedId, entityTitle: linkedTitle,
           reason: `Auto-generated "${rule.name}" task scheduled for ${dueDate}`,
-          metadata: { ruleId: rule.id, triggerEvent, taskId: newTask.id }
-        });
-      }
+          metadata: { ruleId: rule.id, triggerEvent: event.trigger, taskId }
+        } });
+        return saved;
+      });
+      if (task) createdTasks.push(task);
     }
-
-    return createdTasks;
+    await prisma.automationEvent.updateMany({ where: { id, leaseToken }, data: {
+      status: 'completed', leaseToken: null, lockedUntil: null,
+      lastError: null, processedAt: new Date()
+    } });
+    return { claimed: true, createdTasks };
   } catch (error) {
-    console.error(`[FollowUpEngine Error] Failed to process trigger ${triggerEvent}:`, error);
-    return [];
+    const delay = Math.min(60 * 60_000, 60_000 * 2 ** Math.min(event.attempts, 6));
+    await prisma.automationEvent.updateMany({ where: { id, leaseToken }, data: {
+      status: 'failed', leaseToken: null, lockedUntil: null,
+      nextRunAt: new Date(now.getTime() + delay),
+      lastError: String(error.message).slice(0, 2000)
+    } });
+    console.error(`Follow-up event ${id} failed and is queued for retry:`, error);
+    return { claimed: true, createdTasks, failed: true };
   }
+};
+
+export const processPendingFollowUps = async () => {
+  const pending = await prisma.automationEvent.findMany({
+    where: { status: { in: ['pending', 'failed', 'running'] }, nextRunAt: { lte: new Date() },
+      OR: [{ lockedUntil: null }, { lockedUntil: { lte: new Date() } }] },
+    orderBy: { nextRunAt: 'asc' }, take: 50, select: { id: true }
+  });
+  for (const event of pending) await processFollowUpEvent(event.id);
+  return pending.length;
+};
+
+export const triggerFollowUp = async (triggerEvent, context = {}) => {
+  const linkedId = context.id || context.dealId || context.leadId;
+  if (!linkedId) throw new Error('A linked record is required for follow-up automation.');
+  const id = context.eventId || `${triggerEvent}:${linkedId}:${context.stageName || ''}`;
+  await prisma.automationEvent.upsert({
+    where: { id }, create: { id, trigger: triggerEvent, context }, update: {}
+  });
+  const result = await processFollowUpEvent(id);
+  return result.createdTasks;
 };
