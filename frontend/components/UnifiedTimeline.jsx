@@ -38,6 +38,10 @@ export const UnifiedTimeline = ({
 }) => {
   const [timelineItems, setTimelineItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [serverFacets, setServerFacets] = useState(null);
   const [activeCategory, setActiveCategory] = useState('all'); // 'all' | 'communication' | 'note' | 'pipeline' | 'task' | 'governance'
   const [searchFilter, setSearchFilter] = useState('');
   
@@ -47,15 +51,26 @@ export const UnifiedTimeline = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedItems, setExpandedItems] = useState({});
 
-  const loadTimeline = async () => {
+  const loadTimeline = async (cursor = '') => {
     if (!entityType || !entityId) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (cursor) setLoadingMore(true);
+    else setLoading(true);
     try {
-      const data = await fetchTimeline(entityType, entityId);
-      setTimelineItems(Array.isArray(data) ? data : []);
+      const data = await fetchTimeline(entityType, entityId, cursor ? { cursor } : {});
+      if (Array.isArray(data)) {
+        setTimelineItems(data);
+        setNextCursor(null);
+        setTotalCount(data.length);
+      } else {
+        const newItems = data.items || [];
+        setTimelineItems(prev => (cursor ? [...prev, ...newItems] : newItems));
+        setNextCursor(data.nextCursor || null);
+        setTotalCount(data.total || newItems.length);
+        if (data.facets) setServerFacets(data.facets);
+      }
     } catch (err) {
       console.warn('Failed to load server timeline, computing fallback:', err);
       // Construct fallback from props
@@ -87,8 +102,11 @@ export const UnifiedTimeline = ({
         });
       });
       setTimelineItems(fallback);
+      setNextCursor(null);
+      setTotalCount(fallback.length);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -140,6 +158,16 @@ export const UnifiedTimeline = ({
 
   // Category counts
   const counts = useMemo(() => {
+    if (serverFacets && typeof serverFacets.all === 'number') {
+      return {
+        all: totalCount || timelineItems.length,
+        communication: serverFacets.communication || 0,
+        note: serverFacets.note || 0,
+        pipeline: serverFacets.pipeline || 0,
+        task: serverFacets.task || 0,
+        governance: serverFacets.governance || 0,
+      };
+    }
     const c = { all: timelineItems.length, communication: 0, note: 0, pipeline: 0, task: 0, governance: 0 };
     timelineItems.forEach(item => {
       if (c[item.category] !== undefined) {
@@ -147,7 +175,7 @@ export const UnifiedTimeline = ({
       }
     });
     return c;
-  }, [timelineItems]);
+  }, [timelineItems, serverFacets, totalCount]);
 
   // Filtered timeline items
   const filteredItems = useMemo(() => {
@@ -422,6 +450,20 @@ export const UnifiedTimeline = ({
               </div>
             );
           })}
+
+          {nextCursor && (
+            <div className="pt-3 pb-2 text-center">
+              <button
+                type="button"
+                onClick={() => loadTimeline(nextCursor)}
+                disabled={loadingMore}
+                className="px-4 py-2 bg-[#FFFFFF] hover:bg-[#EFF6F9] border border-[#E3E6EA] rounded-xl text-xs font-bold text-[#1D4E63] transition-colors shadow-2xs inline-flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                {loadingMore ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                <span>{loadingMore ? 'Loading older history…' : `Load older history (${timelineItems.length} of ${totalCount})`}</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
