@@ -1,3 +1,6 @@
+import { RecordSelect } from './RecordSelect.jsx';
+import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState, useMemo } from 'react';
 import { 
   Contact as ContactIcon, 
@@ -15,19 +18,19 @@ import {
   Clock,
   Sparkles
 } from 'lucide-react';
-import { formatDate, filterByRole, getLocalDateInputValueAfterDays, formatCurrency } from '../utils/crmHelpers.js';
+import { formatDate, getLocalDateInputValueAfterDays, formatCurrency } from '../utils/crmHelpers.js';
 import { AddActivityModal } from './AddActivityModal.jsx';
 import { UnifiedTimeline } from './UnifiedTimeline.jsx';
 import { MergeCustomerDialog } from './MergeCustomerDialog.jsx';
 import { AttachmentsPanel } from './AttachmentsPanel.jsx';
 
 export const ContactsView = ({
-  contacts = [],
+  revision = 0,
   companies = [],
   users = [],
   stages = [],
-  deals = [],
-  notes = [],
+  deals: contextualDeals = [],
+
   activities = [],
   currentUser,
   onCreateContact,
@@ -99,23 +102,13 @@ export const ContactsView = ({
     ownerId: currentUser?.id || ''
   });
 
-  // Selective Memoization of Filtered Contacts
-  const userContacts = useMemo(() => {
-    return filterByRole(contacts, currentUser);
-  }, [contacts, currentUser]);
-
-  const filteredContacts = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return userContacts.filter(c => {
-      const matchesSearch = !q ||
-        (c.name && c.name.toLowerCase().includes(q)) ||
-        (c.email && c.email.toLowerCase().includes(q)) ||
-        (c.companyName && c.companyName.toLowerCase().includes(q));
-
-      const matchesCompany = selectedCompanyId === 'All' || c.companyId === selectedCompanyId;
-      return matchesSearch && matchesCompany;
-    });
-  }, [userContacts, searchQuery, selectedCompanyId]);
+  const page = useRecordsPage('contacts', { q: searchQuery, companyId: selectedCompanyId === 'All' ? undefined : selectedCompanyId }, revision);
+  const contacts = page.items;
+  const filteredContacts = contacts;
+  const dealPage = useRecordsPage('deals', { contactId: selectedContact?.id }, revision, Boolean(selectedContact));
+  const notePage = useRecordsPage('notes', { linkedType: 'Contact', linkedId: selectedContact?.id, sort: 'recent' }, revision, Boolean(selectedContact));
+  const deals = [...dealPage.items, ...contacts.map(contact => contact.primaryDeal).filter(Boolean), ...contextualDeals];
+  const notes = notePage.items;
 
   const handleOpenAdd = () => {
     setEditingContact(null);
@@ -164,7 +157,7 @@ export const ContactsView = ({
   };
 
   const contactDeals = useMemo(() => {
-    return selectedContact ? deals.filter(d => d.contactId === selectedContact.id) : [];
+    return selectedContact ? dealPage.items : [];
   }, [selectedContact, deals]);
 
   const contactNotes = useMemo(() => {
@@ -173,6 +166,7 @@ export const ContactsView = ({
 
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">
+      <RecordPagination page={page} label="contacts" />
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-4 sm:p-6 rounded-2xl shadow-sm">
@@ -382,8 +376,9 @@ export const ContactsView = ({
                 <div className="space-y-2">
                   <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
                     <Briefcase className="w-3.5 h-3.5 text-[#5B6472]" aria-hidden="true" />
-                    <span>Linked Opportunities ({contactDeals.length})</span>
+                    <span>Linked Opportunities ({dealPage.total})</span>
                   </h4>
+                  <RecordPagination page={dealPage} label="linked opportunities" />
                   {contactDeals.length === 0 ? (
                     <p className="text-[11px] text-[#5B6472] italic">No deals linked to this contact.</p>
                   ) : (
@@ -405,7 +400,7 @@ export const ContactsView = ({
                 <div className="space-y-2 pt-2 border-t border-[#E3E6EA]">
                   <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
                     <MessageSquare className="w-3.5 h-3.5 text-[#5B6472]" aria-hidden="true" />
-                    <span>Notes ({contactNotes.length})</span>
+                    <span>Notes ({notePage.total})</span>
                   </h4>
 
                   <form onSubmit={handleAddNote} className="space-y-2">
@@ -520,15 +515,8 @@ export const ContactsView = ({
 
                 <div>
                   <label className="block text-[#5B6472] font-semibold mb-1">Company</label>
-                  <select
-                    value={formData.companyId}
-                    onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
-                    className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
-                  >
-                    {companies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <RecordSelect resource="companies" value={formData.companyId} selectedLabel={formData.companyName}
+                    onChange={(id, record) => setFormData(previous => ({ ...previous, companyId: id, companyName: record?.name || '' }))} />
                 </div>
               </div>
 

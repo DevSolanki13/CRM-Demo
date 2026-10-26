@@ -1,3 +1,5 @@
+import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState, useMemo } from 'react';
 import { 
   Building2, 
@@ -19,9 +21,9 @@ import { MergeCustomerDialog } from './MergeCustomerDialog.jsx';
 import { AttachmentsPanel } from './AttachmentsPanel.jsx';
 
 export const CompaniesView = ({
-  companies = [],
-  contacts = [],
-  deals = [],
+  revision = 0,
+
+
   currentUser,
   onCreateCompany,
   onUpdateCompany,
@@ -46,15 +48,13 @@ export const CompaniesView = ({
     notes: ''
   });
 
-  // Selective Memoization of Companies
-  const filteredCompanies = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return companies;
-    return companies.filter(c => 
-      (c.name && c.name.toLowerCase().includes(q)) ||
-      (c.industry && c.industry.toLowerCase().includes(q))
-    );
-  }, [companies, searchQuery]);
+  const page = useRecordsPage('companies', { q: searchQuery }, revision);
+  const companies = page.items;
+  const contactPage = useRecordsPage('contacts', { companyId: selectedCompany?.id }, revision, Boolean(selectedCompany));
+  const dealPage = useRecordsPage('deals', { companyId: selectedCompany?.id }, revision, Boolean(selectedCompany));
+  const contacts = contactPage.items;
+  const deals = dealPage.items;
+  const filteredCompanies = companies;
 
   const handleOpenAdd = () => {
     setEditingCompany(null);
@@ -90,6 +90,7 @@ export const CompaniesView = ({
 
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">
+      <RecordPagination page={page} label="companies" />
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-4 sm:p-6 rounded-2xl shadow-sm">
@@ -155,7 +156,7 @@ export const CompaniesView = ({
                   filteredCompanies.map(comp => {
                     const compContacts = contacts.filter(c => c.companyId === comp.id);
                     const compDeals = deals.filter(d => d.companyId === comp.id);
-                    const totalVal = compDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+                    const totalVal = comp.dealValue || 0;
 
                     return (
                       <tr
@@ -193,7 +194,7 @@ export const CompaniesView = ({
 
                         <td className="px-4 py-3.5 font-mono font-bold text-[#12161C]">
                           <span className="bg-[#F6F7F8] px-2 py-0.5 rounded-md border border-[#E3E6EA]">
-                            {compContacts.length} contacts
+                            {comp.contactCount || 0} contacts
                           </span>
                         </td>
 
@@ -285,9 +286,10 @@ export const CompaniesView = ({
                 <div className="space-y-2">
                   <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-[#1D4E63]" aria-hidden="true" />
-                    <span>Contacts ({linkedContacts.length})</span>
+                    <span>Contacts ({contactPage.total})</span>
                   </h4>
                   <div className="space-y-1.5">
+                    <RecordPagination page={contactPage} label="linked contacts" />
                     {linkedContacts.length === 0 ? (
                       <p className="text-[11px] text-[#5B6472] italic">No contacts registered for this account.</p>
                     ) : (
@@ -308,9 +310,10 @@ export const CompaniesView = ({
                 <div className="space-y-2 pt-2 border-t border-[#E3E6EA]">
                   <h4 className="font-display text-xs font-bold text-[#5B6472] uppercase tracking-wider flex items-center gap-1.5">
                     <Briefcase className="w-3.5 h-3.5 text-[#1D4E63]" aria-hidden="true" />
-                    <span>Deals ({linkedDeals.length})</span>
+                    <span>Deals ({dealPage.total})</span>
                   </h4>
                   <div className="space-y-1.5 font-mono">
+                    <RecordPagination page={dealPage} label="linked deals" />
                     {linkedDeals.length === 0 ? (
                       <p className="text-[11px] text-[#5B6472] italic font-sans">No deals linked to this account.</p>
                     ) : (

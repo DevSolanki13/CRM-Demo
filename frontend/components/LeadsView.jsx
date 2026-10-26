@@ -1,3 +1,5 @@
+import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState, useMemo } from 'react';
 import {
   Users,
@@ -17,13 +19,13 @@ import {
   Layers,
   ExternalLink
 } from 'lucide-react';
-import { formatDate, filterByRole, getStageBadgeStyle, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
+import { formatDate, getStageBadgeStyle, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
 import { AddActivityModal } from './AddActivityModal.jsx';
 
 export const LeadsView = ({
-  leads,
+  revision = 0,
   stages = [],
-  deals = [],
+  deals: contextualDeals = [],
   users,
   currentUser,
   branding,
@@ -83,50 +85,13 @@ export const LeadsView = ({
     notes: ''
   });
 
-  // Filter RBAC with useMemo
-  const userLeads = useMemo(() => {
-    return filterByRole(leads, currentUser);
-  }, [leads, currentUser]);
-
-  // Quick filter counts
-  const { myLeadsCount, outboundCount, inboundCount, newCount } = useMemo(() => {
-    return {
-      myLeadsCount: userLeads.filter(l => l.ownerId === currentUser.id).length,
-      outboundCount: userLeads.filter(l => l.isOutbound).length,
-      inboundCount: userLeads.filter(l => !l.isOutbound).length,
-      newCount: userLeads.filter(l => l.status === 'New').length
-    };
-  }, [userLeads, currentUser]);
-
-  // Filtered Leads with useMemo
-  const filteredLeads = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return userLeads.filter(l => {
-      const matchesSearch = !q ||
-        (l.title && l.title.toLowerCase().includes(q)) ||
-        (l.contactName && l.contactName.toLowerCase().includes(q)) ||
-        (l.companyName && l.companyName.toLowerCase().includes(q));
-
-      const matchesSource = selectedSource === 'All'
-        ? true
-        : selectedSource === 'Outbound' ? l.isOutbound
-          : selectedSource === 'Inbound' ? !l.isOutbound
-            : l.source === selectedSource;
-
-      const matchesOwner = selectedOwner === 'All' || l.ownerId === selectedOwner;
-
-      const leadDeal = deals.find(d => d.leadId === l.id && !d.isRebuy) || deals.find(d => d.leadId === l.id);
-      const matchesStage = selectedStage === 'All' || (leadDeal && leadDeal.stageId === selectedStage);
-
-      if (!matchesSearch || !matchesSource || !matchesOwner || !matchesStage) return false;
-
-      if (quickLeadFilter === 'MyLeads') return l.ownerId === currentUser.id;
-      if (quickLeadFilter === 'Outbound') return l.isOutbound;
-      if (quickLeadFilter === 'Inbound') return !l.isOutbound;
-      if (quickLeadFilter === 'New') return l.status === 'New';
-      return true;
-    });
-  }, [userLeads, searchQuery, selectedSource, selectedOwner, selectedStage, quickLeadFilter, deals, currentUser]);
+  const page = useRecordsPage('leads', { q: searchQuery, source: selectedSource,
+    owner: selectedOwner, stage: selectedStage, quick: quickLeadFilter }, revision);
+  const leads = page.items;
+  const deals = [...leads.map(lead => lead.primaryDeal).filter(Boolean), ...contextualDeals];
+  const filteredLeads = leads;
+  const { MyLeads: myLeadsCount = 0, Outbound: outboundCount = 0,
+    Inbound: inboundCount = 0, New: newCount = 0 } = page.facets || {};
 
   const handleToggleSelectAll = () => {
     if (selectedLeadIds.length === filteredLeads.length && filteredLeads.length > 0) {
@@ -164,6 +129,10 @@ export const LeadsView = ({
     // 1. Create activity record
     if (onCreateActivity) {
       await onCreateActivity(activityData);
+    }
+    if (activityData.followUp) {
+      setActivityModalLead(null);
+      return;
     }
 
     const leadDeal = deals.find(d => d.leadId === targetEntity.id && !d.isRebuy) || deals.find(d => d.leadId === targetEntity.id);
@@ -400,10 +369,12 @@ export const LeadsView = ({
 
       </div>
 
+      <RecordPagination page={page} label="leads" />
+
       {/* Quick Filter Chips */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
         {[
-          { id: 'All', label: 'All Leads', count: userLeads.length },
+          { id: 'All', label: 'All Leads', count: page.facets?.All || 0 },
           { id: 'MyLeads', label: 'My Leads', count: myLeadsCount },
           { id: 'Outbound', label: 'Outbound Leads', count: outboundCount },
           { id: 'Inbound', label: 'Inbound Inquiries', count: inboundCount },
@@ -537,7 +508,7 @@ export const LeadsView = ({
 
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {(() => {
-                      const badgeStyle = getStageBadgeStyle(currentStageName, currentStageObj?.color);
+                      const badgeStyle = getStageBadgeStyle(currentStageObj || {});
                       return (
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeStyle.badgeClass}`}>
                           {currentStageName}
@@ -650,7 +621,7 @@ export const LeadsView = ({
                       {/* Pipeline Stage Badge */}
                       <td className="px-4 py-3.5">
                         {(() => {
-                          const badgeStyle = getStageBadgeStyle(currentStageName, currentStageObj?.color);
+                          const badgeStyle = getStageBadgeStyle(currentStageObj || {});
                           const isPendingApproval = lead.status === 'Pending Review' || Boolean(leadDeal?.pendingGateCheck);
 
                           return (

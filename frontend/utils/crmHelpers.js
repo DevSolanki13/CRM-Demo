@@ -105,6 +105,7 @@ export function exportToCSV(filename, rows) {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 export function parseCSVText(csvText) {
@@ -127,38 +128,17 @@ export function parseCSVText(csvText) {
   return result;
 }
 
-export function getStageColor(stageName = '', category = '') {
-  const name = String(stageName || '');
-  const cat = String(category || '');
-
-  if (name.includes('Closed Won') || name.includes('Won') || cat === 'Won') {
-    return '#16A34A'; // Rich Victory Green
-  }
-  if (name.includes('Negotiation') || cat === 'Negotiation') {
-    return '#10B981'; // Vibrant Emerald Green
-  }
-  if (name.includes('Proposal') || cat === 'Proposal') {
-    return '#34D399'; // Medium Emerald Green
-  }
-  if (name.includes('Sample Sent') || cat === 'Sample Sent') {
-    return '#6EE7B7'; // Soft Sage Green
-  }
-  if (name.includes('Contacted') || cat === 'Contacted') {
-    return '#A7F3D0'; // Light Mint Green
-  }
-  if (name.includes('Buy Again') || name.includes('Renewal') || cat === 'Buy Again') {
-    return '#EAB308'; // Warm Golden Yellow
-  }
-  if (name.includes('Closed Lost') || name.includes('Lost') || cat === 'Lost') {
-    return '#DC2626'; // Muted Crimson Red
-  }
-  // New Lead / Open top-of-funnel stage
-  return '#FFFFFF'; // White
+export function getStageColor(stage = {}) {
+  if (typeof stage !== 'object' || !stage) return '#FFFFFF';
+  const colors = { NEW_LEAD: '#FFFFFF', CONTACTED: '#A7F3D0', SAMPLE_SENT: '#6EE7B7',
+    PROPOSAL_SENT: '#34D399', NEGOTIATION: '#10B981', CLOSED_WON: '#16A34A',
+    RENEWAL: '#EAB308', CLOSED_LOST: '#DC2626' };
+  return stage.color || colors[stageCode(stage)] ||
+    ({ Won: '#16A34A', Lost: '#DC2626', 'Buy Again': '#EAB308' })[stage.category] || '#FFFFFF';
 }
 
-export function getStageBadgeStyle(stageName = '', stageColor = '') {
-  const name = String(stageName || '');
-  const hex = (stageColor || getStageColor(name)).toUpperCase();
+export function getStageBadgeStyle(stage = {}, stageColor = '') {
+  const hex = (stageColor || getStageColor(stage)).toUpperCase();
 
   if (hex === '#FFFFFF' || hex === 'WHITE') {
     return {
@@ -169,7 +149,7 @@ export function getStageBadgeStyle(stageName = '', stageColor = '') {
       dotBorder: 'border-[#D1D5DB]'
     };
   }
-  if (hex === '#A7F3D0' || name.includes('Contacted')) {
+  if (hex === '#A7F3D0') {
     return {
       bg: 'bg-[#ECFDF5]',
       text: 'text-[#065F46]',
@@ -178,7 +158,7 @@ export function getStageBadgeStyle(stageName = '', stageColor = '') {
       dotBorder: 'border-[#6EE7B7]'
     };
   }
-  if (hex === '#6EE7B7' || name.includes('Sample Sent')) {
+  if (hex === '#6EE7B7') {
     return {
       bg: 'bg-[#D1FAE5]',
       text: 'text-[#064E3B]',
@@ -187,7 +167,7 @@ export function getStageBadgeStyle(stageName = '', stageColor = '') {
       dotBorder: 'border-[#34D399]'
     };
   }
-  if (hex === '#34D399' || name.includes('Proposal')) {
+  if (hex === '#34D399') {
     return {
       bg: 'bg-[#A7F3D0]',
       text: 'text-[#064E3B]',
@@ -196,7 +176,7 @@ export function getStageBadgeStyle(stageName = '', stageColor = '') {
       dotBorder: 'border-[#10B981]'
     };
   }
-  if (hex === '#10B981' || name.includes('Negotiation')) {
+  if (hex === '#10B981') {
     return {
       bg: 'bg-[#10B981]',
       text: 'text-white',
@@ -205,7 +185,7 @@ export function getStageBadgeStyle(stageName = '', stageColor = '') {
       dotBorder: 'border-[#059669]'
     };
   }
-  if (hex === '#16A34A' || name.includes('Closed Won') || name.includes('Won')) {
+  if (hex === '#16A34A') {
     return {
       bg: 'bg-[#16A34A]',
       text: 'text-white',
@@ -214,7 +194,7 @@ export function getStageBadgeStyle(stageName = '', stageColor = '') {
       dotBorder: 'border-[#15803D]'
     };
   }
-  if (hex === '#EAB308' || name.includes('Buy Again') || name.includes('Renewal')) {
+  if (hex === '#EAB308') {
     return {
       bg: 'bg-[#FEFCE8]',
       text: 'text-[#A16207]',
@@ -223,7 +203,7 @@ export function getStageBadgeStyle(stageName = '', stageColor = '') {
       dotBorder: 'border-[#FDE047]'
     };
   }
-  if (hex === '#DC2626' || name.includes('Closed Lost') || name.includes('Lost')) {
+  if (hex === '#DC2626') {
     return {
       bg: 'bg-[#FEF2F2]',
       text: 'text-[#B91C1C]',
@@ -242,53 +222,44 @@ export function getStageBadgeStyle(stageName = '', stageColor = '') {
   };
 }
 
-export const ALLOWED_TRANSITION_IDS = {
-  'stg-1': ['stg-2', 'stg-8'],
-  'stg-2': ['stg-3', 'stg-4', 'stg-8'],
-  'stg-3': ['stg-4', 'stg-8'],
-  'stg-4': ['stg-5', 'stg-6', 'stg-8'],
-  'stg-5': ['stg-6', 'stg-8'],
-  'stg-6': [],
-  'stg-7': ['stg-4', 'stg-5', 'stg-6', 'stg-8'],
-  'stg-8': []
-};
+export const stageTransitionKey = (source, target) => `${stageCode(source || {})}->${stageCode(target || {})}`;
 
 const DEFAULT_STAGE_CRITERIA = {
-  'stg-1->stg-2': [
+  'NEW_LEAD->CONTACTED': [
     'Reached decision-maker or identified who they are',
     'Confirmed genuine need/use-case',
     'Rough budget range known',
     'Realistic timeline known'
   ],
-  'stg-2->stg-3': [
+  'CONTACTED->SAMPLE_SENT': [
     'Exact specs/quantity confirmed',
     'Internal evaluation process/timeline known',
     'Competitor also sampling',
     'Shipping/logistics confirmed'
   ],
-  'stg-2->stg-4': [
+  'CONTACTED->PROPOSAL_SENT': [
     'Confirmed physical sample not required for product/service',
     'Decision-maker and budget parameters validated',
     'Scope of proposal and delivery timeline agreed'
   ],
-  'stg-3->stg-4': [
+  'SAMPLE_SENT->PROPOSAL_SENT': [
     'Sample passed technical/quality requirements',
     'Decision-maker engaged',
     'Target price point known',
     'Defined next step with date'
   ],
-  'stg-4->stg-5': [
+  'PROPOSAL_SENT->NEGOTIATION': [
     'Specific feedback received',
     'Pricing is the main blocker vs other issue',
     'Internal approvers identified',
     'Competing vendor still in play'
   ],
-  'stg-5->stg-6': [
+  'NEGOTIATION->CLOSED_WON': [
     'Final pricing/terms agreed',
     'Signed PO or firm signing date',
     'Delivery/renewal terms locked'
   ],
-  'stg-7->stg-4': [
+  'RENEWAL->PROPOSAL_SENT': [
     'Repeat order specifications and quantity confirmed',
     'Pricing index or repeat discount agreed',
     'Fulfillment timeline verified'
@@ -299,148 +270,148 @@ export const STAGE_CRITERIA = DEFAULT_STAGE_CRITERIA;
 
 const DEFAULT_ACTIVITY_STAGE_CRITERIA = {
   'Call': {
-    'stg-1->stg-2': [
+    'NEW_LEAD->CONTACTED': [
       'Reached decision-maker or key contact via phone call',
       'Confirmed genuine business requirement over call',
       'Discussed preliminary budget and timeline over call',
       'Agreed on next follow-up action over call'
     ],
-    'stg-2->stg-3': [
+    'CONTACTED->SAMPLE_SENT': [
       'Confirmed exact product specs & sample quantity on call',
       'Verified recipient shipping address & logistics contact',
       'Client agreed to evaluate sample upon arrival',
       'Confirmed competitor involvement over call'
     ],
-    'stg-3->stg-4': [
+    'SAMPLE_SENT->PROPOSAL_SENT': [
       'Reviewed sample test results with decision-maker over call',
       'Client confirmed sample passed quality requirements',
       'Discussed target price point and volume required over call',
       'Agreed on formal proposal delivery date over call'
     ],
-    'stg-4->stg-5': [
+    'PROPOSAL_SENT->NEGOTIATION': [
       'Discussed formal proposal feedback over phone call',
       'Identified specific pricing or commercial blockers',
       'Confirmed internal decision-makers & approvers on call',
       'Agreed on final negotiation schedule over call'
     ],
-    'stg-5->stg-6': [
+    'NEGOTIATION->CLOSED_WON': [
       'Final commercial terms & pricing verbally agreed on call',
       'Confirmed PO issue date & contract signing schedule',
       'Delivery, warranty & renewal terms locked over call'
     ]
   },
   'Meeting': {
-    'stg-1->stg-2': [
+    'NEW_LEAD->CONTACTED': [
       'Conducted discovery meeting/demo with key stakeholders',
       'Presented company capabilities & mapped client pain points',
       'Identified key decision-makers and approval workflow',
       'Agreed on next steps during meeting'
     ],
-    'stg-2->stg-3': [
+    'CONTACTED->SAMPLE_SENT': [
       'Presented product sample specs during meeting/demo',
       'Client requested physical sample testing for verification',
       'Defined testing parameters & sample evaluation criteria',
       'Confirmed sample shipment schedule in meeting'
     ],
-    'stg-3->stg-4': [
+    'SAMPLE_SENT->PROPOSAL_SENT': [
       'Held sample review meeting & presented test findings',
       'Technical team approved sample quality & specs',
       'Presented preliminary commercial pricing framework in meeting',
       'Agreed on formal proposal presentation meeting'
     ],
-    'stg-4->stg-5': [
+    'PROPOSAL_SENT->NEGOTIATION': [
       'Presented formal proposal to executive stakeholders in meeting',
       'Addressed technical, pricing & delivery questions in meeting',
       'Stakeholders agreed to move to contract negotiation stage',
       'Identified legal & commercial review team'
     ],
-    'stg-5->stg-6': [
+    'NEGOTIATION->CLOSED_WON': [
       'Completed final negotiation meeting with executive approvers',
       'All commercial, legal & delivery terms agreed in meeting',
       'PO or contract signed during/after meeting'
     ]
   },
   'Outbound Email': {
-    'stg-1->stg-2': [
+    'NEW_LEAD->CONTACTED': [
       'Received email response from decision-maker',
       'Client confirmed active inquiry/interest in writing',
       'Received initial project scope & spec requirements via email',
       'Email conversation established with primary contact'
     ],
-    'stg-2->stg-3': [
+    'CONTACTED->SAMPLE_SENT': [
       'Sample request details & specs confirmed via email',
       'Shipping address & recipient phone confirmed in writing',
       'Sample dispatch notice & tracking sent to client via email',
       'Evaluation timeline acknowledged by client via email'
     ],
-    'stg-3->stg-4': [
+    'SAMPLE_SENT->PROPOSAL_SENT': [
       'Written email confirmation received that sample passed testing',
       'Client requested formal quotation / proposal document via email',
       'Target order volume & delivery schedule confirmed in writing',
       'Email confirmation of budget approval received'
     ],
-    'stg-4->stg-5': [
+    'PROPOSAL_SENT->NEGOTIATION': [
       'Proposal sent and client acknowledged receipt with feedback',
       'Written feedback / counter-proposal received via email',
       'Specific commercial terms & payment schedule requested via email',
       'Key decision-makers copied on email correspondence'
     ],
-    'stg-5->stg-6': [
+    'NEGOTIATION->CLOSED_WON': [
       'Written PO or signed agreement received via email',
       'Final payment & delivery terms locked in writing',
       'Formal order execution confirmed via email exchange'
     ]
   },
   'Sample Follow-up': {
-    'stg-1->stg-2': [
+    'NEW_LEAD->CONTACTED': [
       'Client expressed interest in physical sample testing',
       'Product application & technical suitability pre-verified',
       'Confirmed sample availability in warehouse'
     ],
-    'stg-2->stg-3': [
+    'CONTACTED->SAMPLE_SENT': [
       'Physical sample dispatched with tracking & spec certificate',
       'Client notified of dispatch and tracking details',
       'Verified delivery receipt with client logistics contact'
     ],
-    'stg-3->stg-4': [
+    'SAMPLE_SENT->PROPOSAL_SENT': [
       'Client completed physical sample testing / lab evaluation',
       'Sample passed performance, quality & spec tests',
       'Sample approved for production & commercial supply',
       'Client requested bulk supply proposal based on sample'
     ],
-    'stg-4->stg-5': [
+    'PROPOSAL_SENT->NEGOTIATION': [
       'Sample performance matched commercial proposal specs',
       'Bulk packaging & batch size confirmed based on sample',
       'Sample quality baseline locked for commercial contract'
     ],
-    'stg-5->stg-6': [
+    'NEGOTIATION->CLOSED_WON': [
       'Golden sample / approved reference sample signed off',
       'Batch quality guarantee & delivery specs locked',
       'Ready for initial production dispatch'
     ]
   },
   'Note': {
-    'stg-1->stg-2': [
+    'NEW_LEAD->CONTACTED': [
       'Verified lead contact details & company background internally',
       'Confirmed lead matches Ideal Customer Profile (ICP)',
       'Assigned sales owner & logged initial outreach strategy'
     ],
-    'stg-2->stg-3': [
+    'CONTACTED->SAMPLE_SENT': [
       'Internal technical review approved sample dispatch',
       'Inventory check confirmed sample stock availability',
       'Shipping costs & logistics plan logged internally'
     ],
-    'stg-3->stg-4': [
+    'SAMPLE_SENT->PROPOSAL_SENT': [
       'Internal margin calculation & discount approval completed',
       'Formal proposal draft prepared & approved internally',
       'Commercial risk check passed'
     ],
-    'stg-4->stg-5': [
+    'PROPOSAL_SENT->NEGOTIATION': [
       'Commercial terms & credit limit checked by finance',
       'Special pricing / payment terms approved by management',
       'Competitor comparison & strategy note documented'
     ],
-    'stg-5->stg-6': [
+    'NEGOTIATION->CLOSED_WON': [
       'Legal, compliance & contract terms approved internally',
       'Credit limit & payment terms signed off by finance',
       'Order booking ready for ERP / fulfillment team'
@@ -667,3 +638,5 @@ export function isProposalExpiringSoon(expiryDateString) {
   }
   return null;
 }
+import { semanticStageCode as stageCode } from '../../backend/constants/stageConstants.js';
+

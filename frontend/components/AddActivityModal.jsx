@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import {
   Calendar,
@@ -14,7 +14,8 @@ import {
   ShieldCheck,
   FileText
 } from 'lucide-react';
-import { STAGE_CRITERIA, ACTIVITY_STAGE_CRITERIA, getActivityConnectionInfo, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
+import { STAGE_CRITERIA, ACTIVITY_STAGE_CRITERIA, stageTransitionKey, getActivityConnectionInfo, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
+import { allowedStageTargets, isLostStage } from '../../backend/constants/stageConstants.js';
 
 export const AddActivityModal = ({
   isOpen,
@@ -29,6 +30,10 @@ export const AddActivityModal = ({
 }) => {
   const [activityType, setActivityType] = useState('Call');
   const [description, setDescription] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const saving = useRef(false);
+  const requestId = useRef(crypto.randomUUID());
+  useEffect(() => { requestId.current = crypto.randomUUID(); }, [isOpen, targetEntity?.id]);
   
   // Call Connection Flow State
   const [isConnected, setIsConnected] = useState(true); // default Yes
@@ -40,13 +45,14 @@ export const AddActivityModal = ({
     getLocalDateInputValueAfterDays(1) // default tomorrow
   );
 
-  const leadDeal = (deals && Array.isArray(deals))
+  const leadDeal = targetEntity?.primaryDeal || ((deals && Array.isArray(deals))
     ? deals.find(d => d.leadId === targetEntity?.id || d.id === targetEntity?.id)
-    : null;
+    : null);
 
   const entityStageId = targetEntity?.stageId || leadDeal?.stageId;
 
-  const sortedStages = [...stages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const pipelineId = targetEntity?.pipelineId || leadDeal?.pipelineId || stages.find(stage => stage.id === entityStageId)?.pipelineId || 'pipeline-sales';
+  const sortedStages = stages.filter(stage => stage.pipelineId === pipelineId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   let currentStageIndex = -1;
   if (entityStageId) {
@@ -57,9 +63,8 @@ export const AddActivityModal = ({
   }
 
   const currentStageObj = sortedStages[currentStageIndex] || sortedStages[0];
-  const nextStageObj = (currentStageIndex + 1 < sortedStages.length) 
-    ? sortedStages[currentStageIndex + 1] 
-    : null;
+  const nextStageObj = currentStageObj
+    ? allowedStageTargets(currentStageObj, sortedStages).find(stage => !isLostStage(stage)) : null;
 
   // Retrieve activity-specific connection labels & questions
   const connectionInfo = getActivityConnectionInfo(activityType);
@@ -75,7 +80,7 @@ export const AddActivityModal = ({
     : 'Call';
 
   const typeCriteria = ACTIVITY_STAGE_CRITERIA[activityKey] || ACTIVITY_STAGE_CRITERIA['Call'];
-  const transitionKey = `${currentStageObj?.id}->${nextStageObj?.id}`;
+  const transitionKey = stageTransitionKey(currentStageObj, nextStageObj);
   
   const criteriaList = typeCriteria[transitionKey] || STAGE_CRITERIA[transitionKey] || [
     `Reached decision-maker or key contact via ${activityType}`,
@@ -110,7 +115,7 @@ export const AddActivityModal = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!description.trim()) return;
+    if (!description.trim() || saving.current) return;
 
     // Determine outcomes based on user prompt rules:
     // 1) If call connected is NO -> Stage remains same, status = 'Follow up' (Yellow), auto task created.
@@ -118,10 +123,10 @@ export const AddActivityModal = ({
     // 3) If call connected is YES & ANY criteria NO -> Stage remains same, status = 'Follow up' (Yellow), auto task created.
     
     const isAdminOrManager = currentUser?.role === 'Admin' || currentUser?.role === 'Manager';
-    let shouldAdvanceStage = false;
-    let requiresManagerApproval = false;
-    let newStatus = 'Follow up';
-    let summaryNote = '';
+    let shouldAdvanceStage;
+    let requiresManagerApproval;
+    let newStatus;
+    let summaryNote;
 
     if (!isConnected) {
       shouldAdvanceStage = false;
@@ -178,11 +183,25 @@ export const AddActivityModal = ({
       }
     };
 
+    if (newStatus === 'Follow up' && ['Lead', 'Deal'].includes(entityType)) {
+      payload.activityData.followUp = {
+        requestId: requestId.current,
+        reason: isConnected ? 'qualification_failed' : 'disconnected',
+        ...(entityType === 'Lead' && leadDeal ? { dealId: leadDeal.id } : {}),
+        ...((entityType === 'Deal' || leadDeal) ? { expectedStageId: entityStageId } : {}),
+        ownerId: assignedOwnerId, dueDate, answers,
+      };
+    }
+    saving.current = true;
+    setIsSaving(true);
     try {
       await onSubmitActivity(payload);
       onClose();
     } catch (error) {
       toast.error(error.message || 'Could not save activity');
+    } finally {
+      saving.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -446,10 +465,11 @@ export const AddActivityModal = ({
 
             <button
               type="submit"
+              disabled={isSaving}
               className="px-7 py-2.5 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold text-xs rounded-full shadow-2xs transition-colors flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-[#1D4E63]"
             >
               <Send className="w-4 h-4 text-white" />
-              <span>Save Activity & Process Flow</span>
+              <span>{isSaving ? 'Saving…' : 'Save Activity & Process Flow'}</span>
             </button>
           </div>
 

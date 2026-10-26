@@ -14,8 +14,8 @@ import {
   RotateCcw
 } from 'lucide-react';
 
-import { STAGE_CRITERIA } from '../utils/crmHelpers.js';
-import { isLostStage } from '../../backend/constants/stageConstants.js';
+import { STAGE_CRITERIA, stageTransitionKey } from '../utils/crmHelpers.js';
+import { isLostStage, isBackwardStageMove } from '../../backend/constants/stageConstants.js';
 
 const LOST_REASONS = [
   'Budget mismatch',
@@ -65,9 +65,10 @@ export const StageGateCheckModal = ({
   const [rejectionNote, setRejectionNote] = useState('');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [forceDirectLost, setForceDirectLost] = useState(false);
 
-  const transitionKey = `${fromStage?.id}->${targetStage?.id}`;
+  const transitionKey = stageTransitionKey(fromStage, targetStage);
 
   const criteriaList = STAGE_CRITERIA[transitionKey] || [
     'Decision-maker verified and aligned',
@@ -75,7 +76,7 @@ export const StageGateCheckModal = ({
     'Next steps defined with agreed timeline'
   ];
 
-  const isBackwardMove = Boolean(fromStage && targetStage && targetStage.order < fromStage.order);
+  const isBackwardMove = isBackwardStageMove(fromStage, targetStage);
 
   useEffect(() => {
     setForceDirectLost(false);
@@ -133,6 +134,8 @@ export const StageGateCheckModal = ({
     if (!allAnswered || submitting) return;
 
     setSubmitting(true);
+    setSubmitError('');
+    try {
 
     if (isBackwardMove) {
       const checkData = {
@@ -187,19 +190,32 @@ export const StageGateCheckModal = ({
     await onSubmitCheck(checkData);
     setSubmitting(false);
     onClose();
+    } catch (error) {
+      setSubmitError(error.message || 'Could not save this stage decision.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleApprove = async () => {
     if (!deal.pendingGateCheck || submitting) return;
     setSubmitting(true);
-    await onApproveCheck(deal.pendingGateCheck.id, currentUser);
-    setSubmitting(false);
-    onClose();
+    setSubmitError('');
+    try {
+      await onApproveCheck(deal.pendingGateCheck.id, currentUser);
+      onClose();
+    } catch (error) {
+      setSubmitError(error.message || 'Could not approve this request.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleConfirmReject = async () => {
     if (!deal.pendingGateCheck || submitting) return;
     setSubmitting(true);
+    setSubmitError('');
+    try {
     const feedback = rejectionReason === 'Other / Custom feedback'
       ? (rejectionNote.trim() || 'Requirements incomplete')
       : `${rejectionReason}${rejectionNote.trim() ? ` (${rejectionNote.trim()})` : ''}`;
@@ -207,11 +223,17 @@ export const StageGateCheckModal = ({
     setSubmitting(false);
     setShowRejectForm(false);
     onClose();
+    } catch (error) {
+      setSubmitError(error.message || 'Could not reject this request.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
       <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl max-w-2xl w-full p-6 md:p-8 space-y-6 shadow-xl text-xs md:text-sm text-[#12161C] max-h-[90vh] overflow-y-auto no-scrollbar">
+        {submitError && <p role="alert" className="text-red-700">{submitError}</p>}
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-4">

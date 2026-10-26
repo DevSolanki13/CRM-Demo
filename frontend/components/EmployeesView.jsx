@@ -8,6 +8,7 @@ import {
 import { formatCurrency } from '../utils/crmHelpers.js';
 
 export const EmployeesView = ({
+  ownerStats = [],
   users,
   leads,
   deals,
@@ -103,7 +104,8 @@ export const EmployeesView = ({
         {users.map(u => {
           const empLeads = leads.filter(l => l.ownerId === u.id);
           const empDeals = deals.filter(d => d.ownerId === u.id);
-          const totalDealVal = empDeals.reduce((sum, d) => sum + d.value, 0);
+          const workload = ownerStats.find(row => row.id === u.id);
+          const totalDealVal = workload?.value ?? empDeals.reduce((sum, d) => sum + d.value, 0);
 
           return (
             <div 
@@ -153,11 +155,11 @@ export const EmployeesView = ({
               <div className="bg-[#F6F7F8] p-3.5 rounded-xl border border-[#E3E6EA] space-y-2 text-xs font-mono">
                 <div className="flex items-center justify-between text-[#5B6472]">
                   <span>Assigned Leads:</span>
-                  <span className="font-bold text-[#12161C]">{empLeads.length}</span>
+                  <span className="font-bold text-[#12161C]">{workload?.leads ?? empLeads.length}</span>
                 </div>
                 <div className="flex items-center justify-between text-[#5B6472]">
                   <span>Active Deals:</span>
-                  <span className="font-bold text-[#12161C]">{empDeals.length}</span>
+                  <span className="font-bold text-[#12161C]">{workload?.deals ?? empDeals.length}</span>
                 </div>
                 <div className="flex items-center justify-between text-[#5B6472] border-t border-[#E3E6EA] pt-2">
                   <span>Pipeline Value:</span>

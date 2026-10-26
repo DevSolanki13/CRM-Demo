@@ -1,3 +1,5 @@
+import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { RecordPagination } from './RecordPagination.jsx';
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import {
   Users,
@@ -39,18 +41,7 @@ import {
 import { ManifestStrip } from './ManifestStrip.jsx';
 import { isRenewalStage } from '../../backend/constants/stageConstants.js';
 
-const getStageBarColor = (stageName, category) => {
-  const name = stageName || '';
-  const cat = category || '';
-  if (name.includes('Closed Won') || cat === 'Won') return '#16A34A';
-  if (name.includes('Negotiation') || cat === 'Negotiation') return '#10B981';
-  if (name.includes('Proposal') || cat === 'Proposal') return '#34D399';
-  if (name.includes('Sample Sent') || cat === 'Sample Sent') return '#6EE7B7';
-  if (name.includes('Contacted') || cat === 'Contacted') return '#A7F3D0';
-  if (name.includes('Buy Again') || cat === 'Buy Again') return '#EAB308';
-  if (name.includes('Closed Lost') || cat === 'Lost') return '#DC2626';
-  return '#FFFFFF';
-};
+const getStageBarColor = stage => stage.color || '#FFFFFF';
 
 const getItemIcon = (type) => {
   switch (type) {
@@ -87,6 +78,7 @@ const getBadgeStyle = (type) => {
 };
 
 export const DashboardView = ({
+  revision = 0,
   state,
   currentUser,
   onNavigateTab,
@@ -97,7 +89,7 @@ export const DashboardView = ({
   onUpdateTask,
   onApproveStageGateCheck
 }) => {
-  const { leads = [], deals = [], tasks = [], activities = [], stages = [] } = state || {};
+  const { leads = [], deals = [], tasks = [], stages = [] } = state || {};
   const todayStr = getLocalDateInputValue();
 
   const [activeQueueFilter, setActiveQueueFilter] = useState('all');
@@ -116,268 +108,21 @@ export const DashboardView = ({
     }
   }, [activeQueueFilter, activeViewMode]);
 
-  // --- Selective Memoization of Key Executive Metrics & Action Queues ---
-  const {
-    userLeads,
-    userDeals,
-    userTasks,
-    totalLeads,
-    outboundLeadsCount,
-    totalPipelineValue,
-    wonDeals,
-    wonRevenue,
-    renewalsDueDeals,
-    renewalsDueValue,
-    pendingTasksToday,
-    staleOrAtRiskDeals,
-    totalAtRiskValue,
-    outboundCalls,
-    outboundEmails,
-    samplesSent,
-    stageBreakdown,
-    maxStageVal,
-    overdueTasks,
-    approvalTasks,
-    closingSoonDeals,
-    renewalsDueQueue,
-    inactiveDealsQueue,
-    allWorkQueueItems,
-    workQueueCounts
-  } = useMemo(() => {
-    const rbacLeads = filterByRole(leads, currentUser);
-    const rbacDeals = filterByRole(deals, currentUser);
-    const rbacTasks = filterByRole(tasks, currentUser);
-
-    const activeDeals = rbacDeals.filter(d => d.status === 'Active');
-    const pipelineVal = activeDeals.reduce((sum, d) => sum + (d.value || 0), 0);
-
-    const wonList = rbacDeals.filter(d => d.status === 'Won');
-    const wonVal = wonList.reduce((sum, d) => sum + (d.value || 0), 0);
-
-    const renewals = rbacDeals.filter(d => d.status === 'Renewal Due' || isRenewalStage(stages.find(stage => stage.id === d.stageId)));
-    const renewalsVal = renewals.reduce((sum, d) => sum + (d.value || 0), 0);
-
-    const dueToday = rbacTasks.filter(t => t.status === 'pending' && t.dueDate?.split('T')[0] <= todayStr);
-
-    // Filter and decorate at-risk deals with specific diagnostic reasons
-    const atRisk = rbacDeals.filter(d =>
-      d.status !== 'Won' && d.status !== 'Lost' && (
-        isDealStale(d.lastActivityDate) ||
-        getStageAgingStatus(d.daysInStage).level === 'risk' ||
-        isCloseDateOverdue(d.expectedCloseDate, d.status)
-      )
-    ).map(d => {
-      const aging = getStageAgingStatus(d.daysInStage);
-      const isOverdue = isCloseDateOverdue(d.expectedCloseDate, d.status);
-      const isStale = isDealStale(d.lastActivityDate);
-      return {
-        ...d,
-        reasons: [
-          aging.level === 'risk' ? `${d.daysInStage || 0}d in stage (Stagnant)` : null,
-          isOverdue ? 'Close date overdue' : null,
-          isStale ? 'No activity >10d' : null
-        ].filter(Boolean)
-      };
-    });
-
-    const atRiskVal = atRisk.reduce((sum, d) => sum + (d.value || 0), 0);
-
-    const obCalls = activities.filter(a => a.isOutbound && a.type === 'Outbound Call').length;
-    const obEmails = activities.filter(a => a.isOutbound && a.type === 'Outbound Email').length;
-    const samples = activities.filter(a => a.type === 'Sample Sent').length;
-
-    const breakdown = stages.map(stg => {
-      const stageDeals = rbacDeals.filter(d => d.stageId === stg.id);
-      const val = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
-      return {
-        stage: stg,
-        count: stageDeals.length,
-        value: val
-      };
-    });
-
-    const maxVal = Math.max(...breakdown.map(s => s.value), 1);
-
-    // --- Action-Oriented Work Queues ---
-    // 1. Overdue follow-up tasks
-    const overdueList = rbacTasks.filter(t =>
-      t.status === 'pending' && t.dueDate && t.dueDate.split('T')[0] < todayStr
-    ).map(t => {
-      const due = t.dueDate.split('T')[0];
-      const daysOverdue = Math.max(1, Math.round((new Date(todayStr) - new Date(due)) / 86400000));
-      return {
-        id: t.id,
-        type: 'overdue',
-        categoryLabel: 'Overdue Follow-Up',
-        title: t.title,
-        subtitle: t.linkedTitle ? `Linked: ${t.linkedTitle}` : (t.type ? `Type: ${t.type}` : 'General Outreach'),
-        meta: `${daysOverdue}d overdue`,
-        metaFull: `${daysOverdue}d overdue (Due ${formatDate(t.dueDate)})`,
-        raw: t,
-        daysOverdue,
-        urgency: 'high',
-        targetTab: 'tasks',
-        entityType: t.linkedType,
-        entityId: t.linkedId
-      };
-    }).sort((a, b) => b.daysOverdue - a.daysOverdue);
-
-    // 2. Pending stage gate approval tasks
-    const isManagerOrAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Manager';
-    const approvalsList = (isManagerOrAdmin
-      ? (tasks || [])
-      : (tasks || []).filter(t => t.submittedBy === currentUser?.id || t.ownerId === currentUser?.id)
-    ).filter(t => t.type === 'Approval' && t.status === 'pending')
-    .map(t => ({
-      id: t.id,
-      type: 'approval',
-      categoryLabel: 'Pending Approval',
-      title: t.title,
-      subtitle: t.submittedByName ? `Submitted by: ${t.submittedByName}` : (t.ownerName ? `Assignee: ${t.ownerName}` : 'Manager Approval'),
-      meta: 'Awaiting Sign-off',
-      metaFull: t.createdAt ? `Submitted ${formatDate(t.createdAt)}` : 'Awaiting Sign-off',
-      raw: t,
-      urgency: 'high',
-      targetTab: 'tasks',
-      entityType: t.linkedType,
-      entityId: t.linkedId
-    }));
-
-    // 3. Deals closing soon (next 7 days)
-    const closingSoonList = rbacDeals.filter(d => {
-      if (d.status !== 'Active' || !d.expectedCloseDate) return false;
-      const daysLeft = Math.ceil((new Date(d.expectedCloseDate.split('T')[0]) - new Date(todayStr)) / 86400000);
-      return daysLeft >= 0 && daysLeft <= 7;
-    }).map(d => {
-      const daysLeft = Math.ceil((new Date(d.expectedCloseDate.split('T')[0]) - new Date(todayStr)) / 86400000);
-      return {
-        id: d.id,
-        type: 'closing',
-        categoryLabel: 'Closing Soon',
-        title: d.title,
-        subtitle: `${formatCurrency(d.value)} • ${d.stageName || 'Pipeline'}`,
-        meta: daysLeft === 0 ? 'Closes Today' : `${daysLeft}d left`,
-        metaFull: daysLeft === 0 ? 'Target close date is today' : `Expected close in ${daysLeft} days`,
-        raw: d,
-        daysLeft,
-        urgency: daysLeft <= 2 ? 'high' : 'medium',
-        targetTab: 'pipeline',
-        entityType: 'Deal',
-        entityId: d.id
-      };
-    }).sort((a, b) => a.daysLeft - b.daysLeft);
-
-    // 4. Renewals due
-    const renewalsList = rbacDeals.filter(d =>
-      d.status === 'Renewal Due' || isRenewalStage(stages.find(stage => stage.id === d.stageId))
-    ).map(d => ({
-      id: d.id,
-      type: 'renewal',
-      categoryLabel: 'Renewal Due',
-      title: d.title,
-      subtitle: `${formatCurrency(d.value)} • ${d.companyName || 'B2B Client'}`,
-      meta: 'Cycle Mature',
-      metaFull: d.recurrenceDays ? `${d.recurrenceDays}d replenishment cycle` : 'Repeat order cycle due',
-      raw: d,
-      urgency: 'medium',
-      targetTab: 'pipeline',
-      entityType: 'Deal',
-      entityId: d.id
-    }));
-
-    // 5. Deals with no recent activity
-    const staleList = rbacDeals.filter(d => {
-      if (d.status !== 'Active') return false;
-      return isDealStale(d.lastActivityDate);
-    }).map(d => {
-      let daysInactive = 10;
-      if (d.lastActivityDate) {
-        daysInactive = Math.max(10, Math.round((new Date(todayStr) - new Date(d.lastActivityDate.split('T')[0])) / 86400000));
-      }
-      return {
-        id: d.id,
-        type: 'stale',
-        categoryLabel: 'No Recent Activity',
-        title: d.title,
-        subtitle: `${formatCurrency(d.value)} • ${d.stageName || 'In Pipeline'}`,
-        meta: `${daysInactive}d no touch`,
-        metaFull: `No customer touchpoint for ${daysInactive} days`,
-        raw: d,
-        daysInactive,
-        urgency: 'medium',
-        targetTab: 'pipeline',
-        entityType: 'Deal',
-        entityId: d.id
-      };
-    }).sort((a, b) => b.daysInactive - a.daysInactive);
-
-    const allWorkItems = [
-      ...overdueList,
-      ...approvalsList,
-      ...closingSoonList,
-      ...renewalsList,
-      ...staleList
-    ].sort((a, b) => {
-      if (a.urgency === 'high' && b.urgency !== 'high') return -1;
-      if (b.urgency === 'high' && a.urgency !== 'high') return 1;
-      return 0;
-    });
-
-    const counts = {
-      all: allWorkItems.length,
-      overdue: overdueList.length,
-      approvals: approvalsList.length,
-      closing: closingSoonList.length,
-      renewals: renewalsList.length,
-      stale: staleList.length
-    };
-
-    return {
-      userLeads: rbacLeads,
-      userDeals: rbacDeals,
-      userTasks: rbacTasks,
-      totalLeads: rbacLeads.length,
-      outboundLeadsCount: rbacLeads.filter(l => l.isOutbound).length,
-      totalPipelineValue: pipelineVal,
-      wonDeals: wonList,
-      wonRevenue: wonVal,
-      renewalsDueDeals: renewals,
-      renewalsDueValue: renewalsVal,
-      pendingTasksToday: dueToday,
-      staleOrAtRiskDeals: atRisk,
-      totalAtRiskValue: atRiskVal,
-      outboundCalls: obCalls,
-      outboundEmails: obEmails,
-      samplesSent: samples,
-      stageBreakdown: breakdown,
-      maxStageVal: maxVal,
-      overdueTasks: overdueList,
-      approvalTasks: approvalsList,
-      closingSoonDeals: closingSoonList,
-      renewalsDueQueue: renewalsList,
-      inactiveDealsQueue: staleList,
-      allWorkQueueItems: allWorkItems,
-      workQueueCounts: counts
-    };
-  }, [leads, deals, tasks, activities, stages, currentUser, todayStr]);
-
-  const displayedQueueItems = useMemo(() => {
-    switch (activeQueueFilter) {
-      case 'overdue':
-        return overdueTasks;
-      case 'approvals':
-        return approvalTasks;
-      case 'closing':
-        return closingSoonDeals;
-      case 'renewals':
-        return renewalsDueQueue;
-      case 'stale':
-        return inactiveDealsQueue;
-      case 'all':
-      default:
-        return allWorkQueueItems;
-    }
-  }, [activeQueueFilter, overdueTasks, approvalTasks, closingSoonDeals, renewalsDueQueue, inactiveDealsQueue, allWorkQueueItems]);
+  const summary = state?.overview || {};
+  const queuePage = useRecordsPage('dashboard-queue', { type: activeQueueFilter }, revision);
+  const activityPage = useRecordsPage('activities', { sort: 'recent', limit: 25 }, revision, activeViewMode === 'activity');
+  const activities = activityPage.items;
+  const { totalLeads = 0, outboundLeadsCount = 0, totalPipelineValue = 0, wonRevenue = 0,
+    renewalsDueValue = 0, outboundCalls = 0, outboundEmails = 0, samplesSent = 0 } = summary;
+  const stageBreakdown = stages.map(stage => ({ stage,
+    ...(summary.stageTotals?.find(total => total.stageId === stage.id) || { count: 0, value: 0 }),
+  }));
+  const maxStageVal = Math.max(...stageBreakdown.map(row => row.value), 1);
+  const counts = summary.queueCounts || {};
+  const workQueueCounts = { all: counts.all || 0, overdue: counts.overdue || 0,
+    approvals: counts.approval || 0, closing: counts.closing || 0,
+    renewals: counts.renewal || 0, stale: counts.stale || 0 };
+  const displayedQueueItems = queuePage.items;
 
   const handleItemClick = (item) => {
     if (item.type === 'overdue' || item.type === 'approval') {
@@ -463,7 +208,7 @@ export const DashboardView = ({
     <div className="flex flex-col min-h-screen bg-[#F6F7F8] text-[#12161C]">
 
       {/* Signature Element: Manifest Strip */}
-      <ManifestStrip
+      <ManifestStrip summary={summary} stages={stages}
         activities={activities}
         tasks={tasks}
         deals={deals}
@@ -501,7 +246,7 @@ export const DashboardView = ({
         </div>
 
         {/* Renewal Alert Banner if repeat orders due */}
-        {renewalsDueDeals.length > 0 && (
+        {(summary.renewalsDueCount || 0) > 0 && (
           <div className="bg-[#FEF8EC] border border-[#F5DDA9] p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[#965700] shadow-2xs">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-[#FFFFFF] border border-[#F5DDA9] flex items-center justify-center shrink-0 shadow-2xs">
@@ -509,7 +254,7 @@ export const DashboardView = ({
               </div>
               <div>
                 <h3 className="font-display text-sm font-bold text-[#12161C]">
-                  {renewalsDueDeals.length} Customer{renewalsDueDeals.length > 1 ? 's' : ''} Due for Repeat Orders (Renewal)
+                  {(summary.renewalsDueCount || 0)} Customer{(summary.renewalsDueCount || 0) > 1 ? 's' : ''} Due for Repeat Orders (Renewal)
                 </h3>
                 <p className="text-xs text-[#5B6472]">
                   Total renewal pipeline value: <span className="font-mono font-bold text-[#12161C]">{formatCurrency(renewalsDueValue)}</span>. Recurring replenishment active.
@@ -540,7 +285,7 @@ export const DashboardView = ({
               {formatCurrency(totalPipelineValue)}
             </div>
             <div className="text-[11px] text-[#5B6472] mt-1 font-medium font-mono">
-              {userDeals.length} active opportunities
+              {(summary.activeDealCount || 0)} active opportunities
             </div>
           </div>
 
@@ -574,7 +319,7 @@ export const DashboardView = ({
               {formatCurrency(wonRevenue)}
             </div>
             <div className="text-[11px] text-[#5B6472] mt-1 font-medium font-mono">
-              {wonDeals.length} deals closed won
+              {(summary.wonCount || 0)} deals closed won
             </div>
           </div>
 
@@ -593,15 +338,15 @@ export const DashboardView = ({
               </div>
             </div>
             <div className="font-mono text-2xl lg:text-3xl font-extrabold text-[#12161C] mt-2 flex items-baseline justify-between">
-              <span>{pendingTasksToday.length}</span>
-              {overdueTasks.length > 0 && (
+              <span>{(summary.pendingTasksToday || 0)}</span>
+              {workQueueCounts.overdue > 0 && (
                 <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#FDF2F1] text-[#922D27] border border-[#F4C4C1] font-bold">
-                  {overdueTasks.length} overdue
+                  {workQueueCounts.overdue} overdue
                 </span>
               )}
             </div>
-            <div className={`text-[11px] mt-1 font-medium font-mono ${pendingTasksToday.length > 0 ? 'text-[#965700] font-bold' : 'text-[#5B6472]'}`}>
-              {pendingTasksToday.length > 0 ? 'Requires immediate rep action' : 'All scheduled tasks clear'}
+            <div className={`text-[11px] mt-1 font-medium font-mono ${(summary.pendingTasksToday || 0) > 0 ? 'text-[#965700] font-bold' : 'text-[#5B6472]'}`}>
+              {(summary.pendingTasksToday || 0) > 0 ? 'Requires immediate rep action' : 'All scheduled tasks clear'}
             </div>
           </div>
 
@@ -618,7 +363,7 @@ export const DashboardView = ({
                 Prioritized Work Queue
               </h2>
               <span className="bg-[#EFF6F9] text-[#1D4E63] border border-[#D8E8EF] text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full">
-                {allWorkQueueItems.length} Actions
+                {workQueueCounts.all} Actions
               </span>
             </div>
 
@@ -634,9 +379,9 @@ export const DashboardView = ({
               >
                 <Zap className="w-3 h-3 text-[#1D4E63]" aria-hidden="true" />
                 <span>Queue</span>
-                {allWorkQueueItems.length > 0 && (
+                {workQueueCounts.all > 0 && (
                   <span className="bg-[#922D27] text-white text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold">
-                    {allWorkQueueItems.length}
+                    {workQueueCounts.all}
                   </span>
                 )}
               </button>
@@ -695,6 +440,7 @@ export const DashboardView = ({
               ref={queueListRef}
               className="space-y-3 pt-1 px-0.5 max-h-[600px] overflow-y-auto pr-1.5 overscroll-contain"
             >
+              <RecordPagination page={queuePage} label="work items" />
               {displayedQueueItems.length === 0 ? (
                 <div className="p-8 text-center bg-[#FAFCFD] border border-dashed border-[#BCDBC9] rounded-xl space-y-2">
                   <div className="w-10 h-10 rounded-full bg-[#F0F7F3] border border-[#BCDBC9] flex items-center justify-center mx-auto text-[#255B40]">
@@ -803,6 +549,7 @@ export const DashboardView = ({
               ref={activityListRef}
               className="space-y-3 pt-1 px-0.5 max-h-[600px] overflow-y-auto pr-1.5 overscroll-contain"
             >
+              <RecordPagination page={activityPage} label="activities" />
               {activities?.length === 0 ? (
                 <div className="p-8 text-center text-xs text-[#5B6472]">
                   No activity logs recorded yet.
@@ -965,7 +712,7 @@ export const DashboardView = ({
                 {stageBreakdown.map(({ stage, count, value }) => {
                   const isZero = value === 0;
                   const widthPct = maxStageVal > 0 ? (value / maxStageVal) * 100 : 0;
-                  const barColor = getStageBarColor(stage.name, stage.category);
+                  const barColor = getStageBarColor(stage);
                   const sharePct = totalPipelineValue > 0 ? Math.round((value / totalPipelineValue) * 100) : 0;
 
                   return (
@@ -1020,7 +767,7 @@ export const DashboardView = ({
                     {stageBreakdown.map(({ stage, count, value }) => {
                       const isZero = value === 0;
                       const heightPct = maxStageVal > 0 ? (value / maxStageVal) * 100 : 0;
-                      const barColor = getStageBarColor(stage.name, stage.category);
+                      const barColor = getStageBarColor(stage);
 
                       return (
                         <div
@@ -1071,7 +818,7 @@ export const DashboardView = ({
                 {stageBreakdown.map(({ stage, count, value }) => {
                   const isZero = value === 0;
                   const heightPct = maxStageVal > 0 ? (value / maxStageVal) * 100 : 0;
-                  const barColor = getStageBarColor(stage.name, stage.category);
+                  const barColor = getStageBarColor(stage);
 
                   return (
                     <div

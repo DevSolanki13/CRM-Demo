@@ -1,3 +1,5 @@
+import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState, useMemo } from 'react';
 import { 
   CheckSquare, 
@@ -21,7 +23,7 @@ import {
 import { formatDateTime, getLocalDateInputValue } from '../utils/crmHelpers.js';
 
 export const TasksView = ({
-  tasks = [],
+  revision = 0,
   users = [],
   leads = [],
   deals = [],
@@ -54,121 +56,24 @@ export const TasksView = ({
   const todayStr = getLocalDateInputValue();
   const isManagerOrAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Manager';
 
-  // --- 1. Synthesize Approval Queue Tasks ---
-  const pendingApprovals = useMemo(() => {
-    const list = [];
-    if (!isManagerOrAdmin) {
-      // For sales reps, show their own submitted gate checks for visibility
-      (leads || []).forEach(lead => {
-        const leadDeal = (deals || []).find(d => d.leadId === lead.id);
-        const check = leadDeal?.pendingGateCheck || lead.pendingGateCheck;
-        if (check && (lead.ownerId === currentUser?.id || check.submittedById === currentUser?.id)) {
-          const targetStageObj = stages.find(s => s.id === check.targetStageId);
-          list.push({
-            id: `v-task-${lead.id}`,
-            stageGateCheckId: check.id,
-            title: `[Stage Approval Required] ${lead.title}: Advance to ${targetStageObj?.name || 'Next Stage'}`,
-            dueDate: todayStr,
-            type: 'Approval',
-            linkedType: 'Lead',
-            linkedId: leadDeal?.id || lead.id,
-            linkedTitle: lead.title,
-            ownerId: currentUser?.id,
-            ownerName: currentUser?.name,
-            status: 'pending',
-            submittedAt: check.timestamp,
-            submittedByName: check.submittedByName || lead.ownerName || 'You',
-            fromStageName: leadDeal?.stageName || 'Current Stage',
-            targetStageName: targetStageObj?.name || 'Next Stage',
-            answers: check.answers || {},
-            note: check.note || 'Submitted via stage qualification check.'
-          });
-        }
-      });
-      return list;
-    }
-
-    // For Managers/Admins, gather all pending gate checks
-    (leads || []).forEach(lead => {
-      const leadDeal = (deals || []).find(d => d.leadId === lead.id);
-      const isPending = lead.status === 'Pending Review' || leadDeal?.status === 'Pending Review' || Boolean(leadDeal?.pendingGateCheck) || Boolean(lead.pendingGateCheck);
-
-      if (isPending) {
-        const hasExisting = tasks.some(t => 
-          (t.linkedId === lead.id || (leadDeal && t.linkedId === leadDeal.id)) && 
-          (t.type === 'Approval' || Boolean(t.stageGateCheckId)) && 
-          t.status === 'pending'
-        );
-
-        if (!hasExisting) {
-          const check = leadDeal?.pendingGateCheck || lead.pendingGateCheck;
-          const targetStageObj = stages.find(s => s.id === check?.targetStageId);
-          list.push({
-            id: `v-task-${lead.id}`,
-            stageGateCheckId: check?.id,
-            title: `[Stage Approval Required] ${lead.title}: Advance to ${targetStageObj?.name || 'Next Stage'}`,
-            dueDate: todayStr,
-            type: 'Approval',
-            linkedType: 'Lead',
-            linkedId: leadDeal?.id || lead.id,
-            linkedTitle: lead.title,
-            ownerId: currentUser?.id,
-            ownerName: currentUser?.name,
-            status: 'pending',
-            submittedAt: check?.timestamp,
-            submittedByName: check?.submittedByName || lead.ownerName || 'Sales Rep',
-            fromStageName: leadDeal?.stageName || 'Current Stage',
-            targetStageName: targetStageObj?.name || 'Next Stage',
-            answers: check?.answers || {},
-            note: check?.note || 'Submitted via stage qualification check.'
-          });
-        }
-      }
-    });
-
-    (deals || []).forEach(deal => {
-      if (deal.pendingGateCheck || deal.status === 'Pending Review') {
-        const hasExisting = tasks.some(t => 
-          (t.linkedId === deal.id || (deal.leadId && t.linkedId === deal.leadId)) && 
-          (t.type === 'Approval' || Boolean(t.stageGateCheckId)) && 
-          t.status === 'pending'
-        ) || list.some(vt => vt.linkedId === deal.id || (deal.leadId && vt.linkedId === deal.leadId));
-
-        if (!hasExisting) {
-          const check = deal.pendingGateCheck;
-          const targetStageObj = stages.find(s => s.id === check?.targetStageId);
-          list.push({
-            id: `v-task-${deal.id}`,
-            stageGateCheckId: check?.id,
-            title: `[Stage Approval Required] ${deal.title}: Advance to ${targetStageObj?.name || 'Next Stage'}`,
-            dueDate: todayStr,
-            type: 'Approval',
-            linkedType: 'Deal',
-            linkedId: deal.id,
-            linkedTitle: deal.title,
-            ownerId: currentUser?.id,
-            ownerName: currentUser?.name,
-            status: 'pending',
-            submittedAt: check?.timestamp,
-            submittedByName: check?.submittedByName || deal.ownerName || 'Sales Rep',
-            fromStageName: deal.stageName || 'Current Stage',
-            targetStageName: targetStageObj?.name || 'Next Stage',
-            answers: check?.answers || {},
-            note: check?.note || 'Submitted via stage qualification check.'
-          });
-        }
-      }
-    });
-
-    // Also include explicit approval tasks from backend tasks table
-    tasks.filter(t => (t.type === 'Approval' || Boolean(t.stageGateCheckId))).forEach(t => {
-      if (!list.some(vt => vt.id === t.id || (t.linkedId && vt.linkedId === t.linkedId))) {
-        list.push(t);
-      }
-    });
-
-    return list;
-  }, [leads, deals, stages, tasks, currentUser, isManagerOrAdmin, todayStr]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const taskPage = useRecordsPage('tasks', { q: searchQuery,
+    owner: activeScope === 'my' ? currentUser?.id : 'All',
+    queue: activeQueue, type: activeQueue === 'followups' ? typeFilter : 'All',
+    showCompleted: String(showCompleted),
+  }, revision, activeQueue !== 'approvals' || isManagerOrAdmin);
+  const approvalsPage = useRecordsPage('stageGateChecks', { q: searchQuery, status: 'pending_review' },
+    revision, activeQueue === 'approvals' && !isManagerOrAdmin);
+  const page = activeQueue === 'approvals' && !isManagerOrAdmin ? approvalsPage : taskPage;
+  const tasks = taskPage.items;
+  const pendingApprovals = isManagerOrAdmin ? tasks.filter(task => task.type === 'Approval' || task.stageGateCheckId)
+    : approvalsPage.items.map(check => ({
+      ...check, id: check.id, stageGateCheckId: check.id, title: check.dealTitle,
+      linkedType: 'Deal', linkedId: check.dealId, linkedTitle: check.dealTitle,
+      type: 'Approval', status: 'pending', ownerId: currentUser?.id,
+      fromStageName: check.fromStageName, targetStageName: check.targetStageName,
+      submittedAt: check.timestamp,
+    }));
 
   // --- 2. Rep Follow-ups (Excluding Stage Gate Approvals) ---
   const repFollowups = useMemo(() => {
@@ -193,7 +98,7 @@ export const TasksView = ({
   }, [filteredFollowups, todayStr]);
 
   const upcomingTasks = useMemo(() => {
-    return filteredFollowups.filter(t => t.status === 'pending' && t.dueDate?.split('T')[0] > todayStr);
+    return filteredFollowups.filter(t => t.status === 'pending' && (!t.dueDate || t.dueDate?.split('T')[0] > todayStr));
   }, [filteredFollowups, todayStr]);
 
   const completedTasks = useMemo(() => {
@@ -201,8 +106,8 @@ export const TasksView = ({
   }, [filteredFollowups]);
 
   // Pending approval count
-  const pendingApprovalsCount = pendingApprovals.filter(t => t.status === 'pending').length;
-  const totalPendingFollowups = overdueTasks.length + dueTodayTasks.length + upcomingTasks.length;
+  const pendingApprovalsCount = !isManagerOrAdmin ? approvalsPage.total : taskPage.facets?.approvals || 0;
+  const totalPendingFollowups = taskPage.facets?.followups || 0;
 
   // Handlers
   const handleOpenAdd = () => {
@@ -325,6 +230,12 @@ export const TasksView = ({
 
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">
+      <label className="block text-xs font-semibold text-[var(--ink-muted)]">
+        Search tasks
+        <input type="search" value={searchQuery} onChange={event => setSearchQuery(event.target.value)}
+          className="mt-1 block w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[var(--ink)]" />
+      </label>
+      <RecordPagination page={page} label={activeQueue === 'approvals' ? 'approval requests' : 'tasks'} />
       
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-4 sm:p-6 rounded-2xl shadow-sm">
@@ -494,13 +405,13 @@ export const TasksView = ({
           </div>
 
           {/* Completed Toggle Section */}
-          {completedTasks.length > 0 && (
+          {(taskPage.facets?.completed || 0) > 0 && (
             <div className="pt-2">
               <button
                 onClick={() => setShowCompleted(!showCompleted)}
                 className="text-xs font-bold text-[var(--ink-muted)] hover:text-[var(--ink)] flex items-center gap-1.5 transition-colors"
               >
-                <span>{showCompleted ? 'Hide' : 'Show'} Completed Tasks ({completedTasks.length})</span>
+                <span>{showCompleted ? 'Hide' : 'Show'} Completed Tasks ({taskPage.facets?.completed || 0})</span>
               </button>
 
               {showCompleted && (

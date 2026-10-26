@@ -54,6 +54,37 @@ export async function fetchCRMState(collections = []) {
   }
 }
 
+export async function fetchRecordsPage(resource, filters = {}, signal) {
+  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== undefined && value !== null));
+  return (await apiFetch(`${BASE_URL}/pages/${encodeURIComponent(resource)}?${query}`, { signal })).json();
+}
+
+export async function fetchRecord(resource, id) {
+  const page = await fetchRecordsPage(resource, { id, limit: 1 });
+  if (!page.items.length) throw new Error('Record no longer exists or is unavailable.');
+  return page.items[0];
+}
+
+export async function fetchWorkspaceSummary() {
+  return (await apiFetch(`${BASE_URL}/workspace-summary`)).json();
+}
+
+export async function fetchIntegrationStatus() {
+  return (await apiFetch(`${BASE_URL}/integrations/status`)).json();
+}
+
+export async function connectGoogleWorkspace() {
+  return (await apiFetch(`${BASE_URL}/integrations/google/connect`, { method: 'POST' })).json();
+}
+
+export async function queueCommunicationSync(id) {
+  return (await apiFetch(`${BASE_URL}/integrations/connections/${encodeURIComponent(id)}/sync`, { method: 'POST' })).json();
+}
+
+export async function disconnectCommunication(id) {
+  return (await apiFetch(`${BASE_URL}/integrations/connections/${encodeURIComponent(id)}/disconnect`, { method: 'POST' })).json();
+}
+
 export async function resetCRMState() {
   const res = await apiFetch(`${BASE_URL}/state/reset`, { method: 'POST' });
   const data = await res.json();
@@ -402,12 +433,25 @@ export async function importContacts(items) {
 }
 
 // Unified Activity Timeline
-export async function fetchTimeline(entityType, entityId) {
-  const res = await apiFetch(`${BASE_URL}/timeline?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`);
+export async function fetchTimeline(entityType, entityId, options = {}) {
+  const params = new URLSearchParams({ entityType, entityId, ...options });
+  const res = await apiFetch(`${BASE_URL}/timeline?${params}`);
   if (!res.ok) {
     throw new Error('Failed to fetch unified timeline');
   }
   return res.json();
+}
+
+// Complete Paginated Fetch for Exports
+export async function fetchAllRecords(resource, batchSize = 100) {
+  const allItems = [];
+  let cursor = '';
+  do {
+    const page = await fetchRecordsPage(resource, { limit: batchSize, cursor });
+    allItems.push(...(page.items || []));
+    cursor = page.nextCursor || '';
+  } while (cursor);
+  return allItems;
 }
 
 // Automation & Follow-up Rules

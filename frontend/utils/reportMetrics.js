@@ -1,7 +1,18 @@
+import { stageCode, isWonStage, isLostStage, isRenewalStage } from '../../backend/constants/stageConstants.js';
+
 export const DEFAULT_FORECAST_PROBABILITIES = Object.freeze({
-  'stg-1': 10, 'stg-2': 25, 'stg-3': 40, 'stg-4': 60,
-  'stg-5': 80, 'stg-6': 100, 'stg-7': 50, 'stg-8': 0,
+  NEW_LEAD: 10, CONTACTED: 25, SAMPLE_SENT: 40, PROPOSAL_SENT: 60,
+  NEGOTIATION: 80, CLOSED_WON: 100, RENEWAL: 50, CLOSED_LOST: 0,
 });
+
+export function defaultStageProbability(stage = {}) {
+  if (isWonStage(stage)) return 100;
+  if (isLostStage(stage)) return 0;
+  if (isRenewalStage(stage)) return 50;
+  if (stage.category && ['CLOSED_WON', 'CLOSED_LOST', 'RENEWAL'].includes(stageCode(stage))) return 50;
+  return DEFAULT_FORECAST_PROBABILITIES[stageCode(stage)]
+    ?? (isWonStage(stage) ? 100 : isLostStage(stage) ? 0 : isRenewalStage(stage) ? 50 : stage.category === 'New' ? 10 : 50);
+}
 
 const LOSS_REASONS = [
   ['Price / Budget mismatch', /price|budget|discount/i],
@@ -33,8 +44,8 @@ export function calculateReportMetrics({ deals = [], stages = [], auditLogs = []
     ...(reasonGroups.has('Unknown') ? [reasonGroups.get('Unknown')] : [])];
   const totalRevenue = wonDeals.reduce((sum, deal) => sum + (Number(deal.value) || 0), 0);
   const rebuyDeals = filteredDeals.filter(deal => Boolean(deal.isRebuy || deal.parentDealId));
-  const renewalDueDeals = filteredDeals.filter(deal => deal.status === 'Renewal Due' || deal.stageId === 'stg-7');
-  const stageById = new Map(stages.map(stage => [stage.id, stage]));
+  const stageById = new Map(stages.map(stage => [stage.id, { ...stage, code: stageCode(stage) }]));
+  const renewalDueDeals = filteredDeals.filter(deal => deal.status === 'Renewal Due' || isRenewalStage(stageById.get(deal.stageId)));
   const lostGroups = new Map();
   for (const deal of lostDeals) {
     // Current-stage data says only that the deal is closed. Never infer the
@@ -52,7 +63,7 @@ export function calculateReportMetrics({ deals = [], stages = [], auditLogs = []
     group.count += 1;
     group.value += Number(deal.value) || 0;
   }
-  const lostByStage = [...stages.filter(stage => stage.id !== 'stg-8').map(stage =>
+  const lostByStage = [...stages.filter(stage => !isLostStage(stageById.get(stage.id))).map(stage =>
     lostGroups.get(stage.id) || { stage, count: 0, value: 0 }),
   ...[...lostGroups.entries()].filter(([id]) => id !== 'unknown' && !stageById.has(id)).map(([, group]) => group),
   ...(lostGroups.has('unknown') ? [lostGroups.get('unknown')] : [])];
@@ -85,7 +96,7 @@ export function calculateReportMetrics({ deals = [], stages = [], auditLogs = []
     ['Active', 'Renewal Due'].includes(deal.status) && deal.expectedCloseDate?.startsWith(month))
     .reduce((sum, deal) => sum + (Number(deal.value) || 0)
       * Math.max(0, Math.min(100, Number(probabilities[deal.stageId]
-        ?? DEFAULT_FORECAST_PROBABILITIES[deal.stageId] ?? 0))) / 100, 0);
+        ?? defaultStageProbability(stageById.get(deal.stageId))))) / 100, 0);
   const target = selectedRep === 'All'
     ? Object.values(monthlyTargets).reduce((sum, amount) => sum + (Number(amount) || 0), 0)
     : Number(monthlyTargets[selectedRep]) || 0;

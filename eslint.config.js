@@ -4,6 +4,7 @@ import globals from 'globals';
 export default [
   js.configs.recommended,
   {
+    files: ['**/*.{js,jsx}'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
@@ -23,6 +24,11 @@ export default [
       'no-undef': 'warn',
       'no-empty': ['warn', { allowEmptyCatch: true }],
     },
+  },
+  {
+    files: ['**/*.jsx'],
+    // Core ESLint does not mark JSX tag imports as references.
+    rules: { 'no-unused-vars': 'off', 'no-undef': 'error' },
   },
   {
     ignores: [

@@ -1,3 +1,6 @@
+import { RecordSelect } from './RecordSelect.jsx';
+import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState } from 'react';
 import {
   Plus,
@@ -31,7 +34,7 @@ import {
   getLocalDateInputValue,
   getLocalDateInputValueAfterDays
 } from '../utils/crmHelpers.js';
-import { allowedStageTargets, isLostStage, isWonStage, isRenewalStage } from '../../backend/constants/stageConstants.js';
+import { allowedStageTargets, isLostStage, isWonStage, isRenewalStage, stageCode } from '../../backend/constants/stageConstants.js';
 import { StageGateCheckModal } from './StageGateCheckModal.jsx';
 import { AddActivityModal } from './AddActivityModal.jsx';
 
@@ -46,7 +49,7 @@ const LOST_REASONS = [
 ];
 
 export const PipelineView = ({
-  deals = [],
+  revision = 0,
   stages = [],
   users = [],
   companies = [],
@@ -122,32 +125,14 @@ export const PipelineView = ({
   });
 
   const sortedStages = [...stages].sort((a, b) => a.order - b.order);
-  const userDeals = filterByRole(deals, currentUser);
+  const page = useRecordsPage('deals', { pipeline: stages[0]?.pipelineId,
+    q: searchQuery, status: filterStatus, quick: quickFilter }, revision);
+  const deals = page.items;
+  const userDeals = deals;
+  const filteredDeals = deals;
+  const { Stale: staleCount = 0, Aging: agingCount = 0, Overdue: overdueCount = 0,
+    Renewals: renewalsCount = 0, MyDeals: myDealsCount = 0 } = page.facets || {};
 
-  // Metrics for Quick Filter Badges
-  const staleCount = userDeals.filter(d => isDealStale(d.lastActivityDate)).length;
-  const agingCount = userDeals.filter(d => getStageAgingStatus(d.daysInStage).level === 'risk').length;
-  const overdueCount = userDeals.filter(d => isCloseDateOverdue(d.expectedCloseDate, d.status)).length;
-  const renewalsCount = userDeals.filter(d => d.status === 'Renewal Due' || isRenewalStage(stages.find(s => s.id === d.stageId)) || d.isRecurring).length;
-  const myDealsCount = userDeals.filter(d => d.ownerId === currentUser.id).length;
-
-  // Filter deals by search & status
-  const filteredDeals = userDeals.filter(deal => {
-    const matchesSearch = searchQuery === '' ||
-      deal.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (deal.contactName && deal.contactName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (deal.companyName && deal.companyName.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    const matchesStatus = filterStatus === 'All' || deal.status === filterStatus;
-    if (!matchesSearch || !matchesStatus) return false;
-
-    if (quickFilter === 'MyDeals') return deal.ownerId === currentUser.id;
-    if (quickFilter === 'Stale') return isDealStale(deal.lastActivityDate);
-    if (quickFilter === 'Aging') return getStageAgingStatus(deal.daysInStage).level === 'risk';
-    if (quickFilter === 'Overdue') return isCloseDateOverdue(deal.expectedCloseDate, deal.status);
-    if (quickFilter === 'Renewals') return deal.status === 'Renewal Due' || isRenewalStage(stages.find(s => s.id === deal.stageId)) || deal.isRecurring;
-    return true;
-  });
 
   const handleSubmitActivityFromModal = async (payload) => {
     const { activityData, outcomeData, targetEntity } = payload;
@@ -155,11 +140,17 @@ export const PipelineView = ({
     if (onCreateActivity) {
       await onCreateActivity(activityData);
     }
+    if (activityData.followUp) {
+      setActivityModalDeal(null);
+      return;
+    }
 
     if (outcomeData.shouldAdvanceStage && outcomeData.targetStageObj) {
       if (onTransitionDealStage) {
         await onTransitionDealStage(targetEntity.id, {
           targetStageId: outcomeData.targetStageObj.id,
+          expectedStageId: targetEntity.stageId,
+          answers: outcomeData.criteriaAnswers || {},
           user: currentUser,
           adminOverride: currentUser.role === 'Admin',
           overrideReason: 'Advanced via activity outcome gate check'
@@ -288,6 +279,7 @@ export const PipelineView = ({
     if (onTransitionDealStage) {
       await onTransitionDealStage(deal.id, {
         targetStageId: targetStage.id,
+        expectedStageId: deal.stageId,
         user: currentUser,
         adminOverride: true,
         overrideReason: reason || 'Admin Kanban board drag-and-drop override'
@@ -350,6 +342,7 @@ export const PipelineView = ({
     if (check.outcome === 'demoted') {
       await onTransitionDealStage(check.dealId, {
         targetStageId: check.targetStageId,
+        expectedStageId: check.fromStageId,
         user: currentUser,
         demotionReason: check.backwardReason,
         note: check.note,
@@ -363,7 +356,7 @@ export const PipelineView = ({
         });
       } else {
         await onTransitionDealStage(check.dealId, {
-          targetStageId: check.targetStageId, user: currentUser,
+          targetStageId: check.targetStageId, expectedStageId: check.fromStageId, user: currentUser,
           answers: check.answers, note: check.note,
         });
       }
@@ -487,7 +480,7 @@ export const PipelineView = ({
         {/* Quick Filter Pills Bar */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
           {[
-            { id: 'All', label: 'All Deals', count: userDeals.length },
+            { id: 'All', label: 'All Deals', count: page.facets?.All || 0 },
             { id: 'MyDeals', label: 'My Deals', count: myDealsCount },
             { id: 'Stale', label: 'Stale (>10d)', count: staleCount, alert: staleCount > 0 },
             { id: 'Aging', label: 'Aging in Stage', count: agingCount, alert: agingCount > 0 },
@@ -518,15 +511,19 @@ export const PipelineView = ({
         </div>
       </div>
 
+      <RecordPagination page={page} label="deals" />
+
       {/* Kanban Board Layout */}
       <div className="flex-1 flex gap-3 sm:gap-4 overflow-x-auto pb-4 pt-1 items-stretch min-h-0 custom-horizontal-scrollbar snap-x snap-mandatory scroll-smooth">
         {sortedStages.map(stage => {
           const stageDeals = filteredDeals.filter(d => d.stageId === stage.id);
-          const totalVal = stageDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+          const stageTotal = page.stageTotals?.find(total => total.stageId === stage.id);
+          const totalVal = stageTotal?.value || 0;
 
           return (
             <div
               key={stage.id}
+              data-testid={`pipeline-stage-${stage.id}`}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, stage.id)}
               className="w-[85vw] sm:w-80 shrink-0 snap-start bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-4 flex flex-col gap-3 max-h-full shadow-2xs"
@@ -538,7 +535,7 @@ export const PipelineView = ({
                   <span className="w-2.5 h-2.5 rounded-full border border-[#D1D5DB]" style={{ backgroundColor: stage.color || '#FFFFFF' }} />
                   <h3 className="font-display font-extrabold text-sm text-[#12161C]">{stage.name}</h3>
                   <span className="text-[11px] font-mono text-[#5B6472]">
-                    ({stageDeals.length})
+                    ({stageTotal?.count || 0})
                   </span>
                 </div>
 
@@ -572,7 +569,7 @@ export const PipelineView = ({
               <div className="flex-1 overflow-y-auto space-y-3.5 no-scrollbar min-h-0">
                 {stageDeals.length === 0 ? (
                   <div className="border border-dashed border-[#E3E6EA] rounded-xl p-5 text-center text-[11px] text-[#5B6472] font-medium bg-[#F6F7F8]/50">
-                    No active deals in stage
+                    No deals on this page
                   </div>
                 ) : (
                   stageDeals.map(deal => {
@@ -851,7 +848,7 @@ export const PipelineView = ({
 
             <div className="space-y-2.5">
               {targetPickerModal.targets.map(targetStage => {
-                const isSkipSample = targetStage.id === 'stg-4' && targetPickerModal.deal.stageId === 'stg-2';
+                const isSkipSample = stageCode(targetStage) === 'PROPOSAL_SENT' && stageCode(stages.find(stage => stage.id === targetPickerModal.deal.stageId) || {}) === 'CONTACTED';
 
                 return (
                   <button
@@ -1097,30 +1094,14 @@ export const PipelineView = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[#5B6472] font-semibold mb-1">Linked Company</label>
-                  <select
-                    value={formData.companyId}
-                    onChange={(e) => setFormData({ ...formData, companyId: e.target.value })}
-                    className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
-                  >
-                    <option value="">-- None --</option>
-                    {companies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <RecordSelect resource="companies" value={formData.companyId} selectedLabel={formData.companyName}
+                    onChange={(id, record) => setFormData(previous => ({ ...previous, companyId: id, companyName: record?.name || '' }))} />
                 </div>
 
                 <div>
                   <label className="block text-[#5B6472] font-semibold mb-1">Linked Contact</label>
-                  <select
-                    value={formData.contactId}
-                    onChange={(e) => setFormData({ ...formData, contactId: e.target.value })}
-                    className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
-                  >
-                    <option value="">-- None --</option>
-                    {contacts.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <RecordSelect resource="contacts" value={formData.contactId} selectedLabel={formData.contactName}
+                    onChange={(id, record) => setFormData(previous => ({ ...previous, contactId: id, contactName: record?.name || '' }))} />
                 </div>
               </div>
 

@@ -8,6 +8,7 @@ import {
   Users2,
   BarChart3,
   Settings,
+  Plug,
   FileSpreadsheet,
   LogOut,
   Shield,
@@ -51,6 +52,7 @@ export const Sidebar = ({
       roles: ['Admin', 'Manager']
     },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
+    { id: 'connections', label: 'Your connections', icon: Plug },
     { id: 'settings', label: 'Settings', icon: Settings, roles: ['Admin'] },
   ];
 

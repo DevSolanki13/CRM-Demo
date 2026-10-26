@@ -25,6 +25,7 @@ import {
 } from '../utils/crmHelpers.js';
 import { UnifiedTimeline } from './UnifiedTimeline.jsx';
 import { AttachmentsPanel } from './AttachmentsPanel.jsx';
+import { useRecordsPage } from '../hooks/useRecordsPage.js';
 import { isRenewalStage } from '../../backend/constants/stageConstants.js';
 import { toast } from 'sonner';
 
@@ -157,6 +158,27 @@ export const DetailDrawer = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  const [taskRevision, setTaskRevision] = useState(0);
+  const [activityRevision, setActivityRevision] = useState(0);
+
+  // Filter connected activities and tasks with record-scoped pagination
+  const targetId = type === 'deal' ? deal?.id : lead?.id;
+  const targetType = type === 'deal' ? 'Deal' : 'Lead';
+
+  const taskPage = useRecordsPage(
+    'tasks',
+    targetId ? { linkedId: targetId } : {},
+    taskRevision,
+    isOpen && !!targetId
+  );
+
+  const activityPage = useRecordsPage(
+    'activities',
+    targetId ? { linkedId: targetId, sort: 'recent' } : {},
+    activityRevision,
+    isOpen && !!targetId
+  );
+
   if (!isOpen || (!deal && !lead)) return null;
 
   const currentItem = type === 'deal' ? deal : lead;
@@ -165,15 +187,13 @@ export const DetailDrawer = ({
   const stale = deal ? isDealStale(deal.lastActivityDate) : false;
   const overdue = deal ? isCloseDateOverdue(deal.expectedCloseDate, deal.status) : false;
 
-  // Filter connected activities and tasks
-  const targetId = type === 'deal' ? deal?.id : lead?.id;
-  const connectedActivities = activities.filter(a =>
-    a.dealId === targetId || a.leadId === targetId || a.linkedId === targetId
-  );
+  const connectedActivities = (activityPage.items?.length > 0 || activityPage.loading)
+    ? (activityPage.items || [])
+    : activities.filter(a => a.dealId === targetId || a.leadId === targetId || a.linkedId === targetId);
 
-  const connectedTasks = tasks.filter(t =>
-    t.dealId === targetId || t.leadId === targetId || t.linkedId === targetId
-  );
+  const connectedTasks = (taskPage.items?.length > 0 || taskPage.loading)
+    ? (taskPage.items || [])
+    : tasks.filter(t => t.dealId === targetId || t.leadId === targetId || t.linkedId === targetId);
 
   // Handle saving properties
   const handleSaveProperties = async (e) => {
@@ -217,7 +237,11 @@ export const DetailDrawer = ({
     try {
       const payload = {
         type: quickActivityType,
+        description: quickActivityNotes.trim(),
         notes: quickActivityNotes.trim(),
+        linkedType: targetType,
+        linkedId: targetId,
+        linkedTitle: currentItem?.title,
         dealId: type === 'deal' ? deal.id : undefined,
         leadId: type === 'lead' ? lead.id : undefined,
         userId: currentUser?.id,
@@ -227,6 +251,7 @@ export const DetailDrawer = ({
       if (onCreateActivity) {
         await onCreateActivity(payload);
         setQuickActivityNotes('');
+        setActivityRevision(v => v + 1);
         toast.success(`${quickActivityType} logged successfully`);
       }
     } catch (err) {
@@ -248,6 +273,9 @@ export const DetailDrawer = ({
         priority: 'Medium',
         status: 'pending',
         assignedTo: currentUser?.id,
+        linkedType: targetType,
+        linkedId: targetId,
+        linkedTitle: currentItem?.title,
         dealId: type === 'deal' ? deal.id : undefined,
         leadId: type === 'lead' ? lead.id : undefined
       };
@@ -255,6 +283,7 @@ export const DetailDrawer = ({
       if (onCreateTask) {
         await onCreateTask(payload);
         setNewTaskTitle('');
+        setTaskRevision(v => v + 1);
         toast.success("Task scheduled");
       }
     } catch (err) {
@@ -268,6 +297,7 @@ export const DetailDrawer = ({
     try {
       if (onUpdateTask) {
         await onUpdateTask(task.id, { status: newStatus });
+        setTaskRevision(v => v + 1);
         toast.success(newStatus === 'completed' ? "Task marked completed" : "Task reopened");
       }
     } catch (err) {
@@ -695,8 +725,15 @@ export const DetailDrawer = ({
 
                 {/* Tasks List */}
                 <div className="space-y-2">
-                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#5B6472]">
-                    Connected Tasks ({connectedTasks.length})
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#5B6472]">
+                      Connected Tasks ({taskPage.total > 0 ? taskPage.total : connectedTasks.length})
+                    </div>
+                    {taskPage.total > 0 && (
+                      <div className="text-[10px] text-[#5B6472] font-mono">
+                        Page {taskPage.number} of {Math.max(1, Math.ceil(taskPage.total / 25))}
+                      </div>
+                    )}
                   </div>
 
                   {connectedTasks.length === 0 ? (
@@ -724,7 +761,7 @@ export const DetailDrawer = ({
                               {t.title}
                             </div>
                             <div className="text-[10px] text-[#5B6472] font-mono">
-                              Due: {t.dueDate ? formatDate(t.dueDate) : 'No date'} &bull; Priority: {t.priority}
+                              Due: {t.dueDate ? formatDate(t.dueDate) : 'No date'} &bull; Priority: {t.priority || 'Medium'}
                             </div>
                           </div>
                         </div>
@@ -738,6 +775,30 @@ export const DetailDrawer = ({
                         </span>
                       </div>
                     ))
+                  )}
+
+                  {(taskPage.number > 1 || taskPage.nextCursor) && (
+                    <div className="flex items-center justify-between pt-2 border-t border-[#E3E6EA]">
+                      <button
+                        type="button"
+                        onClick={taskPage.previous}
+                        disabled={taskPage.number <= 1}
+                        className="px-2.5 py-1 text-xs font-semibold border border-[#E3E6EA] rounded-lg bg-[#FFFFFF] hover:bg-[#F6F7F8] disabled:opacity-40 disabled:cursor-not-allowed text-[#12161C] transition cursor-pointer"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-[11px] text-[#5B6472] font-mono">
+                        Page {taskPage.number}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={taskPage.next}
+                        disabled={!taskPage.nextCursor}
+                        className="px-2.5 py-1 text-xs font-semibold border border-[#E3E6EA] rounded-lg bg-[#FFFFFF] hover:bg-[#F6F7F8] disabled:opacity-40 disabled:cursor-not-allowed text-[#12161C] transition cursor-pointer"
+                      >
+                        Next
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

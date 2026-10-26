@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { isWonStage, isLostStage, isRenewalStage } from '../../backend/constants/stageConstants.js';
+import { isWonStage, isLostStage, isRenewalStage, semanticStageCode as stageCode } from '../../backend/constants/stageConstants.js';
 import {
   ArrowLeft,
   ExternalLink,
@@ -43,7 +43,7 @@ import { toast } from 'sonner';
 
 // Stage guidance & success checklist definitions adapted to CRM tone
 const STAGE_GUIDANCE_MAP = {
-  'New Lead': {
+  'NEW_LEAD': {
     guidance: 'Qualify lead interest and verify primary contact information. Identify key technical and commercial decision-makers before advancing.',
     keyQuestions: [
       'Identified primary decision-maker and operational role',
@@ -51,7 +51,7 @@ const STAGE_GUIDANCE_MAP = {
       'Determined potential product fit and estimated order volume'
     ]
   },
-  'Contacted': {
+  'CONTACTED': {
     guidance: 'Discover customer application requirements and specifications. Confirm evaluation criteria, rough budget range, and decision timeline.',
     keyQuestions: [
       'Conducted discovery call with engineering / procurement',
@@ -59,7 +59,7 @@ const STAGE_GUIDANCE_MAP = {
       'Agreed on evaluation process and sample trial feasibility'
     ]
   },
-  'Sample Sent': {
+  'SAMPLE_SENT': {
     guidance: 'Track courier shipment and confirm lab/plant arrival. Check in within 48 hours of delivery to support initial testing protocols.',
     keyQuestions: [
       'Sample courier tracking confirmed and delivered safely',
@@ -67,7 +67,7 @@ const STAGE_GUIDANCE_MAP = {
       'Scheduled testing evaluation review call'
     ]
   },
-  'Proposal Sent': {
+  'PROPOSAL_SENT': {
     guidance: 'Deliver formal commercial proposal with tiered volume pricing. Schedule a proposal walkthrough to address questions and competitor bids.',
     keyQuestions: [
       'Custom quotation submitted with validity date',
@@ -75,7 +75,7 @@ const STAGE_GUIDANCE_MAP = {
       'Identified competing suppliers and pricing expectations'
     ]
   },
-  'Negotiation': {
+  'NEGOTIATION': {
     guidance: 'Resolve commercial counter-offers, payment terms, and delivery schedules. Secure credit approval and prepare final purchase contract.',
     keyQuestions: [
       'Finalized unit price and bulk shipping terms',
@@ -83,7 +83,7 @@ const STAGE_GUIDANCE_MAP = {
       'Draft purchase order or supply contract under review'
     ]
   },
-  'Closed Won': {
+  'CLOSED_WON': {
     guidance: 'Confirm signed purchase order. Hand off order to fulfillment/production team and configure automated repeat renewal follow-up.',
     keyQuestions: [
       'Signed purchase order / commercial contract locked',
@@ -91,7 +91,7 @@ const STAGE_GUIDANCE_MAP = {
       'Automated repeat rebuy cycle configured (60/90 days)'
     ]
   },
-  'Closed Lost': {
+  'CLOSED_LOST': {
     guidance: 'Document detailed loss reason (pricing, competitor, timing). Schedule an automated re-engagement reminder in 90 days.',
     keyQuestions: [
       'Recorded specific competitor and root loss cause',
@@ -120,6 +120,9 @@ export const LeadJourneyView = ({
   // Timeline items fetched from backend
   const [timelineItems, setTimelineItems] = useState([]);
   const [loadingTimeline, setLoadingTimeline] = useState(true);
+  const [loadingMoreTimeline, setLoadingMoreTimeline] = useState(false);
+  const [timelineNextCursor, setTimelineNextCursor] = useState(null);
+  const [, setTimelineTotal] = useState(0);
 
   // Selected stage for inspection (read-only history filter)
   // 'ALL' | 'UNASSIGNED' | stage.id
@@ -169,7 +172,7 @@ export const LeadJourneyView = ({
       const match = sortedStages.find(s => s.id === linkedDeal.stageId);
       if (match) return match;
     }
-    return sortedStages[0] || { id: 'stg-1', name: 'New Lead', order: 1 };
+    return sortedStages[0] || { id: 'unconfigured', name: 'No stage configured', order: 1 };
   }, [linkedDeal, sortedStages]);
 
   // Set initial selected stage to the current actual stage
@@ -180,17 +183,35 @@ export const LeadJourneyView = ({
   }, [currentActualStage, selectedStageId]);
 
   // Fetch unified timeline
-  const loadTimeline = async () => {
+  const loadTimeline = async (cursor = null) => {
     if (!lead?.id) return;
-    setLoadingTimeline(true);
+    if (cursor) {
+      setLoadingMoreTimeline(true);
+    } else {
+      setLoadingTimeline(true);
+    }
     try {
-      const items = await fetchTimeline('Lead', lead.id);
-      setTimelineItems(Array.isArray(items) ? items : []);
+      const response = await fetchTimeline('Lead', lead.id, cursor ? { cursor, limit: 25 } : { limit: 25 });
+      const items = Array.isArray(response) ? response : (response?.items || []);
+      const next = Array.isArray(response) ? null : (response?.nextCursor || null);
+      const total = Array.isArray(response) ? response.length : (response?.total ?? items.length);
+
+      if (cursor) {
+        setTimelineItems(prev => [...prev, ...items]);
+      } else {
+        setTimelineItems(items);
+      }
+      setTimelineNextCursor(next);
+      setTimelineTotal(total);
     } catch (err) {
       console.warn('Could not load unified timeline, calculating fallback:', err);
-      setTimelineItems([]);
+      if (!cursor) setTimelineItems([]);
     } finally {
-      setLoadingTimeline(false);
+      if (cursor) {
+        setLoadingMoreTimeline(false);
+      } else {
+        setLoadingTimeline(false);
+      }
     }
   };
 
@@ -331,20 +352,28 @@ export const LeadJourneyView = ({
   }, [isLost, timelineWithStage, qualificationStages, linkedDeal, sortedStages]);
 
   // Unified 6-Chevron Hybrid Pipeline Path (Qual Stages 1-5 + Adaptive Terminal Milestone)
+  // For custom pipelines that have no Won-category stage yet, we synthesise a
+  // read-only "Closed" target node with `isTarget: true` so the chevron bar
+  // always renders a terminal milestone.  The node ID is set to the real Won
+  // stage's ID when one exists (enabling activity-count lookup), or to the
+  // explicit sentinel 'no-terminal' when none is configured — keeping the
+  // phantom ID out of any real stage-ID comparison.
   const hybridPathStages = useMemo(() => {
     let terminalStage;
     if (isWon) {
-      terminalStage = sortedStages.find(isWonStage) || { id: 'stg-6', name: 'Closed Won', category: 'Won' };
+      terminalStage = sortedStages.find(isWonStage) || currentActualStage;
     } else if (isLost) {
-      terminalStage = sortedStages.find(isLostStage) || { id: 'stg-8', name: 'Closed Lost', category: 'Lost' };
+      terminalStage = sortedStages.find(isLostStage) || currentActualStage;
     } else if (isRenewal) {
-      terminalStage = sortedStages.find(isRenewalStage) || { id: 'stg-7', name: 'Buy Again (Renewal)', category: 'Buy Again' };
+      terminalStage = sortedStages.find(isRenewalStage) || currentActualStage;
     } else {
-      // In flight: Target destination milestone "Closed"
+      // In flight: synthesise a visual-only "Closed" target milestone.
+      // Use the real Won stage's ID when it exists so activity counts resolve;
+      // fall back to 'no-terminal' (never matches any DB record) otherwise.
       const wonStage = sortedStages.find(isWonStage);
       terminalStage = {
-        id: wonStage?.id || 'stg-closed-target',
-        name: 'Closed',
+        id: wonStage?.id || 'no-terminal',
+        name: wonStage?.name || 'Closed',
         isTarget: true,
         category: 'Target'
       };
@@ -361,11 +390,11 @@ export const LeadJourneyView = ({
       return isWon ? 'closed_won' : isLost ? 'closed_lost' : 'upcoming';
     }
 
-    if (stage.category === 'Lost' || stage.name.toLowerCase().includes('lost')) {
+    if (isLostStage(stage)) {
       return isLost ? 'closed_lost' : 'upcoming';
     }
 
-    if (stage.category === 'Won' || stage.name.toLowerCase().includes('won')) {
+    if (isWonStage(stage)) {
       return isWon ? 'closed_won' : 'upcoming';
     }
 
@@ -405,25 +434,19 @@ export const LeadJourneyView = ({
     if (!destinationStage) return;
     try {
       if (linkedDeal && onTransitionDealStage) {
-        await onTransitionDealStage(linkedDeal.id, {
+        const result = await onTransitionDealStage(linkedDeal.id, {
           targetStageId: destinationStage.id,
+          expectedStageId: currentActualStage.id,
           user: currentUser,
           note: `Advanced via Lead Journey Stage Path`,
           overrideReason: currentUser?.role === 'Admin' ? 'Admin Stage Transition' : undefined
         });
-      } else if (linkedDeal && onUpdateDeal) {
-        await onUpdateDeal(linkedDeal.id, {
-          stageId: destinationStage.id,
-          stageName: destinationStage.name
-        });
-      }
-
-      if (onUpdateLead) {
-        await onUpdateLead(lead.id, {
-          status: isWonStage(destinationStage) ? 'Converted' : isLostStage(destinationStage) ? 'Unqualified' : 'Qualified',
-          lastActivityDate: new Date().toISOString().split('T')[0]
-        });
-      }
+        if (result?.requiresApproval) {
+          toast.info('Stage change submitted for approval.');
+          await loadTimeline();
+          return;
+        }
+      } else throw new Error('Convert this lead to a deal before changing its pipeline stage.');
 
       toast.success(`Stage updated to ${destinationStage.name}`);
       setSelectedStageId(destinationStage.id);
@@ -565,7 +588,7 @@ export const LeadJourneyView = ({
     }
   };
 
-  const guidanceInfo = STAGE_GUIDANCE_MAP[selectedStageObj?.name || currentActualStage.name] || {
+  const guidanceInfo = STAGE_GUIDANCE_MAP[stageCode(selectedStageObj || currentActualStage)] || {
     guidance: 'Complete key stage requirements to advance this lead through the sales pipeline.',
     keyQuestions: ['Confirm next steps with the customer', 'Update deal value and close date']
   };
@@ -802,12 +825,22 @@ export const LeadJourneyView = ({
                   onClick={() => {
                     if (isUpcoming) return;
                     if (stage.isTarget) {
+                      // Resolve to the real Won / Lost stage when the deal has
+                      // already reached a terminal state.  For custom pipelines
+                      // that have no matching stage, fall back to 'ALL' so the
+                      // user sees the full journey instead of an empty ghost view.
                       const actualTerminal = isWon
                         ? sortedStages.find(s => s.category === 'Won')
                         : isLost
                           ? sortedStages.find(s => s.category === 'Lost')
-                          : stage;
-                      setSelectedStageId(actualTerminal?.id || stage.id);
+                          : null;
+                      if (actualTerminal) {
+                        setSelectedStageId(actualTerminal.id);
+                      } else if (!stage.isTarget || isWon || isLost) {
+                        // Unreachable in normal flow, but guards ghost-ID selection
+                        setSelectedStageId('ALL');
+                      }
+                      // In-flight target chevron is visual-only; clicking shows nothing
                     } else {
                       setSelectedStageId(stage.id);
                     }
@@ -1349,6 +1382,25 @@ export const LeadJourneyView = ({
                     </div>
                   );
                 })}
+                {timelineNextCursor && (
+                  <div className="pt-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => loadTimeline(timelineNextCursor)}
+                      disabled={loadingMoreTimeline}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E3E6EA] bg-[#FFFFFF] hover:bg-[#F6F7F8] text-xs font-semibold text-[#1D4E63] disabled:opacity-50 transition cursor-pointer"
+                    >
+                      {loadingMoreTimeline ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Loading older activities...</span>
+                        </>
+                      ) : (
+                        <span>Load older activities</span>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

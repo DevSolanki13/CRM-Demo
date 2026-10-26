@@ -1,33 +1,10 @@
-<p align="center">
-  <b>📖 Overview</b> &nbsp;|&nbsp;
-  <a href="features.md">✨ Features</a> &nbsp;|&nbsp;
-  <a href="flow.md">🔄 Flow</a> &nbsp;|&nbsp;
-  <a href="architecture.md">🏗️ Architecture</a> &nbsp;|&nbsp;
-  <a href="db.md">🗄️ Database</a> &nbsp;|&nbsp;
-  <a href="api.md">🔌 API</a> &nbsp;|&nbsp;
-  <a href="setup-guide.md">🚀 Setup Guide</a>
-</p>
-
----
-
 # Sales CRM — B2B Sales Pipeline & Recurring Order Management
 
 Sales CRM is a modern, full-stack B2B Customer Relationship Management platform engineered for pipeline governance, Salesforce-style lead journey milestone tracking, stage-gate qualification, repeat purchase management, and responsive mobile sales workflows.
 
 The current temporary workspace opens directly without a login. The server assigns the first active administrator as the shared actor for all visitors, including production visitors. Keep this version on a private or disposable deployment until account login is restored.
 
----
-
-## 📚 Project Documentation
-
-| Document | Core Topics |
-|:---|:---|
-| 📖 **[Features Guide](features.md)** | Lead Journey milestones, stage-gate governance, mobile console, rebuy engine |
-| 🔄 **[System Flows](flow.md)** | Lead-to-deal conversion, chevron stage transitions, demotion, rebuy lifecycles |
-| 🏛️ **[Architecture](architecture.md)** | System topology, React 19 SPA, Express REST API, Prisma 7 PostgreSQL adapter |
-| 🗄️ **[Database & Schema](db.md)** | 12 Prisma models, PostgreSQL ERD, JSONB columns, connection pooling |
-| 🔌 **[REST API Reference](api.md)** | Complete endpoint specifications, request/response payloads, Zod validation |
-| 🚀 **[Setup & Deployment](setup-guide.md)** | Installation, Supabase/Neon PostgreSQL setup, seeding, Vitest, and Playwright |
+**[Setup & Deployment](setup-guide.md)** | Installation, Supabase/Neon PostgreSQL setup, seeding, Vitest, and Playwright |
 
 ---
 

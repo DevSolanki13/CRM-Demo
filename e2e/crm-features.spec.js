@@ -54,7 +54,8 @@ test.describe('CRM Features Automated Test Suite', () => {
     const leadsRes = await page.request.get('/api/leads');
     if (leadsRes.ok()) {
       const allLeads = await leadsRes.json();
-      const created = allLeads.find(l => l.title === testLeadName);
+      const leadsList = Array.isArray(allLeads) ? allLeads : (allLeads.items || []);
+      const created = leadsList.find(l => l.title === testLeadName);
       if (created) {
         await page.request.delete(`/api/leads/${created.id}`);
       }
@@ -67,13 +68,13 @@ test.describe('CRM Features Automated Test Suite', () => {
     // 1. Navigate to Pipeline
     await nav.getByRole('button', { name: /Pipeline/i }).click();
 
-    // 2. Open any existing Deal by clicking on a card in the kanban board
-    const dealCard = page.locator('div[draggable="true"], .cursor-pointer').filter({ hasText: /₹|\$|Deal|Opp|Corp|Inc|Ltd/i }).first();
-    await expect(dealCard).toBeVisible({ timeout: 10000 });
-    await dealCard.click();
+    // 2. Open any existing Deal by clicking on a deal card in the kanban board
+    const dealTitle = page.locator('h4.font-display').first();
+    await expect(dealTitle).toBeVisible({ timeout: 10000 });
+    await dealTitle.click();
 
     // 3. Verify Detail Drawer opens
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10000 });
 
     // 4. Click the "360° Timeline" tab
     const timelineTab = page.getByRole('tab', { name: /360° Timeline/i });

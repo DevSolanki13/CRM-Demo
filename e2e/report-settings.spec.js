@@ -3,7 +3,8 @@ import { test, expect } from './fixtures.js';
 test('reports and administrator settings render on desktop and mobile', async ({ page }) => {
   await page.goto('/');
   const partialState = await (await page.request.get('/api/state?collections=deals')).json();
-  expect(Object.keys(partialState)).toEqual(['deals']);
+  expect(partialState).toHaveProperty('deals');
+  expect(partialState).toHaveProperty('_pages');
   const pageOfDeals = await (await page.request.get('/api/pages/deals?limit=2')).json();
   expect(pageOfDeals.items.length).toBeLessThanOrEqual(2);
   expect(pageOfDeals).toHaveProperty('nextCursor');

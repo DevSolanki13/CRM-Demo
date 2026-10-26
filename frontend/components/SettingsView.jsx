@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { fetchAutomationRules, fetchAutomationStatus, updateAutomationRules } from '../api/crmClient.js';
 import { toast } from 'sonner';
-import { DEFAULT_FORECAST_PROBABILITIES } from '../utils/reportMetrics.js';
+import { defaultStageProbability } from '../utils/reportMetrics.js';
 import { DEFAULT_APPROVAL_POLICY } from '../../backend/services/approvalPolicy.js';
 import { ReferenceRepairView } from './ReferenceRepairView.jsx';
 
@@ -626,7 +626,7 @@ export const SettingsView = ({
               <label key={stage.id} className="text-sm font-semibold text-[#12161C]">
                 {stage.name} probability (%)
                 <input type="number" min="0" max="100" step="1"
-                  value={reporting.probabilities?.[stage.id] ?? DEFAULT_FORECAST_PROBABILITIES[stage.id] ?? 0}
+                  value={reporting.probabilities?.[stage.id] ?? defaultStageProbability(stage)}
                   onChange={event => setReporting(previous => ({ ...previous,
                     probabilities: { ...(previous.probabilities || {}), [stage.id]: Number(event.target.value) }
                   }))}

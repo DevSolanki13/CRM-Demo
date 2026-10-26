@@ -2,6 +2,9 @@ import React, { lazy, Suspense, useState, useEffect, useMemo } from 'react';
 import { getLocalDateInputValueAfterDays } from './utils/crmHelpers.js';
 import {
   fetchCRMState,
+  fetchWorkspaceSummary,
+  fetchRecordsPage,
+  fetchRecord,
   fetchCurrentUser,
   signIn,
   signOut,
@@ -56,6 +59,7 @@ const TasksView = lazy(() => import('./components/TasksView.jsx').then(module =>
 const EmployeesView = lazy(() => import('./components/EmployeesView.jsx').then(module => ({ default: module.EmployeesView })));
 const ReportsView = lazy(() => import('./components/ReportsView.jsx').then(module => ({ default: module.ReportsView })));
 const SettingsView = lazy(() => import('./components/SettingsView.jsx').then(module => ({ default: module.SettingsView })));
+const ConnectionsView = lazy(() => import('./components/ConnectionsView.jsx').then(module => ({ default: module.ConnectionsView })));
 import { ImportExportModal } from './components/ImportExportModal.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import { NotFoundView } from './components/NotFoundView.jsx';
@@ -71,7 +75,7 @@ import {
 
 import { normalizeStageColor, isRenewalStage } from '../backend/constants/stageConstants.js';
 
-const KNOWN_TABS = ['dashboard', 'leads', 'pipeline', 'contacts', 'companies', 'tasks', 'employees', 'reports', 'settings'];
+const KNOWN_TABS = ['dashboard', 'leads', 'pipeline', 'contacts', 'companies', 'tasks', 'employees', 'reports', 'settings', 'connections'];
 const INITIAL_COLLECTIONS = ['branding', 'users', 'stages', 'pipelines', 'leads',
   'deals', 'tasks', 'activities'];
 const TAB_COLLECTIONS = {
@@ -92,7 +96,11 @@ const normalizeStateStages = (data) => {
 
 export default function App() {
   const [state, setState] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [revision, setRevision] = useState(0);
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = window.location.hash.slice(1).split('?')[0];
+    return KNOWN_TABS.includes(tab) ? tab : 'dashboard';
+  });
   const [selectedPipelineId, setSelectedPipelineId] = useState('pipeline-sales');
   const [currentUser, setCurrentUser] = useState(null);
   const [canSignOut, setCanSignOut] = useState(false);
@@ -122,6 +130,26 @@ export default function App() {
 
   // Lead Journey Workspace State
   const [selectedLeadForJourney, setSelectedLeadForJourney] = useState(null);
+  const [journeyDeals, setJourneyDeals] = useState([]);
+
+  useEffect(() => {
+    if (!selectedLeadForJourney) return;
+    let cancelled = false;
+    Promise.all([fetchRecordsPage('deals', { leadId: selectedLeadForJourney.id, limit: 100 }),
+      fetchRecord('leads', selectedLeadForJourney.id)]).then(([page, lead]) => {
+      if (!cancelled) { setJourneyDeals(page.items); setSelectedLeadForJourney(lead); }
+    }).catch(error => toast.error(error.message));
+    return () => { cancelled = true; };
+  }, [selectedLeadForJourney?.id, revision]);
+
+  useEffect(() => {
+    if (!drawerState.isOpen || !drawerState.item?.id) return;
+    let cancelled = false;
+    fetchRecord(drawerState.type === 'deal' ? 'deals' : 'leads', drawerState.item.id).then(item => {
+      if (!cancelled) setDrawerState(previous => ({ ...previous, item }));
+    }).catch(error => { if (!cancelled) toast.error(error.message); });
+    return () => { cancelled = true; };
+  }, [drawerState.isOpen, drawerState.item?.id, revision]);
 
   const currentJourneyLead = useMemo(() => {
     if (!selectedLeadForJourney) return null;
@@ -153,9 +181,9 @@ export default function App() {
     async function loadData() {
       try {
         const { user, authMode } = await fetchCurrentUser();
-        const data = await fetchCRMState(INITIAL_COLLECTIONS);
+        const [data, overview] = await Promise.all([fetchCRMState(INITIAL_COLLECTIONS), fetchWorkspaceSummary()]);
         if (!cancelled) {
-          setState(normalizeStateStages({ ...data, auditLogs: [] }));
+          setState(normalizeStateStages({ ...data, overview, auditLogs: [] }));
           setCurrentUser(user);
           setCanSignOut(authMode === 'session');
         }
@@ -186,19 +214,14 @@ export default function App() {
   }, [activeTab, state, tabRetry]);
 
   // Memoized Pending Tasks and Renewals Count for badges (placed before any early return)
-  const pendingTasksCount = useMemo(() => {
-    return (state?.tasks || []).filter(t => t.status === 'pending' && t.ownerId === currentUser?.id).length;
-  }, [state?.tasks, currentUser?.id]);
+  const pendingTasksCount = state?.overview?.pendingTasksCount || 0;
 
-  const renewalsDueCount = useMemo(() => {
-    return (state?.deals || []).filter(d => d.status === 'Renewal Due' ||
-      isRenewalStage(state?.stages?.find(stage => stage.id === d.stageId))).length;
-  }, [state?.deals, state?.stages]);
+  const renewalsDueCount = state?.overview?.renewalsDueCount || 0;
 
   const handleLogin = async (email, password) => {
     const user = await signIn(email, password);
-    const data = await fetchCRMState(INITIAL_COLLECTIONS);
-    setState(normalizeStateStages({ ...data, auditLogs: [] }));
+    const [data, overview] = await Promise.all([fetchCRMState(INITIAL_COLLECTIONS), fetchWorkspaceSummary()]);
+    setState(normalizeStateStages({ ...data, overview, auditLogs: [] }));
     setCurrentUser(user);
     setCanSignOut(true);
     setAuthRequired(false);
@@ -277,8 +300,10 @@ export default function App() {
   const reloadState = async (...collections) => {
     const requested = collections.filter(key => key !== 'auditLogs');
     if (collections.length && !requested.length) return;
-    const updated = normalizeStateStages(await fetchCRMState(requested));
+    const [data, overview] = await Promise.all([fetchCRMState(requested), fetchWorkspaceSummary()]);
+    const updated = normalizeStateStages({ ...data, overview });
     setState(prev => requested.length && prev ? { ...prev, ...updated } : updated);
+    setRevision(value => value + 1);
   };
 
   const handleTriggerRenewalCheck = async () => {
@@ -408,6 +433,7 @@ export default function App() {
         ...prev,
         leads: (prev.leads || []).map(l => l.id === id ? { ...l, ...updated } : l)
       } : prev);
+      await reloadState('leads');
       toast.success("Lead updated");
       return updated;
     } catch (err) {
@@ -425,6 +451,7 @@ export default function App() {
         ...prev,
         leads: (prev.leads || []).filter(l => l.id !== id)
       } : prev);
+      await reloadState('leads');
       toast.info("Lead deleted");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
@@ -448,7 +475,7 @@ export default function App() {
 
   const handleUpdateDeal = async (id, deal) => {
     try {
-      const existing = state.deals.find(row => row.id === id);
+      const existing = state.deals.find(row => row.id === id) || await fetchRecord('deals', id);
       const changes = { ...deal };
       if (deal.stageId && existing && deal.stageId !== existing.stageId) {
         await transitionDealStage(id, { targetStageId: deal.stageId, note: deal.reason || '', overrideReason: deal.overrideReason, demotionReason: deal.demotionReason });
@@ -535,12 +562,8 @@ export default function App() {
   };
 
   const handleCreateActivity = async (act) => {
-    try {
-      await createActivity(act);
-      await reloadState('activities', 'deals', 'leads');
-    } catch (err) {
-      throw err;
-    }
+    await createActivity(act);
+    await reloadState('activities', 'deals', 'leads', ...(act.followUp ? ['tasks', 'auditLogs'] : []));
   };
 
   // Users with full state reload
@@ -619,6 +642,7 @@ export default function App() {
       toast.success('Approval completed');
     } catch (err) {
       toast.error(err.message || 'Approval failed');
+      throw err;
     }
   };
 
@@ -629,6 +653,7 @@ export default function App() {
       toast.success('Request rejected');
     } catch (err) {
       toast.error(err.message || 'Rejection failed');
+      throw err;
     }
   };
 
@@ -642,7 +667,8 @@ export default function App() {
     try {
       const res = await transitionDealStage(dealId, payload);
       await reloadState('deals', 'leads', 'tasks', 'activities', 'stageGateChecks', 'auditLogs');
-      toast.success("Deal stage updated successfully");
+      if (res.requiresApproval) toast.info('Stage change submitted for approval.');
+      else toast.success('Deal stage updated successfully');
       return res;
     } catch (err) {
       toast.error(err.message || 'Stage transition failed');
@@ -774,7 +800,7 @@ export default function App() {
                 </div>
               : <>
             {activeTab === 'dashboard' && (
-              <DashboardView
+              <DashboardView revision={revision}
                 state={state}
                 currentUser={currentUser}
                 onNavigateTab={setActiveTab}
@@ -792,7 +818,7 @@ export default function App() {
                 <LeadJourneyView
                   lead={currentJourneyLead}
                   stages={state.stages}
-                  deals={state.deals}
+                  deals={journeyDeals}
                   users={state.users}
                   currentUser={currentUser}
                   branding={state.branding}
@@ -806,9 +832,9 @@ export default function App() {
                   onTransitionDealStage={handleTransitionDealStage}
                 />
               ) : (
-                <LeadsView
+                <LeadsView revision={revision}
                   leads={state.leads}
-                  stages={state.stages.filter(stage => stage.pipelineId === 'pipeline-sales')}
+                  stages={state.stages}
                   deals={state.deals}
                   users={state.users}
                   currentUser={currentUser}
@@ -840,7 +866,7 @@ export default function App() {
                     <option key={pipeline.id} value={pipeline.id}>{pipeline.name}</option>)}
                 </select>
               </div>
-              <PipelineView key={selectedPipelineId}
+              <PipelineView revision={revision} key={selectedPipelineId}
                 deals={state.deals.filter(deal => deal.pipelineId === selectedPipelineId)}
                 stages={state.stages.filter(stage => stage.pipelineId === selectedPipelineId)}
                 users={state.users}
@@ -867,7 +893,7 @@ export default function App() {
             )}
 
             {activeTab === 'contacts' && (
-              <ContactsView
+              <ContactsView revision={revision}
                 contacts={state.contacts}
                 companies={state.companies}
                 users={state.users}
@@ -888,7 +914,7 @@ export default function App() {
             )}
 
             {activeTab === 'companies' && (
-              <CompaniesView
+              <CompaniesView revision={revision}
                 companies={state.companies}
                 contacts={state.contacts}
                 deals={state.deals}
@@ -902,7 +928,7 @@ export default function App() {
             )}
 
             {activeTab === 'tasks' && (
-              <TasksView
+              <TasksView revision={revision}
                 tasks={state.tasks}
                 users={state.users}
                 leads={state.leads}
@@ -936,6 +962,8 @@ export default function App() {
                 onCreateDeal={handleCreateDeal}
               />
             )}
+
+            {activeTab === 'connections' && <ConnectionsView />}
 
             {activeTab === 'settings' && (
               <SettingsView

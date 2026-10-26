@@ -1,20 +1,21 @@
 import { PhoneCall, Mail, Package, Calendar, RefreshCw } from 'lucide-react';
+import { isRenewalStage } from '../../backend/constants/stageConstants.js';
 import { getLocalDateInputValue } from '../utils/crmHelpers.js';
 
-export const ManifestStrip = ({ activities = [], tasks = [], deals = [], currentUser }) => {
+export const ManifestStrip = ({ summary = {}, activities = [], tasks = [], deals = [], stages = [], currentUser }) => {
   const todayStr = getLocalDateInputValue();
 
   // Outbound Metrics
-  const callsToday = activities.filter(a => a.type === 'Outbound Call').length;
-  const emailsToday = activities.filter(a => a.type === 'Outbound Email').length;
-  const samplesSent = activities.filter(a => a.type === 'Sample Sent').length;
+  const callsToday = summary.outboundCalls ?? activities.filter(a => a.type === 'Outbound Call' && a.timestamp?.startsWith(todayStr)).length;
+  const emailsToday = summary.outboundEmails ?? activities.filter(a => a.type === 'Outbound Email' && a.timestamp?.startsWith(todayStr)).length;
+  const samplesSent = summary.samplesSent ?? activities.filter(a => a.type === 'Sample Sent' && a.timestamp?.startsWith(todayStr)).length;
 
   // Pending Tasks Today
   const userTasks = currentUser ? tasks.filter(t => t.ownerId === currentUser.id) : tasks;
-  const pendingTasksToday = userTasks.filter(t => t.status === 'pending' && t.dueDate <= todayStr).length;
+  const pendingTasksToday = summary.pendingTasksToday ?? userTasks.filter(t => t.status === 'pending' && t.dueDate <= todayStr).length;
 
   // Renewals Due
-  const renewalsDueCount = deals.filter(d => d.status === 'Renewal Due' || d.stageId === 'stg-7').length;
+  const renewalsDueCount = summary.renewalsDueCount ?? deals.filter(d => d.status === 'Renewal Due' || isRenewalStage(stages.find(stage => stage.id === d.stageId))).length;
 
   return (
     <div className="bg-[#FAFCFD] border-b border-[#E3E6EA] px-6 py-2 flex flex-wrap items-center justify-between text-[11px] font-mono text-[#5B6472] gap-4 select-none shrink-0 shadow-[0_8px_24px_rgba(18,22,28,0.12)] z-10">

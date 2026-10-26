@@ -14,7 +14,7 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
     await nav.getByRole('button', { name: /Leads/i }).click();
 
     // 2. Click the first lead in the table
-    const firstLeadRow = page.locator('table tbody tr').first();
+    const firstLeadRow = page.locator('table tbody tr').filter({ has: page.locator('.font-display') }).first();
     await expect(firstLeadRow).toBeVisible({ timeout: 10000 });
     await firstLeadRow.click();
 
@@ -74,7 +74,9 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
     await nav.getByRole('button', { name: /Leads/i }).click();
 
     // 2. Open first lead
-    await page.locator('table tbody tr').first().click();
+    const firstLeadRow = page.locator('table tbody tr').filter({ has: page.locator('.font-display') }).first();
+    await expect(firstLeadRow).toBeVisible({ timeout: 10000 });
+    await firstLeadRow.click();
     await expect(page.getByRole('button', { name: /Back to Ledger/i })).toBeVisible();
 
     // 3. Click "Log a Call" composer tab
@@ -98,7 +100,8 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
     const actsRes = await page.request.get('/api/activities');
     if (actsRes.ok()) {
       const allActs = await actsRes.json();
-      const created = allActs.find(a => a.description === uniqueComment);
+      const list = Array.isArray(allActs) ? allActs : allActs.items || [];
+      const created = list.find(a => a.description === uniqueComment);
       if (created) {
         await page.request.delete(`/api/activities/${created.id}`);
       }
@@ -110,7 +113,9 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
 
     // 1. Navigate to Leads
     await nav.getByRole('button', { name: /Leads/i }).click();
-    await page.locator('table tbody tr').first().click();
+    const firstLeadRow = page.locator('table tbody tr').filter({ has: page.locator('.font-display') }).first();
+    await expect(firstLeadRow).toBeVisible({ timeout: 10000 });
+    await firstLeadRow.click();
 
     // 2. Click "Open Lead 360"
     const open360Btn = page.getByRole('button', { name: /Open Lead 360/i });
