@@ -24,7 +24,7 @@ describe('stable stage rules', () => {
   it('keeps business identity and transition rules after a display rename', () => {
     expect(stageCode({ id: 'stg-3', name: 'Samples Delivered' })).toBe('SAMPLE_SENT');
     expect(ALLOWED_TRANSITION_IDS['stg-2']).toContain('stg-3');
-    expect(STAGE_CRITERIA['stg-2->stg-3']).toHaveLength(4);
+    expect(STAGE_CRITERIA['CONTACTED->SAMPLE_SENT']).toHaveLength(4);
   });
 });
 

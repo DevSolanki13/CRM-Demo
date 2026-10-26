@@ -42,7 +42,7 @@ export function recordFilters(resource, actor, query = {}) {
   const supported = ['cursor', 'limit', 'q', 'owner', 'status', 'stage', 'pipeline', 'source', 'quick',
     'type', 'queue', 'showCompleted', 'linkedType', 'linkedId', 'leadId', 'companyId', 'contactId', 'id', 'sort'];
   if (Object.keys(query).some(key => !supported.includes(key)) || Object.entries(query)
-    .some(([key, value]) => key !== 'limit' && (typeof value !== 'string' || value.length > 256))) {
+    .some(([key, value]) => key !== 'limit' && (typeof value !== 'string' || value.length > (key === 'cursor' ? 2048 : 256)))) {
     throw invalid('Use supported text filters of up to 256 characters.');
   }
   const { q = '', owner, status, stage, pipeline, source, quick, type, queue, showCompleted } = query;

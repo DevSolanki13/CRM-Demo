@@ -11,3 +11,5 @@ export const getLocalDateStringAfterDays = (days) => {
   value.setDate(value.getDate() + days);
   return getLocalDateString(value);
 };
+
+export const followUpOffsetDays = value => value == null ? 1 : Number(value);

@@ -1,3 +1,4 @@
+import { validatedInput, leadSchema, updateLeadSchema } from '../middleware/validation.js';
 import { prisma } from '../prisma.js';
 import { getLocalDateString } from '../utils/dateUtils.js';
 import { logAudit } from './activityNoteService.js';
@@ -23,6 +24,7 @@ export const getLeads = async () => {
 
 export const createLead = async (lead) => {
   validateLeadFields(lead);
+  lead = validatedInput(leadSchema, lead);
   let title = (lead.title || 'New Lead Inquiry').trim();
   if (/^\d+$/.test(title) || !/[a-zA-Z]/.test(title)) {
     title = `Lead #${title}`;
@@ -72,6 +74,7 @@ export const createLead = async (lead) => {
 
 export const updateLead = async (id, lead) => {
   validateLeadFields(lead);
+  lead = validatedInput(updateLeadSchema, lead);
   const existing = await prisma.lead.findUnique({ where: { id } });
   if (!existing) return null;
 

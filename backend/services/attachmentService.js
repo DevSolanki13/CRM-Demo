@@ -38,7 +38,7 @@ async function authorize(recordType, recordId, actor, write = false) {
 
 export async function listAttachments(recordType, recordId, actor) {
   await authorize(recordType, recordId, actor);
-  return prisma.attachment.findMany({ where: { recordType, recordId, deletedAt: null },
+  return prisma.attachment.findMany({ where: { recordType, recordId, deletedAt: null, uploadStatus: 'ready' },
     orderBy: { createdAt: 'desc' },
     select: { id: true, filename: true, contentType: true, size: true,
       createdById: true, createdAt: true } });
@@ -58,14 +58,20 @@ export async function uploadAttachment(input, actor) {
   const safeFilename = filename.trim().replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
   const storagePath = `${recordType.toLowerCase()}/${randomUUID()}/${safeFilename || 'attachment'}`;
   const bucket = await privateBucket();
-  const uploaded = await bucket.upload(storagePath, bytes, { contentType, upsert: false });
-  if (uploaded.error) fail('Could not store the attachment. Try again.', 502);
+  // Reserve cleanup metadata before touching Storage, so a crash or database
+  // failure after the upload cannot leave an untracked object behind.
+  await prisma.attachment.create({ data: {
+    id, recordType, recordId, storagePath, filename: filename.trim(), contentType,
+    size: bytes.length, createdById: actor.id, uploadStatus: 'pending',
+  } });
   try {
+    const uploaded = await bucket.upload(storagePath, bytes, { contentType, upsert: false });
+    if (uploaded.error) fail('Could not store the attachment. Try again.', 502);
     return await prisma.$transaction(async tx => {
-      const row = await tx.attachment.create({ data: {
-        id, recordType, recordId, storagePath, filename: filename.trim(),
-        contentType, size: bytes.length, createdById: actor.id,
-      } });
+      const activated = await tx.attachment.updateMany({ where: { id, uploadStatus: 'pending', deletedAt: null },
+        data: { uploadStatus: 'ready' } });
+      if (!activated.count) fail('This upload expired. Upload the file again.', 409);
+      const row = await tx.attachment.findUnique({ where: { id } });
       await tx.auditLog.create({ data: {
         id: `aud-${randomUUID()}`, timestamp: new Date().toISOString(),
         actorId: actor.id, actorName: actor.name, action: 'ATTACHMENT_ADDED',
@@ -76,14 +82,18 @@ export async function uploadAttachment(input, actor) {
         size: row.size, createdById: row.createdById, createdAt: row.createdAt };
     });
   } catch (error) {
-    await bucket.remove([storagePath]).catch(() => {});
+    await prisma.attachment.updateMany({ where: { id }, data: { deletedAt: new Date() } }).catch(() => {});
+    try {
+      const removed = await bucket.remove([storagePath]);
+      if (!removed.error) await prisma.attachment.updateMany({ where: { id }, data: { purgedAt: new Date(), deletedAt: new Date() } });
+    } catch { /* Persisted reservation is retried by the cleanup job. */ }
     throw error;
   }
 }
 
 async function accessibleAttachment(id, actor) {
   const row = await prisma.attachment.findUnique({ where: { id } });
-  if (!row || row.deletedAt) fail('Attachment not found.', 404);
+  if (!row || row.deletedAt || row.uploadStatus !== 'ready') fail('Attachment not found.', 404);
   await authorize(row.recordType, row.recordId, actor);
   return row;
 }
@@ -115,17 +125,44 @@ export async function deleteAttachment(id, actor) {
   return { success: true };
 }
 
-export async function purgeDeletedAttachments() {
-  const pending = await prisma.attachment.findMany({ where: { deletedAt: { not: null }, purgedAt: null },
+export async function purgeDeletedAttachments({ ids, now = new Date() } = {}) {
+  const pending = await prisma.attachment.findMany({ where: { ...(ids ? { id: { in: ids } } : {}), purgedAt: null, OR: [
+    { deletedAt: { not: null } },
+    { uploadStatus: 'pending', createdAt: { lt: new Date(now.getTime() - 30 * 60_000) } },
+  ] },
     orderBy: { deletedAt: 'asc' }, take: 50 });
-  if (!pending.length) return 0;
+  if (!pending.length) return { purged: 0, failed: 0 };
   const bucket = await privateBucket();
   let purged = 0;
+  let failed = 0;
   for (const row of pending) {
-    const { error } = await bucket.remove([row.storagePath]);
-    if (error) continue;
-    await prisma.attachment.update({ where: { id: row.id }, data: { purgedAt: new Date() } });
-    purged++;
+    try {
+      const { error } = await bucket.remove([row.storagePath]);
+      if (error) throw new Error('Storage deletion failed.');
+      await prisma.attachment.update({ where: { id: row.id }, data: {
+        purgedAt: new Date(), deletedAt: row.deletedAt || new Date(), lastCleanupError: null,
+      } });
+      purged++;
+    } catch {
+      failed++;
+      await prisma.attachment.updateMany({ where: { id: row.id }, data: {
+        cleanupAttempts: { increment: 1 }, lastCleanupError: 'Storage cleanup failed. An automatic retry is pending.',
+      } });
+    }
   }
-  return purged;
+  return { purged, failed };
+}
+
+export async function initializeAttachmentStorage() {
+  const bucket = process.env.CRM_ATTACHMENTS_BUCKET || 'crm-attachments';
+  const service = storage();
+  const existing = await service.getBucket(bucket);
+  if (existing.data?.public) fail('The attachment bucket must be private. Choose a separate private bucket.', 409);
+  if (!existing.data) {
+    if (existing.error && !['404', 404].includes(existing.error.statusCode)) fail('Could not inspect attachment storage.', 502);
+    const created = await service.createBucket(bucket, { public: false, fileSizeLimit: MAX_BYTES, allowedMimeTypes: [...TYPES] });
+    if (created.error) fail('Could not create the private attachment bucket.', 502);
+  }
+  await privateBucket();
+  return { bucket, private: true };
 }

@@ -1,5 +1,5 @@
 import { prisma } from '../prisma.js';
-import { DEFAULT_FORECAST_PROBABILITIES } from '../../frontend/utils/reportMetrics.js';
+import { defaultStageProbability } from '../../frontend/utils/reportMetrics.js';
 import { isLostStage } from '../constants/stageConstants.js';
 
 const invalid = message => Object.assign(new Error(message), { statusCode: 400 });
@@ -100,7 +100,7 @@ export async function getReportSummary(actor, { rep = 'All', pipeline = 'All', m
   const targets = reporting.targets?.[month] || {};
   const forecast = forecastRows.reduce((sum, row) => sum + number(row._sum.value) *
     Math.max(0, Math.min(100, number(probabilities[row.stageId]
-      ?? DEFAULT_FORECAST_PROBABILITIES[row.stageId] ?? 0))) / 100, 0);
+      ?? defaultStageProbability(stages.find(stage => stage.id === row.stageId))))) / 100, 0);
   const wonCount = won._count._all;
   const lostCount = lost._count._all;
   const totalRevenue = number(won._sum.value);

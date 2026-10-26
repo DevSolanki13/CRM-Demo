@@ -1,3 +1,4 @@
+import { validatedInput, brandingSchema } from '../middleware/validation.js';
 import { PUBLIC_USER_SELECT } from '../auth/identity.js';
 import { prisma } from '../prisma.js';
 import {
@@ -32,28 +33,24 @@ export const STATE_COLLECTIONS = ['branding', 'users', 'stages', 'companies', 'c
   'leads', 'deals', 'tasks', 'notes', 'activities', 'stageGateChecks', 'auditLogs', 'pipelines'];
 
 export async function getStateCollections(user, requested = STATE_COLLECTIONS) {
-  const managed = ['Admin', 'Manager'].includes(user.role);
+  const pages = {};
+  const pageCollection = (resource, key = resource) => async () => {
+    const page = await listRecordsPage(resource, user, { limit: 50 });
+    pages[key] = { total: page.total, nextCursor: page.nextCursor };
+    return page.items;
+  };
   const queries = {
     branding: () => prisma.branding.findUnique({ where: { id: 'default' } }),
     users: () => prisma.user.findMany({ orderBy: { name: 'asc' }, select: PUBLIC_USER_SELECT }),
     stages: () => prisma.stage.findMany({ orderBy: { order: 'asc' } }),
     pipelines: () => prisma.pipeline.findMany({ orderBy: { name: 'asc' } }),
-    companies: () => managed ? prisma.company.findMany({ orderBy: { createdAt: 'desc' } }) : allVisiblePages('companies', user),
-    contacts: () => managed ? prisma.contact.findMany({ orderBy: { createdAt: 'desc' } }) : allVisiblePages('contacts', user),
-    leads: () => managed ? prisma.lead.findMany({ orderBy: { createdAt: 'desc' } }) : allVisiblePages('leads', user),
-    deals: () => managed ? prisma.deal.findMany({ orderBy: { createdAt: 'desc' } }) : allVisiblePages('deals', user),
-    tasks: () => managed ? prisma.task.findMany({ orderBy: { createdAt: 'desc' } }) : allVisiblePages('tasks', user),
-    notes: () => managed ? prisma.note.findMany({ orderBy: { timestamp: 'desc' } }) : allVisiblePages('notes', user),
-    activities: () => managed ? prisma.activity.findMany({ orderBy: { timestamp: 'desc' } }) : allVisiblePages('activities', user),
-    auditLogs: () => managed ? prisma.auditLog.findMany({ orderBy: { timestamp: 'desc' } }) : allVisiblePages('audit-logs', user),
-    stageGateChecks: () => managed ? prisma.stageGateCheck.findMany({ orderBy: { timestamp: 'desc' } })
-      : prisma.$queryRaw`SELECT check_row.* FROM "StageGateCheck" check_row
-        WHERE EXISTS (SELECT 1 FROM "Deal" deal WHERE deal.id = check_row."dealId" AND deal."ownerId" = ${user.id})
-          OR EXISTS (SELECT 1 FROM "Lead" lead WHERE lead.id = check_row."dealId" AND lead."ownerId" = ${user.id})
-        ORDER BY check_row.timestamp DESC`,
+    companies: pageCollection('companies'), contacts: pageCollection('contacts'),
+    leads: pageCollection('leads'), deals: pageCollection('deals'), tasks: pageCollection('tasks'),
+    notes: pageCollection('notes'), activities: pageCollection('activities'),
+    auditLogs: pageCollection('audit-logs', 'auditLogs'), stageGateChecks: pageCollection('stageGateChecks'),
   };
   const values = await Promise.all(requested.map(key => queries[key]()));
-  const result = Object.fromEntries(requested.map((key, index) => [key, values[index]]));
+  const result = { ...Object.fromEntries(requested.map((key, index) => [key, values[index]])), _pages: pages };
   if ('branding' in result) result.branding ||= initialBranding;
   if ('stages' in result) result.stages = result.stages.map(stage => ({ ...stage,
     code: stageCode(stage), color: normalizeStageColor(stage.color, stage.name) }));
@@ -171,6 +168,7 @@ export const resetState = async () => {
 };
 
 export const updateBranding = async (partialBranding) => {
+  partialBranding = validatedInput(brandingSchema, partialBranding);
   const current = await prisma.branding.findUnique({ where: { id: 'default' } });
   const updated = {
     ...(current || initialBranding),

@@ -41,7 +41,16 @@ export const crmRouter = Router();
 
 // Health & System State
 crmRouter.get('/health', crmController.getHealth);
+crmRouter.get('/ready', crmController.getReadiness);
+crmRouter.get('/workspace-summary', attachWorkspaceActor, crmController.getWorkspaceSummary);
 crmRouter.get('/pages/:resource', attachWorkspaceActor, crmController.getRecordsPage);
+// Legacy collection URLs use the same bounded envelope and visibility policy.
+for (const resource of ['companies', 'contacts', 'leads', 'deals', 'tasks', 'notes', 'activities', 'audit-logs', 'stage-gate-checks']) {
+  crmRouter.get(`/${resource}`, attachWorkspaceActor, (req, res, next) => {
+    req.params.resource = resource === 'stage-gate-checks' ? 'stageGateChecks' : resource;
+    return crmController.getRecordsPage(req, res, next);
+  });
+}
 crmRouter.get('/reports/summary', attachWorkspaceActor, crmController.getReportSummary);
 crmRouter.get('/reports/audit', attachWorkspaceActor, crmController.getReportAuditPage);
 crmRouter.get('/me', attachWorkspaceActor, (req, res) => res.json({ user: req.user, authMode: req.authMode }));
@@ -53,14 +62,12 @@ crmRouter.post('/state/reset', crmController.resetState);
 crmRouter.put('/branding', validateBody(brandingSchema), crmController.updateBranding);
 
 // Companies
-crmRouter.get('/companies', crmController.getCompanies);
 crmRouter.post('/companies', validateBody(companySchema), crmController.createCompany);
 crmRouter.put('/companies/:id', validateBody(updateCompanySchema), crmController.updateCompany);
 crmRouter.delete('/companies/:id', crmController.deleteCompany);
 crmRouter.post('/companies/:id/merge', validateBody(mergeCustomerSchema), crmController.mergeCompanies);
 
 // Contacts
-crmRouter.get('/contacts', crmController.getContacts);
 crmRouter.get('/contacts/duplicates', crmController.duplicateContacts);
 crmRouter.post('/contacts', validateBody(contactSchema), crmController.createContact);
 crmRouter.put('/contacts/:id', validateBody(updateContactSchema), crmController.updateContact);
@@ -68,7 +75,6 @@ crmRouter.delete('/contacts/:id', crmController.deleteContact);
 crmRouter.post('/contacts/:id/merge', validateBody(mergeCustomerSchema), crmController.mergeContacts);
 
 // Leads
-crmRouter.get('/leads', crmController.getLeads);
 crmRouter.post('/leads', validateBody(leadSchema), crmController.createLead);
 crmRouter.put('/leads/:id', validateBody(updateLeadSchema), crmController.updateLead);
 crmRouter.delete('/leads/:id', crmController.deleteLead);
@@ -82,7 +88,6 @@ crmRouter.post('/pipelines', validateBody(pipelineSchema), crmController.createP
 crmRouter.put('/pipelines/:id', validateBody(updatePipelineSchema), crmController.updatePipeline);
 
 // Deals
-crmRouter.get('/deals', crmController.getDeals);
 crmRouter.post('/deals', validateBody(dealSchema), crmController.createDeal);
 crmRouter.put('/deals/:id', validateBody(updateDealSchema), crmController.updateDeal);
 crmRouter.delete('/deals/:id', crmController.deleteDeal);
@@ -92,18 +97,14 @@ crmRouter.post('/deals/:id/close-lost', validateBody(closeLostSchema), crmContro
 crmRouter.post('/deals/:id/create-rebuy', validateBody(rebuyRequestSchema), crmController.createRebuyDeal);
 
 // Audit Logs
-crmRouter.get('/audit-logs', crmController.getAuditLogs);
 
 // Tasks
-crmRouter.get('/tasks', crmController.getTasks);
 crmRouter.post('/tasks', validateBody(taskSchema), crmController.createTask);
 crmRouter.put('/tasks/:id', validateBody(updateTaskSchema), crmController.updateTask);
 crmRouter.delete('/tasks/:id', crmController.deleteTask);
 
 // Notes & Activity Logs
-crmRouter.get('/notes', crmController.getNotes);
 crmRouter.post('/notes', validateBody(noteSchema), crmController.createNote);
-crmRouter.get('/activities', crmController.getActivities);
 crmRouter.post('/activities', validateBody(activitySchema), crmController.createActivity);
 crmRouter.delete('/activities/:id', crmController.deleteActivity);
 crmRouter.get('/attachments', crmController.getAttachments);
@@ -118,7 +119,6 @@ crmRouter.put('/users/:id', validateBody(updateUserSchema), crmController.update
 crmRouter.post('/users/:id/invite', crmController.createAccountInvitation);
 
 // Stage Gate Checks
-crmRouter.get('/stage-gate-checks', crmController.getStageGateChecks);
 crmRouter.post('/stage-gate-checks', validateBody(approvalRequestSchema), crmController.createStageGateCheck);
 crmRouter.post('/stage-gate-checks/:id/approve', validateBody(approvalDecisionSchema), crmController.approveStageGateCheck);
 crmRouter.post('/stage-gate-checks/:id/reject', validateBody(approvalRejectionSchema), crmController.rejectStageGateCheck);

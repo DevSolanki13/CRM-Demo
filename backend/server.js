@@ -10,7 +10,7 @@ if (process.env.NODE_ENV !== "production") {
   async function setupViteDevServer() {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, ...(process.env.CRM_HMR_PORT ? { hmr: { port: Number(process.env.CRM_HMR_PORT) } } : {}) },
       appType: "spa",
     });
     app.use(vite.middlewares);

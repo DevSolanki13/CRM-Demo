@@ -32,9 +32,22 @@ export async function listRecordsPage(resource, actor, query = {}) {
   const pageSize = Number(limit);
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw invalid('Use a page size from 1 to 100.');
   const filters = recordFilters(resource, actor, query);
-  if (!['id', 'recent'].includes(sort) || (sort === 'recent' && !['notes', 'activities', 'audit-logs', 'stageGateChecks'].includes(resource))) throw invalid('Choose a valid sort order.');
+  const titleSort = resource === 'leads' && ['title-asc', 'title-desc'].includes(sort);
+  if (!titleSort && (!['id', 'recent'].includes(sort) || (sort === 'recent' && !['notes', 'activities', 'audit-logs', 'stageGateChecks'].includes(resource)))) throw invalid('Choose a valid sort order.');
   let boundary = Prisma.sql`r.id > ${cursor}`;
   let order = Prisma.sql`r.id ASC`;
+  if (titleSort) {
+    const descending = sort === 'title-desc';
+    order = descending ? Prisma.sql`lower(COALESCE(r.title, '')) DESC, r.id ASC` : Prisma.sql`lower(COALESCE(r.title, '')) ASC, r.id ASC`;
+    boundary = Prisma.sql`TRUE`;
+    if (cursor) {
+      let value;
+      try { value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')); } catch { throw invalid('Invalid lead cursor.'); }
+      if (!Array.isArray(value) || value.length !== 2 || value.some(item => typeof item !== 'string')) throw invalid('Invalid lead cursor.');
+      boundary = descending ? Prisma.sql`(lower(COALESCE(r.title, '')) < ${value[0]} OR (lower(COALESCE(r.title, '')) = ${value[0]} AND r.id > ${value[1]}))`
+        : Prisma.sql`(lower(COALESCE(r.title, '')) > ${value[0]} OR (lower(COALESCE(r.title, '')) = ${value[0]} AND r.id > ${value[1]}))`;
+    }
+  }
   if (sort === 'recent') {
     order = Prisma.sql`COALESCE(r.timestamp, '') DESC, r.id ASC`;
     boundary = Prisma.sql`TRUE`;
@@ -65,6 +78,7 @@ export async function listRecordsPage(resource, actor, query = {}) {
   const items = rows.slice(0, pageSize);
   const last = items.at(-1);
   return { items, total: counts[0].total, facets: facets[0], stageTotals,
-    nextCursor: rows.length > pageSize ? sort === 'recent'
+    nextCursor: rows.length > pageSize ? titleSort
+      ? Buffer.from(JSON.stringify([(last.title || '').toLowerCase(), last.id])).toString('base64url') : sort === 'recent'
       ? Buffer.from(JSON.stringify([last.timestamp || '', last.id])).toString('base64url') : last.id : null };
 }

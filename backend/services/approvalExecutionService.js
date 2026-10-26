@@ -1,19 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../prisma.js';
-import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUtils.js';
-import { DEFAULT_FOLLOW_UP_RULES } from './followUpEngine.js';
-import { allowedStageTargets, isWonStage, isLostStage, stageCode } from '../constants/stageConstants.js';
+import { getLocalDateString } from '../utils/dateUtils.js';
+import { executeStageTransition } from './stageTransitionExecution.js';
+import { allowedStageTargets, isLostStage } from '../constants/stageConstants.js';
 import { requirePipelineQualification } from './pipelineRules.js';
+import { isTransactionConflict } from './transactionRetry.js';
+import { validatedInput, approvalRequestSchema } from '../middleware/validation.js';
 
 const fail = (message, statusCode) => Object.assign(new Error(message), { statusCode });
 
-const render = (template, deal) => (template || '')
-  .replace(/\{\{contactName\}\}/g, deal.contactName || 'Key Contact')
-  .replace(/\{\{companyName\}\}/g, deal.companyName || 'Corporate Client')
-  .replace(/\{\{entityName\}\}/g, deal.title);
-
 export const decideApproval = async (id, reviewer, decision, reason) => {
   if (!id || !reviewer?.id) throw fail('A request ID and reviewer are required.', 400);
+  if (!['approved', 'rejected'].includes(decision)) throw fail('Choose approve or reject.', 400);
   if (decision === 'rejected' && !reason?.trim()) throw fail('A rejection reason is required.', 400);
 
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -47,7 +45,6 @@ export const decideApproval = async (id, reviewer, decision, reason) => {
     if (!target) throw fail('The target stage no longer exists.', 409);
     if (target.pipelineId !== current.pipelineId) throw fail('Approval target belongs to another pipeline.', 409);
     const today = getLocalDateString();
-    const won = isWonStage(target) && check.outcome !== 'lost';
     const lost = isLostStage(target) || check.outcome === 'lost';
     const approved = decision === 'approved';
     const nextStage = lost && approved
@@ -56,36 +53,27 @@ export const decideApproval = async (id, reviewer, decision, reason) => {
     if (lost && approved && !nextStage) throw fail('Closed Lost stage no longer exists.', 409);
 
     if (approved) {
-      await tx.deal.update({
-        where: { id: current.id },
-        data: {
-          stageId: nextStage.id, stageName: nextStage.name,
-          status: lost ? 'Lost' : won ? 'Won' : 'Active',
-          daysInStage: 0, updatedAt: today, lastActivityDate: today,
-          actualCloseDate: won ? today : current.actualCloseDate,
-          lostReason: lost ? (check.lostReason || 'Unspecified') : current.lostReason,
-          lostReasonNote: lost ? (check.note || '') : current.lostReasonNote,
-          lostStageId: lost ? check.fromStageId : null,
-          lostStageName: lost ? check.fromStageName : null,
-          pendingGateCheck: null,
-        }
+      const pipeline = await tx.pipeline.findUnique({ where: { id: current.pipelineId } });
+      if (!pipeline?.active) throw fail('This pipeline is inactive.', 409);
+      requirePipelineQualification(current, nextStage, pipeline);
+      const stages = await tx.stage.findMany({ where: { pipelineId: current.pipelineId } });
+      const source = stages.find(stage => stage.id === current.stageId);
+      if (!source) throw fail('Source stage no longer exists.', 409);
+      if (!allowedStageTargets(source, stages).some(stage => stage.id === nextStage.id)) {
+        throw fail('This approval is no longer an allowed pipeline transition.', 409);
+      }
+      await executeStageTransition(tx, {
+        deal: current, source, target: nextStage, actor,
+        eventId: id, approval: true, lostReason: check.lostReason,
+        note: check.note, answers: check.answers,
       });
     } else {
-      await tx.deal.update({
-        where: { id: current.id },
-        data: { status: 'Follow up', pendingGateCheck: null, updatedAt: today }
-      });
-    }
-
-    if (current.leadId) {
-      await tx.lead.updateMany({
-        where: { id: current.leadId },
-        data: {
-          status: approved ? lost ? 'Unqualified' : won ? 'Converted' : 'Qualified' : 'Follow up',
-          pendingGateCheck: null,
-          lastActivityDate: today,
-        }
-      });
+      await tx.deal.update({ where: { id: current.id }, data: {
+        status: 'Follow up', pendingGateCheck: null, updatedAt: today,
+      } });
+      if (current.leadId) await tx.lead.updateMany({ where: { id: current.leadId }, data: {
+        status: 'Follow up', pendingGateCheck: null, lastActivityDate: today,
+      } });
     }
 
     const updatedCheck = await tx.stageGateCheck.update({
@@ -103,35 +91,9 @@ export const decideApproval = async (id, reviewer, decision, reason) => {
         resolution: approved ? 'Approved' : 'Rejected', ...(!approved ? { note: reason } : {}) }
     });
 
-    if (approved) {
-      if (won) {
-        await tx.task.create({ data: {
-          id: `tsk-post-sale-${id}`, title: `[Post-Sale Check-in] Fulfillment & Delivery check for ${current.companyName || current.title}`,
-          dueDate: getLocalDateStringAfterDays(7), type: 'Follow-up', linkedType: 'Deal',
-          linkedId: current.id, linkedTitle: current.title, ownerId: current.ownerId,
-          ownerName: current.ownerName, status: 'pending', createdAt: today,
-          note: 'Confirm order delivery and client satisfaction.'
-        } });
-      }
-      const event = ['SAMPLE_SENT', 'PROPOSAL_SENT'].includes(stageCode(target)) ? stageCode(target) : null;
-      if (event) {
-        const branding = await tx.branding.findUnique({ where: { id: 'default' } });
-        const rules = branding?.customFields?.followUpRules || DEFAULT_FOLLOW_UP_RULES;
-        for (const rule of rules.filter(r => r.isActive && r.triggerEvent === event)) {
-          const dueDate = getLocalDateStringAfterDays(Number(rule.offsetDays) || 1);
-          await tx.task.create({ data: {
-            id: `tsk-gate-${id}-${rule.id}`, title: render(rule.taskTitleTemplate, current),
-            dueDate, type: rule.taskType || 'Call', linkedType: 'Deal',
-            linkedId: current.id, linkedTitle: current.title, ownerId: current.ownerId,
-            ownerName: current.ownerName, status: 'pending', createdAt: today,
-            note: `[Automated Task: ${rule.name}] ${render(rule.noteTemplate, current)}`
-          } });
-        }
-      }
-    }
-
+    if (!approved) {
     await tx.activity.create({ data: {
-      id: `act-gate-${id}`, type: approved ? lost ? 'Deal Lost' : won ? 'Deal Won' : 'Stage Advanced' : 'Approval Rejected',
+      id: `act-gate-${id}`, type: 'Approval Rejected',
       description: approved ? `Approval executed: ${check.fromStageName} to ${nextStage.name}.` : `Approval rejected: ${reason}`,
       timestamp: new Date().toISOString(), linkedType: 'Deal', linkedId: current.id,
       linkedTitle: current.title, authorId: actor.id, authorName: actor.name,
@@ -147,14 +109,15 @@ export const decideApproval = async (id, reviewer, decision, reason) => {
       metadata: { checkId: id, decision, fromStageId: check.fromStageId,
         toStageId: approved ? nextStage.id : check.fromStageId },
     } });
+    }
     return updatedCheck;
   }, { isolationLevel: 'Serializable', timeout: 15000 });
   } catch (error) {
-    if (error.code === 'P2034' && attempt < 2) {
+    if (isTransactionConflict(error) && attempt < 2) {
       await new Promise(resolve => setTimeout(resolve, 25 * (attempt + 1)));
       continue;
     }
-    if (error.code === 'P2034') {
+    if (isTransactionConflict(error)) {
       throw fail('A competing decision changed this approval request. Refresh and try again.', 409);
     }
     throw error;
@@ -162,13 +125,8 @@ export const decideApproval = async (id, reviewer, decision, reason) => {
   }
 };
 
-export const createApprovalRequest = async (input) => {
-  if (!input?.dealId || !input?.fromStageId || !input?.targetStageId) {
-    throw fail('A deal, source stage, and target stage are required.', 400);
-  }
-  for (let attempt = 0; attempt < 3; attempt++) {
-  try {
-  return await prisma.$transaction(async (tx) => {
+export async function createApprovalRequestInTransaction(tx, input) {
+    input = validatedInput(approvalRequestSchema, input);
     await tx.$queryRaw`SELECT id FROM "Deal" WHERE id = ${input.dealId} FOR UPDATE`;
     const deal = await tx.deal.findUnique({ where: { id: input.dealId } });
     if (!deal) throw fail('Deal not found.', 404);
@@ -190,6 +148,7 @@ export const createApprovalRequest = async (input) => {
       throw fail('This approval request is not an allowed pipeline transition.', 409);
     }
     const pipeline = await tx.pipeline.findUnique({ where: { id: deal.pipelineId } });
+    if (!pipeline?.active) throw fail('This pipeline is inactive.', 409);
     requirePipelineQualification(deal, target, pipeline);
     if ((input.outcome === 'lost' || isLostStage(target)) && !input.lostReason?.trim()) {
       throw fail('A Closed Lost reason is required.', 400);
@@ -235,13 +194,23 @@ export const createApprovalRequest = async (input) => {
       reason: check.note || 'Stage approval requested.', metadata: { checkId: id }
     } });
     return check;
+}
+
+export const createApprovalRequest = async (input) => {
+  if (!input?.dealId || !input?.fromStageId || !input?.targetStageId) {
+    throw fail('A deal, source stage, and target stage are required.', 400);
+  }
+  for (let attempt = 0; attempt < 3; attempt++) {
+  try {
+  return await prisma.$transaction(async (tx) => {
+    return createApprovalRequestInTransaction(tx, input);
   }, { isolationLevel: 'Serializable', timeout: 15000 });
   } catch (error) {
-    if (error.code === 'P2034' && attempt < 2) {
+    if (isTransactionConflict(error) && attempt < 2) {
       await new Promise(resolve => setTimeout(resolve, 25 * (attempt + 1)));
       continue;
     }
-    if (error.code === 'P2034') throw fail('The deal changed while creating this request. Refresh and try again.', 409);
+    if (isTransactionConflict(error)) throw fail('The deal changed while creating this request. Refresh and try again.', 409);
     throw error;
   }
   }

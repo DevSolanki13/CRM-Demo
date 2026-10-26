@@ -1,6 +1,7 @@
 import { prisma } from '../prisma.js';
 import { randomUUID } from 'node:crypto';
-import { getLocalDateStringAfterDays, getLocalDateString } from '../utils/dateUtils.js';
+import { getLocalDateStringAfterDays, getLocalDateString, followUpOffsetDays } from '../utils/dateUtils.js';
+import { validatedInput, automationRulesSchema } from '../middleware/validation.js';
 
 export const DEFAULT_FOLLOW_UP_RULES = [
   {
@@ -60,7 +61,7 @@ export const getFollowUpRules = async () => {
   const branding = await prisma.branding.findUnique({ where: { id: 'default' } });
   const customFields = branding?.customFields || {};
   
-  if (Array.isArray(customFields.followUpRules) && customFields.followUpRules.length > 0) {
+  if (Array.isArray(customFields.followUpRules)) {
     return customFields.followUpRules;
   }
   
@@ -71,6 +72,7 @@ export const getFollowUpRules = async () => {
  * Update and save follow-up rules
  */
 export const updateFollowUpRules = async (rules) => {
+  rules = validatedInput(automationRulesSchema, { rules }).rules;
   const branding = await prisma.branding.findUnique({ where: { id: 'default' } });
   const customFields = typeof branding?.customFields === 'object' && branding?.customFields !== null
     ? { ...branding.customFields }
@@ -129,7 +131,7 @@ export const processFollowUpEvent = async (id, now = new Date()) => {
     const linkedTitle = context.title || context.name || context.companyName || 'CRM Opportunity';
     for (const rule of rules) {
       const taskId = `tsk-auto-${event.id}-${rule.id}`;
-      const dueDate = getLocalDateStringAfterDays(Number(rule.offsetDays) || 1);
+      const dueDate = getLocalDateStringAfterDays(followUpOffsetDays(rule.offsetDays));
       const task = await prisma.$transaction(async tx => {
         const existing = await tx.task.findUnique({ where: { id: taskId } });
         if (existing) return null;
@@ -175,8 +177,14 @@ export const processPendingFollowUps = async () => {
       OR: [{ lockedUntil: null }, { lockedUntil: { lte: new Date() } }] },
     orderBy: { nextRunAt: 'asc' }, take: 50, select: { id: true }
   });
-  for (const event of pending) await processFollowUpEvent(event.id);
-  return pending.length;
+  let processed = 0;
+  let failed = 0;
+  for (const event of pending) {
+    const result = await processFollowUpEvent(event.id);
+    if (result.claimed) processed++;
+    if (result.failed) failed++;
+  }
+  return { processed, failed };
 };
 
 export const triggerFollowUp = async (triggerEvent, context = {}) => {

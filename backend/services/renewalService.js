@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../prisma.js';
-import { getLocalDateString } from '../utils/dateUtils.js';
+import { getLocalDateString, followUpOffsetDays } from '../utils/dateUtils.js';
+import { isTransactionConflict } from './transactionRetry.js';
 import { DEFAULT_FOLLOW_UP_RULES } from './followUpEngine.js';
 
 const conflict = (message) => Object.assign(new Error(message), { statusCode: 409 });
@@ -71,7 +72,7 @@ export const ensureRebuyDeal = async (parentDealId, actor = { id: 'system', name
       } });
       const rules = branding?.customFields?.followUpRules || DEFAULT_FOLLOW_UP_RULES;
       for (const rule of rules.filter(item => item.isActive && item.triggerEvent === 'RENEWAL_APPROACHING')) {
-        const taskDueDate = addCalendarDays(today, Number(rule.offsetDays) || 1);
+        const taskDueDate = addCalendarDays(today, followUpOffsetDays(rule.offsetDays));
         await tx.task.create({ data: {
           id: `tsk-renewal-${id}-${rule.id}`,
           title: render(rule.taskTitleTemplate, deal), dueDate: taskDueDate,
@@ -92,8 +93,7 @@ export const ensureRebuyDeal = async (parentDealId, actor = { id: 'system', name
       return { deal, created: true };
     }, { isolationLevel: 'Serializable', timeout: 15000 });
   } catch (error) {
-    const serialConflict = error.code === 'P2034' || error.originalCode === '40001' ||
-      error.cause?.originalCode === '40001';
+    const serialConflict = isTransactionConflict(error);
     if (serialConflict && attempt < 3) {
       await new Promise(resolve => setTimeout(resolve, 30 * (attempt + 1)));
       continue;
