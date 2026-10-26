@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../prisma.js';
+import { validatedInput, pipelineSchema, updatePipelineSchema } from '../middleware/validation.js';
 
 const fail = (message, statusCode = 400) => { throw Object.assign(new Error(message), { statusCode }); };
 const code = name => name.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
@@ -11,6 +12,7 @@ export async function listPipelines() {
 }
 
 export async function createPipeline(input) {
+  input = validatedInput(pipelineSchema, input);
   const name = input?.name?.trim();
   if (!name || name.length > 80) fail('Enter a pipeline name of up to 80 characters.');
   const supplied = input.stages?.length ? input.stages : [
@@ -31,10 +33,14 @@ export async function createPipeline(input) {
   }
   if (supplied.filter(stage => stage.category === 'Won').length !== 1 ||
       supplied.filter(stage => stage.category === 'Lost').length !== 1 ||
-      ['Won', 'Lost'].includes(supplied[0].category)) {
+      supplied.filter(stage => stage.category === 'Buy Again').length > 1 ||
+      ['Won', 'Lost', 'Buy Again'].includes(supplied[0].category)) {
     fail('A pipeline needs one Won stage, one Lost stage, and an open first stage.');
   }
   const id = `pipeline-${randomUUID()}`;
+  if (Object.keys(input.qualificationRules || {}).some(key => !codes.includes(key))) {
+    fail('Qualification rules must reference stages in this pipeline.');
+  }
   return prisma.$transaction(async tx => {
     await tx.pipeline.create({ data: { id, name, qualificationRules: input.qualificationRules || {} } });
     await tx.stage.createMany({ data: supplied.map((stage, index) => ({
@@ -47,6 +53,7 @@ export async function createPipeline(input) {
 }
 
 export async function updatePipeline(id, input) {
+  input = validatedInput(updatePipelineSchema, input);
   const pipeline = await prisma.pipeline.findUnique({ where: { id } });
   if (!pipeline) fail('Pipeline not found.', 404);
   const data = {};

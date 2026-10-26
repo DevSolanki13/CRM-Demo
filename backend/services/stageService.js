@@ -1,6 +1,7 @@
 import { prisma } from '../prisma.js';
 import { randomUUID } from 'node:crypto';
 import { normalizeStageColor, stageCode } from '../constants/stageConstants.js';
+import { validatedInput, stageSchema, updateStageSchema } from '../middleware/validation.js';
 
 export const getStages = async () => {
   const stages = await prisma.stage.findMany({
@@ -14,11 +15,21 @@ export const getStages = async () => {
 };
 
 export const createStage = async (stage) => {
+  stage = validatedInput(stageSchema, stage);
+  return prisma.$transaction(async tx => {
   const pipelineId = stage.pipelineId || 'pipeline-sales';
-  const pipeline = await prisma.pipeline.findUnique({ where: { id: pipelineId } });
+  await tx.$queryRaw`SELECT id FROM "Pipeline" WHERE id = ${pipelineId} FOR UPDATE`;
+  const pipeline = await tx.pipeline.findUnique({ where: { id: pipelineId } });
   if (!pipeline?.active) throw Object.assign(new Error('Choose an active pipeline.'), { statusCode: 400 });
-  const count = await prisma.stage.count({ where: { pipelineId } });
-  const terminal = pipelineId === 'pipeline-sales' ? null : await prisma.stage.findFirst({
+  if (['Won', 'Lost', 'Buy Again'].includes(stage.category) &&
+      await tx.stage.findFirst({ where: { pipelineId, category: stage.category } })) {
+    throw Object.assign(new Error(`This pipeline already has a ${stage.category} stage.`), { statusCode: 409 });
+  }
+  if (await tx.stage.findFirst({ where: { pipelineId, name: { equals: stage.name, mode: 'insensitive' } } })) {
+    throw Object.assign(new Error('Stage names must be unique within a pipeline.'), { statusCode: 409 });
+  }
+  const count = await tx.stage.count({ where: { pipelineId } });
+  const terminal = pipelineId === 'pipeline-sales' || ['Won', 'Lost', 'Buy Again'].includes(stage.category) ? null : await tx.stage.findFirst({
     where: { pipelineId, category: { in: ['Won', 'Lost'] } }, orderBy: { order: 'asc' },
   });
   const newStage = {
@@ -30,15 +41,17 @@ export const createStage = async (stage) => {
     category: stage.category || 'Pipeline',
     color: normalizeStageColor(stage.color, stage.name),
   };
-  const saved = await prisma.$transaction(async tx => {
+  const saved = await (async () => {
     if (terminal) await tx.stage.updateMany({ where: { pipelineId, order: { gte: terminal.order } },
       data: { order: { increment: 1 } } });
     return tx.stage.create({ data: newStage });
-  });
+  })();
   return { ...saved, code: stageCode(saved) };
+  });
 };
 
 export const updateStage = async (id, stage) => {
+  stage = validatedInput(updateStageSchema, stage);
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Stage" WHERE id = ${id} FOR UPDATE`;
     const existing = await tx.stage.findUnique({ where: { id } });
@@ -50,6 +63,9 @@ export const updateStage = async (id, stage) => {
       throw Object.assign(new Error('Stage type cannot change after creation.'), { statusCode: 409 });
     }
     const name = stage.name?.trim() || existing.name;
+    if (name !== existing.name && await tx.stage.findFirst({ where: {
+      pipelineId: existing.pipelineId, id: { not: id }, name: { equals: name, mode: 'insensitive' },
+    } })) throw Object.assign(new Error('Stage names must be unique within a pipeline.'), { statusCode: 409 });
     const saved = await tx.stage.update({ where: { id }, data: {
       name,
       order: stage.order ?? existing.order,

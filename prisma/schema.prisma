@@ -36,6 +36,8 @@ model User {
   contacts Contact[] @relation("ContactOwner")
   leads Lead[] @relation("LeadOwner")
   deals Deal[] @relation("DealOwner")
+  integrationConnections IntegrationConnection[]
+  integrationOAuthStates IntegrationOAuthState[]
 }
 
 model Session {
@@ -134,6 +136,7 @@ model Lead {
   deals Deal[]
 
   @@index([ownerId])
+  @@index([ownerId, id])
 }
 
 // 7. Deals / Pipeline Opportunities
@@ -185,6 +188,7 @@ model Deal {
 
   @@index([ownerId, status])
   @@index([pipelineId, stageId])
+  @@index([pipelineId, id])
   @@index([stageId])
   @@index([leadId])
   @@index([contactId])
@@ -219,6 +223,8 @@ model Task {
   approvalCheck StageGateCheck? @relation(fields: [stageGateCheckId], references: [id], onDelete: Restrict)
 
   @@index([stageGateCheckId])
+  @@index([ownerId, id])
+  @@index([linkedType, linkedId, id])
 }
 
 // 9. Notes
@@ -251,6 +257,13 @@ model Activity {
   isOutbound      Boolean? @default(false)
   metadata        Json?
   createdAt       String?
+  integrationConnectionId String?
+  externalId String?
+  integrationConnection IntegrationConnection? @relation(fields: [integrationConnectionId], references: [id], onDelete: Restrict)
+
+  @@unique([integrationConnectionId, externalId])
+  @@index([linkedType, linkedId, id])
+  @@index([timestamp, id])
 }
 
 // 11. Stage Gate Qualification Checks
@@ -327,9 +340,49 @@ model Attachment {
   createdAt   DateTime @default(now())
   deletedAt   DateTime?
   purgedAt    DateTime?
+  uploadStatus String @default("ready")
+  cleanupAttempts Int @default(0)
+  lastCleanupError String?
 
   @@index([recordType, recordId, deletedAt])
   @@index([createdAt])
+}
+
+model IntegrationConnection {
+  id String @id
+  userId String
+  provider String
+  accountEmail String
+  status String @default("connected")
+  grantedScopes String[]
+  encryptedTokens String?
+  cursor Json?
+  nextSyncAt DateTime @default(now())
+  lastSyncAt DateTime?
+  lockedUntil DateTime?
+  leaseToken String?
+  attempts Int @default(0)
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  activities Activity[]
+
+  @@index([userId, provider])
+  @@unique([userId, provider, accountEmail])
+  @@index([status, nextSyncAt, lockedUntil])
+}
+
+model IntegrationOAuthState {
+  stateHash String @id
+  userId String
+  nonceHash String
+  encryptedVerifier String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 model AutomationRun {

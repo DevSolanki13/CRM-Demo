@@ -1,14 +1,16 @@
+import { validatedInput, dealSchema, updateDealSchema, dealTransitionSchema, closeLostSchema } from '../middleware/validation.js';
 import { prisma } from '../prisma.js';
-import { allowedStageTargets, isWonStage, isLostStage, stageCode } from '../constants/stageConstants.js';
+import { allowedStageTargets, isLostStage, isBackwardStageMove } from '../constants/stageConstants.js';
 import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUtils.js';
-import { createTask } from './taskService.js';
-import { logAudit, createActivity } from './activityNoteService.js';
-import { createStageGateCheck } from './stageGateService.js';
-import { triggerFollowUp } from './followUpEngine.js';
+import { logAudit } from './activityNoteService.js';
+import { createApprovalRequestInTransaction } from './approvalExecutionService.js';
+import { executeStageTransition } from './stageTransitionExecution.js';
 import { ensureRebuyDeal, runRenewalCheck } from './renewalService.js';
 import { deleteUnlinkedCustomerRecord } from './deletionPolicy.js';
 import { requiresManagerApproval } from './approvalPolicy.js';
 import { requirePipelineQualification } from './pipelineRules.js';
+import { randomUUID } from 'node:crypto';
+import { isTransactionConflict } from './transactionRetry.js';
 
 const DEAL_FIELDS = new Set([
   'id', 'pipelineId', 'parentDealId', 'leadId', 'title', 'value', 'currency', 'stageId',
@@ -34,6 +36,7 @@ export const getDeals = async () => {
 
 export const createDeal = async (deal) => {
   validateDealFields(deal);
+  deal = validatedInput(dealSchema, deal);
   const todayStr = getLocalDateString();
   const pipelineId = deal.pipelineId || 'pipeline-sales';
   const pipeline = await prisma.pipeline.findUnique({ where: { id: pipelineId } });
@@ -119,6 +122,7 @@ export const createDeal = async (deal) => {
 
 export const updateDeal = async (id, deal) => {
   validateDealFields(deal);
+  deal = validatedInput(updateDealSchema, deal);
   const existing = await prisma.deal.findUnique({ where: { id } });
   if (!existing) return null;
 
@@ -193,199 +197,74 @@ export const createRebuyDeal = async (parentDealId, user) => {
 export const triggerRenewalCheck = runRenewalCheck;
 
 export const transitionDealStage = async (dealId, payload) => {
+  payload = validatedInput(dealTransitionSchema, payload);
   const { targetStageId, user, answers, overrideReason, demotionReason, note, lostReason } = payload;
-  const deal = await prisma.deal.findUnique({ where: { id: dealId } });
-  if (!deal) {
-    throw Object.assign(new Error('Deal not found'), { statusCode: 404 });
-  }
-  if (deal.pendingGateCheck || deal.status === 'Pending Review') {
-    throw Object.assign(new Error('Resolve the pending approval before moving this deal.'), { statusCode: 409 });
-  }
-
-  const stages = await prisma.stage.findMany({ where: { pipelineId: deal.pipelineId }, orderBy: { order: 'asc' } });
-  const fromStage = stages.find(s => s.id === deal.stageId);
-  if (!fromStage) {
-    throw Object.assign(new Error('The deal references a stage that no longer exists.'), { statusCode: 409 });
-  }
-  const targetStage = stages.find(s => s.id === targetStageId);
-  if (!targetStage) {
-    throw Object.assign(new Error('Target stage is not in this deal’s pipeline.'), { statusCode: 409 });
-  }
-  const pipeline = await prisma.pipeline.findUnique({ where: { id: deal.pipelineId } });
-  if (!pipeline?.active) throw Object.assign(new Error('This pipeline is inactive.'), { statusCode: 409 });
-  requirePipelineQualification(deal, targetStage, pipeline);
-
-  const fromName = fromStage.name;
-  const targetName = targetStage.name;
-
-  const isBackward = targetStage.order < fromStage.order;
-  const allowedForward = allowedStageTargets(fromStage, stages);
-  const isAllowedForward = allowedForward.some(stage => stage.id === targetStage.id);
-  const isAdmin = user?.role === 'Admin';
-  const isManager = user?.role === 'Manager';
-
-  // Validate forward jumps against transition matrix
-  if (!isAllowedForward && !isBackward) {
-    if (!isAdmin || !overrideReason) {
-      const allowed = allowedForward.map(stage => stage.name).join(', ');
-      throw Object.assign(new Error(`Invalid stage transition from "${fromName}" to "${targetName}". Allowed next stages: ${allowed || 'None'}`), { statusCode: 409 });
-    }
-  }
-
-  // Require demotion reason for backward movements
-  if (isBackward && !demotionReason && !overrideReason) {
-    throw Object.assign(new Error('Backward stage demotion requires a mandatory demotion reason.'), { statusCode: 400 });
-  }
-
-  const approvalSettings = (await prisma.branding.findUnique({ where: { id: 'default' } }))
-    ?.customFields?.approvalPolicy;
-  // Review can be focused on exceptions configured by the administrator.
-  if (!isAdmin && !isManager && !isBackward && !isLostStage(targetStage) &&
-      requiresManagerApproval(deal, targetStage.id, answers, approvalSettings)) {
-    const newCheck = await createStageGateCheck({
-      dealId: deal.id,
-      dealTitle: deal.title,
-      fromStageId: fromStage.id,
-      fromStageName: fromName,
-      targetStageId: targetStage.id,
-      targetStageName: targetName,
-      submittedBy: user?.id || 'u-3',
-      submittedByName: user?.name || 'Sales Rep',
-      answers: answers || {},
-      note: note || '',
-      status: 'pending_review',
-      outcome: 'advanced'
-    });
-
-    return {
-      deal: await prisma.deal.findUnique({ where: { id: deal.id } }),
-      check: newCheck,
-      requiresApproval: true
-    };
-  }
-
-  // Execute stage transition immediately
-  const todayStr = getLocalDateString();
-  let status = 'Active';
-  let actualCloseDate = isWonStage(targetStage) ? deal.actualCloseDate : null;
-  let dealLostReason = isLostStage(targetStage) ? deal.lostReason : null;
-  let dealLostReasonNote = isLostStage(targetStage) ? deal.lostReasonNote : null;
-
-  if (isWonStage(targetStage)) {
-    status = 'Won';
-    actualCloseDate = todayStr;
-    const sevenDaysStr = getLocalDateStringAfterDays(7);
-    await createTask({
-      title: `[Post-Sale Check-in] Fulfillment & Delivery check for ${deal.companyName || deal.title}`,
-      dueDate: sevenDaysStr,
-      type: 'Follow-up',
-      linkedType: 'Deal',
-      linkedId: deal.id,
-      linkedTitle: deal.title,
-      ownerId: deal.ownerId,
-      ownerName: deal.ownerName,
-      status: 'pending',
-      note: 'Closed Won deal converted. Confirm order delivery and client satisfaction.'
-    });
-  } else if (isLostStage(targetStage)) {
-    status = 'Lost';
-    dealLostReason = lostReason || overrideReason || 'Unspecified';
-    dealLostReasonNote = note || '';
-  } else if (!isBackward) {
-    status = 'Active';
-    if (stageCode(targetStage) === 'SAMPLE_SENT') {
-      await triggerFollowUp('SAMPLE_SENT', {
-        id: deal.id,
-        title: deal.title,
-        contactName: deal.contactName,
-        companyName: deal.companyName,
-        ownerId: deal.ownerId,
-        ownerName: deal.ownerName,
-        value: deal.value,
-        stageName: targetName
-      });
-    } else if (stageCode(targetStage) === 'PROPOSAL_SENT') {
-      await triggerFollowUp('PROPOSAL_SENT', {
-        id: deal.id,
-        title: deal.title,
-        contactName: deal.contactName,
-        companyName: deal.companyName,
-        ownerId: deal.ownerId,
-        ownerName: deal.ownerName,
-        value: deal.value,
-        stageName: targetName
-      });
-    }
-  }
-
-  const updatedDeal = await prisma.deal.update({
-    where: { id: deal.id },
-    data: {
-      stageId: targetStage.id,
-      stageName: targetStage.name,
-      status,
-      daysInStage: 0,
-      updatedAt: todayStr,
-      lastActivityDate: todayStr,
-      actualCloseDate,
-      lostReason: dealLostReason,
-      lostReasonNote: dealLostReasonNote,
-      lostStageId: isLostStage(targetStage) ? fromStage.id : null,
-      lostStageName: isLostStage(targetStage) ? fromStage.name : null,
-      pendingGateCheck: null,
-    }
-  });
-
-  // Synchronize linked lead status
-  if (deal.leadId) {
+  const eventId = randomUUID();
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      await prisma.lead.update({
-        where: { id: deal.leadId },
-        data: {
-          status: isLostStage(targetStage) ? 'Unqualified' : 'Converted',
-          lastActivityDate: todayStr,
-          pendingGateCheck: null,
+      return await prisma.$transaction(async tx => {
+        const locked = await tx.$queryRaw`SELECT id FROM "Deal" WHERE id = ${dealId} FOR UPDATE`;
+        if (!locked.length) throw Object.assign(new Error('Deal not found.'), { statusCode: 404 });
+        const deal = await tx.deal.findUnique({ where: { id: dealId } });
+        if (payload.expectedStageId && payload.expectedStageId !== deal.stageId) {
+          throw Object.assign(new Error('The deal moved since this view was loaded. Refresh before moving it again.'), { statusCode: 409 });
         }
-      });
-    } catch {
-      // Ignored if lead not present
+        if (deal.pendingGateCheck || deal.status === 'Pending Review') {
+          throw Object.assign(new Error('Resolve the pending approval before moving this deal.'), { statusCode: 409 });
+        }
+        const stages = await tx.stage.findMany({ where: { pipelineId: deal.pipelineId }, orderBy: { order: 'asc' } });
+        const source = stages.find(stage => stage.id === deal.stageId);
+        const target = stages.find(stage => stage.id === targetStageId);
+        if (!source) throw Object.assign(new Error('The deal references a stage that no longer exists.'), { statusCode: 409 });
+        if (!target) throw Object.assign(new Error('Target stage is not in this deals pipeline.'), { statusCode: 409 });
+        const pipeline = await tx.pipeline.findUnique({ where: { id: deal.pipelineId } });
+        if (!pipeline?.active) throw Object.assign(new Error('This pipeline is inactive.'), { statusCode: 409 });
+        requirePipelineQualification(deal, target, pipeline);
+
+        const backward = isBackwardStageMove(source, target);
+        const allowedForward = allowedStageTargets(source, stages);
+        const permitted = allowedForward.some(stage => stage.id === target.id);
+        const isAdmin = user?.role === 'Admin';
+        const isManager = user?.role === 'Manager';
+        if (!permitted && !backward && (!isAdmin || !overrideReason?.trim() || target.id === source.id)) {
+          throw Object.assign(new Error(`Invalid stage transition from "${source.name}" to "${target.name}". Allowed next stages: ${allowedForward.map(stage => stage.name).join(', ') || 'None'}`), { statusCode: 409 });
+        }
+        if (backward && !demotionReason?.trim() && !overrideReason?.trim()) {
+          throw Object.assign(new Error('Backward stage demotion requires a mandatory demotion reason.'), { statusCode: 400 });
+        }
+        if (isLostStage(target) && !lostReason?.trim() && !overrideReason?.trim()) {
+          throw Object.assign(new Error('A Closed Lost reason is required.'), { statusCode: 400 });
+        }
+        const approvalSettings = (await tx.branding.findUnique({ where: { id: 'default' } }))?.customFields?.approvalPolicy;
+        if (!isAdmin && !isManager && !backward && !isLostStage(target) &&
+            requiresManagerApproval(deal, target.id, answers, approvalSettings)) {
+          const check = await createApprovalRequestInTransaction(tx, {
+            dealId: deal.id, dealTitle: deal.title,
+            fromStageId: source.id, fromStageName: source.name,
+            targetStageId: target.id, targetStageName: target.name,
+            submittedBy: user?.id || 'u-3', submittedByName: user?.name || 'Sales Rep',
+            answers: answers || {}, note: note || '', status: 'pending_review', outcome: 'advanced'
+          });
+          return { deal: await tx.deal.findUnique({ where: { id: deal.id } }), check, requiresApproval: true };
+        }
+        const updatedDeal = await executeStageTransition(tx, {
+          deal, source, target, actor: { id: user?.id || 'u-1', name: user?.name || 'User' },
+          eventId, answers, overrideReason, demotionReason, lostReason, note,
+        });
+        return { deal: updatedDeal, requiresApproval: false };
+      }, { isolationLevel: 'Serializable', timeout: 15000 });
+    } catch (error) {
+      if (isTransactionConflict(error) && attempt < 2) {
+        await new Promise(resolve => setTimeout(resolve, 25 * (attempt + 1)));
+        continue;
+      }
+      if (isTransactionConflict(error)) throw Object.assign(new Error('A competing stage move changed this deal. Refresh and try again.'), { statusCode: 409 });
+      throw error;
     }
   }
-
-  // Activity Log
-  await createActivity({
-    type: isBackward ? 'Stage Demoted' : isWonStage(targetStage) ? 'Deal Won' : isLostStage(targetStage) ? 'Deal Lost' : 'Stage Advanced',
-    description: isBackward 
-      ? `Stage demoted to "${targetName}". Reason: ${demotionReason || 'N/A'}. Note: ${note || 'N/A'}`
-      : overrideReason
-      ? `[Admin Override] Stage changed to "${targetName}". Reason: ${overrideReason}`
-      : `Stage changed from "${fromName}" to "${targetName}". Note: ${note || 'N/A'}`,
-    linkedType: 'Deal',
-    linkedId: deal.id,
-    linkedTitle: deal.title,
-    actorId: user?.id || 'u-1',
-    actorName: user?.name || 'System',
-  });
-
-  // Permanent Audit Log
-  await logAudit({
-    actorId: user?.id || 'u-1',
-    actorName: user?.name || 'User',
-    action: isBackward ? 'STAGE_DEMOTED' : overrideReason ? 'ADMIN_OVERRIDE' : isWonStage(targetStage) ? 'DEAL_WON' : isLostStage(targetStage) ? 'DEAL_LOST' : 'STAGE_TRANSITION',
-    entityType: 'Deal',
-    entityId: deal.id,
-    entityTitle: deal.title,
-    fromStage: fromName,
-    toStage: targetName,
-    reason: overrideReason || demotionReason || lostReason || note || 'Stage transition executed.',
-    metadata: { fromStageId: fromStage.id, toStageId: targetStage.id,
-      overrideReason, demotionReason, answers }
-  });
-
-  return { deal: updatedDeal, requiresApproval: false };
 };
-
 export const closeLostDeal = async (dealId, payload) => {
+  payload = validatedInput(closeLostSchema, payload);
   const { lostReason, note, user } = payload;
   if (!lostReason) {
     throw Object.assign(new Error('A mandatory Closed Lost reason is required.'), { statusCode: 400 });
