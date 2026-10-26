@@ -1,12 +1,12 @@
 import { timingSafeEqual } from 'node:crypto';
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { runScheduledAutomation } from '../services/automationScheduler.js';
-import { processPendingFollowUps } from '../services/followUpEngine.js';
+import { runAutomationCycle } from '../services/automationCycle.js';
 
 export const automationCronRouter = Router();
 
-automationCronRouter.post('/run', asyncHandler(async (req, res) => {
+automationCronRouter.all('/run', asyncHandler(async (req, res) => {
+  if (!['GET', 'POST'].includes(req.method)) return res.status(405).set('Allow', 'GET, POST').json({ error: 'Use GET or POST.' });
   const secret = process.env.CRON_SECRET;
   if (!secret || secret.length < 32) {
     return res.status(503).json({ error: 'Scheduled automation is not configured.' });
@@ -17,7 +17,10 @@ automationCronRouter.post('/run', asyncHandler(async (req, res) => {
   if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const renewal = await runScheduledAutomation();
-  const processedFollowUps = await processPendingFollowUps();
-  res.json({ renewalClaimed: renewal.claimed, processedFollowUps });
+  try {
+    const result = await runAutomationCycle();
+    res.json({ success: true, ...result });
+  } catch {
+    res.status(503).json({ success: false, error: 'Automation failed. Review the persisted job status before retrying.' });
+  }
 }));

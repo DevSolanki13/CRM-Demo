@@ -7,16 +7,21 @@ const HOUR_MS = 60 * 60 * 1000;
 const LEASE_MS = 30 * 60 * 1000;
 
 export async function getAutomationStatus() {
-  const [renewal, failedFollowUps] = await Promise.all([
+  const [renewal, failedFollowUps, worker, failedAttachments, failedCommunications] = await Promise.all([
     prisma.automationRun.findUnique({ where: { id: JOB_ID } }),
     prisma.automationEvent.findMany({ where: { status: 'failed' },
       orderBy: { nextRunAt: 'asc' }, take: 25,
-      select: { id: true, trigger: true, attempts: true, nextRunAt: true, lastError: true } })
+      select: { id: true, trigger: true, attempts: true, nextRunAt: true, lastError: true } }),
+    prisma.automationRun.findUnique({ where: { id: 'automation-cycle' } }),
+    prisma.attachment.findMany({ where: { purgedAt: null, cleanupAttempts: { gt: 0 } }, take: 25,
+      select: { id: true, filename: true, cleanupAttempts: true, lastCleanupError: true } }),
+    prisma.integrationConnection.findMany({ where: { status: { in: ['error', 'needs_reauth'] } }, take: 25,
+      select: { id: true, userId: true, status: true, attempts: true, nextSyncAt: true, lastError: true } }),
   ]);
-  return { renewal, failedFollowUps };
+  return { renewal, failedFollowUps, worker, failedAttachments, failedCommunications };
 }
 
-export async function runScheduledAutomation(now = new Date(), { id = JOB_ID, execute = runRenewalCheck } = {}) {
+export async function runScheduledAutomation(now = new Date(), { id = JOB_ID, execute = runRenewalCheck, intervalMs = HOUR_MS } = {}) {
   await prisma.automationRun.upsert({
     where: { id }, create: { id }, update: {},
   });
@@ -36,7 +41,7 @@ export async function runScheduledAutomation(now = new Date(), { id = JOB_ID, ex
     }
     await prisma.automationRun.updateMany({ where: { id, leaseToken }, data: {
       status: 'completed', leaseToken: null, lockedUntil: null,
-      lastCompletedAt: new Date(), nextRunAt: new Date(now.getTime() + HOUR_MS),
+      lastCompletedAt: new Date(), nextRunAt: new Date(now.getTime() + intervalMs),
       attempts: 0, runCount: { increment: 1 }, lastError: null,
     } });
     return { claimed: true, ...result };

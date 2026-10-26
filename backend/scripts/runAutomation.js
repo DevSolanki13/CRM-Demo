@@ -1,33 +1,40 @@
 import { prisma } from '../prisma.js';
-import { runScheduledAutomation } from '../services/automationScheduler.js';
-import { processPendingFollowUps } from '../services/followUpEngine.js';
-import { purgeDeletedAttachments } from '../services/attachmentService.js';
+import { runAutomationCycle } from '../services/automationCycle.js';
 
-let running = false;
+let stopping = false;
+let inFlight;
 async function tick() {
-  if (running) return;
-  running = true;
-  try {
-    const result = await runScheduledAutomation();
-    if (result.claimed) console.log(`Renewal run completed: ${result.flippedCount} opportunity(s) created.`);
-    await processPendingFollowUps();
-    await purgeDeletedAttachments();
-  } catch (error) {
-    console.error('Renewal run failed; persisted for retry:', error);
-  } finally {
-    running = false;
-  }
+  if (stopping || inFlight) return;
+  inFlight = (async () => {
+    try {
+      const result = await runAutomationCycle();
+      if (result.claimed) console.log(JSON.stringify({ status: 'completed', ...result }));
+      return true;
+    } catch {
+      console.error('Automation cycle failed. Its failure and retry time are persisted.');
+      return false;
+    }
+  })();
+  const success = await inFlight;
+  inFlight = null;
+  return success;
 }
 
-await tick();
+const success = await tick();
 if (process.argv.includes('--once')) {
   await prisma.$disconnect();
+  if (!success) process.exitCode = 1;
 } else {
   const timer = setInterval(tick, 60_000);
   const shutdown = async () => {
+    if (stopping) return;
+    stopping = true;
     clearInterval(timer);
+    const deadline = setTimeout(() => process.exit(1), 30_000);
+    deadline.unref();
+    await inFlight;
     await prisma.$disconnect();
-    process.exit(0);
+    clearTimeout(deadline);
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
