@@ -1,3 +1,4 @@
+import { validatedInput, taskSchema, updateTaskSchema } from '../middleware/validation.js';
 import { prisma } from '../prisma.js';
 import { getLocalDateString } from '../utils/dateUtils.js';
 
@@ -54,6 +55,7 @@ export const getTasks = async () => {
 };
 
 export const createTask = async (task) => {
+  task = validatedInput(taskSchema, task);
   if (task.type === 'Approval' || task.stageGateCheckId) {
     throw Object.assign(new Error('Approval tasks are created with approval requests.'), { statusCode: 409 });
   }
@@ -66,8 +68,8 @@ export const createTask = async (task) => {
     title: task.title || 'Follow up action item',
     dueDate: task.dueDate || getLocalDateString(),
     type: task.type || 'Call',
-    linkedType: task.linkedType || 'Deal',
-    linkedId: task.linkedId || '',
+    linkedType: task.linkedType || (task.leadId ? 'Lead' : task.companyId ? 'Company' : 'Deal'),
+    linkedId: task.linkedId || task.dealId || task.leadId || task.companyId || '',
     linkedTitle: task.linkedTitle || 'General',
     ownerId: task.ownerId || task.assignedToId || 'u-1',
     ownerName: task.ownerName || task.assignedToName || 'Alex Vance',
@@ -96,10 +98,14 @@ export const createTask = async (task) => {
 };
 
 export const updateTask = async (id, task) => {
+  task = validatedInput(updateTaskSchema, task);
   const existing = await prisma.task.findUnique({ where: { id } });
   if (!existing) return null;
   if (existing.type === 'Approval' || existing.stageGateCheckId) {
     throw Object.assign(new Error('Approval tasks are resolved through the approval decision.'), { statusCode: 409 });
+  }
+  if (task.type === 'Approval' || task.stageGateCheckId) {
+    throw Object.assign(new Error('Approval tasks are created with approval requests.'), { statusCode: 409 });
   }
 
   const sanitizedExisting = sanitizeTaskData(existing);

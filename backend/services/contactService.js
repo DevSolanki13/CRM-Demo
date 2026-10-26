@@ -1,3 +1,5 @@
+import { validatedInput, contactSchema, updateContactSchema, contactImportSchema } from '../middleware/validation.js';
+import { randomUUID } from 'node:crypto';
 import { prisma } from '../prisma.js';
 import { deleteUnlinkedCustomerRecord } from './deletionPolicy.js';
 
@@ -32,6 +34,7 @@ export const getContacts = async () => {
 };
 
 export const createContact = async (data) => {
+  data = validatedInput(contactSchema, data);
   const rawContact = {
     id: data.id || `cnt-${Date.now()}`,
     name: data.name,
@@ -49,6 +52,7 @@ export const createContact = async (data) => {
 };
 
 export const updateContact = async (id, data) => {
+  data = validatedInput(updateContactSchema, data);
   const existing = await prisma.contact.findUnique({ where: { id } });
   if (!existing) return null;
   return await prisma.contact.update({
@@ -68,11 +72,13 @@ export const deleteContact = async (id) => {
 };
 
 export const importContacts = async (items = []) => {
+  items = validatedInput(contactImportSchema, { items }).items;
+  return prisma.$transaction(async tx => {
   const created = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const rawContact = {
-      id: item.id || `cnt-imp-${Date.now()}-${i}`,
+      id: item.id || `cnt-imp-${randomUUID()}`,
       name: item.name || 'Unnamed Contact',
       email: item.email || '',
       phone: item.phone || '',
@@ -85,12 +91,9 @@ export const importContacts = async (items = []) => {
       createdAt: item.createdAt || new Date().toISOString().split('T')[0],
     };
     const contact = sanitizeContactData(rawContact);
-    const saved = await prisma.contact.upsert({
-      where: { id: contact.id },
-      update: contact,
-      create: contact,
-    });
+    const saved = await tx.contact.create({ data: contact });
     created.push(saved);
   }
   return created;
+  }, { timeout: 30000 });
 };

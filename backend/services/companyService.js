@@ -1,3 +1,4 @@
+import { validatedInput, companySchema, updateCompanySchema } from '../middleware/validation.js';
 import { prisma } from '../prisma.js';
 import { deleteUnlinkedCustomerRecord } from './deletionPolicy.js';
 
@@ -29,6 +30,7 @@ export const getCompanies = async () => {
 };
 
 export const createCompany = async (data) => {
+  data = validatedInput(companySchema, data);
   const rawComp = {
     id: data.id || `c-${Date.now()}`,
     name: data.name,
@@ -43,6 +45,7 @@ export const createCompany = async (data) => {
 };
 
 export const updateCompany = async (id, data) => {
+  data = validatedInput(updateCompanySchema, data);
   const existing = await prisma.company.findUnique({ where: { id } });
   if (!existing) return null;
   return await prisma.company.update({

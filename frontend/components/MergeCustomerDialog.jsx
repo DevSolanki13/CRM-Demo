@@ -1,12 +1,15 @@
+import { RecordSelect } from './RecordSelect.jsx';
 import { useState } from 'react';
 
 export function MergeCustomerDialog({ kind, records, initialTargetId, onClose, onMerge }) {
   const [targetId, setTargetId] = useState(initialTargetId);
   const [sourceId, setSourceId] = useState('');
+  const [selectedRecords, setSelectedRecords] = useState({});
+  const resource = kind === 'Company' ? 'companies' : 'contacts';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const target = records.find(record => record.id === targetId);
-  const source = records.find(record => record.id === sourceId);
+  const target = selectedRecords[targetId] || records.find(record => record.id === targetId);
+  const source = selectedRecords[sourceId] || records.find(record => record.id === sourceId);
 
   async function submit(event) {
     event.preventDefault();
@@ -26,18 +29,12 @@ export function MergeCustomerDialog({ kind, records, initialTargetId, onClose, o
         <p className="mt-2 text-sm text-[#5B6472]">Choose the record to keep. Deals, tasks, notes, and activity links move to it. The merge is recorded in the audit history.</p>
       </div>
       <label className="block text-sm font-semibold">Keep this {kind.toLowerCase()}
-        <select required value={targetId} onChange={event => setTargetId(event.target.value)}
-          className="mt-2 w-full rounded-lg border border-[#E3E6EA] bg-white p-3">
-          {records.map(record => <option key={record.id} value={record.id}>{record.name}{record.email ? ` · ${record.email}` : ''}</option>)}
-        </select>
+        <RecordSelect resource={resource} required value={targetId} selectedLabel={target?.name}
+          label={kind.toLowerCase()} onChange={(id, record) => { setTargetId(id); if (record) setSelectedRecords(previous => ({ ...previous, [id]: record })); }} />
       </label>
       <label className="block text-sm font-semibold">Merge this record into it
-        <select required value={sourceId} onChange={event => setSourceId(event.target.value)}
-          className="mt-2 w-full rounded-lg border border-[#E3E6EA] bg-white p-3">
-          <option value="">Select a duplicate record</option>
-          {records.filter(record => record.id !== targetId).map(record =>
-            <option key={record.id} value={record.id}>{record.name}{record.email ? ` · ${record.email}` : ''}</option>)}
-        </select>
+        <RecordSelect resource={resource} required value={sourceId} selectedLabel={source?.name} excludeId={targetId}
+          label="duplicate records" onChange={(id, record) => { setSourceId(id); if (record) setSelectedRecords(previous => ({ ...previous, [id]: record })); }} />
       </label>
       {source && <p className="rounded-lg bg-[#EFF6F9] p-3 text-sm text-[#1D4E63]">
         “{source.name}” will be removed after its links move to “{target.name}”.

@@ -1,3 +1,4 @@
+import { RecordSelect } from './RecordSelect.jsx';
 import { useEffect, useState } from 'react';
 import { fetchUnresolvedLinks, resolveHistoricalLink } from '../api/crmClient.js';
 
@@ -47,12 +48,9 @@ export function ReferenceRepairView({ records, onResolved }) {
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <label className="flex-1 text-sm font-semibold">Replacement {link.targetType.toLowerCase()}
-              <select value={choices[link.id] || ''} onChange={event => setChoices(previous => ({ ...previous, [link.id]: event.target.value }))}
-                className="mt-1 w-full rounded-lg border border-[#E3E6EA] bg-white p-2.5 text-sm">
-                <option value="">Choose a record</option>
-                {options.filter(item => item.id !== link.recordId).map(item =>
-                  <option key={item.id} value={item.id}>{item.title || item.name || item.id} · {item.id}</option>)}
-              </select>
+              <RecordSelect resource={collections[link.targetType]} value={choices[link.id] || ''}
+                label={link.targetType.toLowerCase()} excludeId={link.recordId}
+                onChange={id => setChoices(previous => ({ ...previous, [link.id]: id }))} />
             </label>
             <button type="button" disabled={!choices[link.id] || busyId !== null} onClick={() => repair(link)}
               className="rounded-lg bg-[#1D4E63] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
