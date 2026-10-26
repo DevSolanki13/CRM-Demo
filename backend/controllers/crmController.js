@@ -1,4 +1,5 @@
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { prisma } from '../prisma.js';
 import * as systemService from '../services/systemService.js';
 import * as companyService from '../services/companyService.js';
 import * as contactService from '../services/contactService.js';
@@ -12,11 +13,12 @@ import * as attachmentService from '../services/attachmentService.js';
 import * as userService from '../services/userService.js';
 import { createAccountInvitation as issueAccountInvitation } from '../auth/invitations.js';
 import * as stageGateService from '../services/stageGateService.js';
-import * as timelineService from '../services/timelineService.js';
+import { getTimelinePage } from '../services/timelinePage.js';
 import * as followUpEngine from '../services/followUpEngine.js';
 import * as customerMergeService from '../services/customerMergeService.js';
 import { getAutomationStatus } from '../services/automationScheduler.js';
 import { listRecordsPage } from '../services/paginatedRecords.js';
+import { getWorkspaceSummary as workspaceSummary, listDashboardQueue } from '../services/dashboardService.js';
 import { listUnresolvedReferences, resolveReference } from '../services/referenceReconciliationService.js';
 import { getReportSummary as buildReportSummary, getReportAuditPage as listReportAuditPage } from '../services/reportService.js';
 
@@ -25,12 +27,38 @@ export const getHealth = (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 };
 
+export const getReadiness = asyncHandler(async (_req, res) => {
+  try {
+    if (!process.env.DATABASE_URL && !process.env.DIRECT_URL) {
+      return res.status(503).json({
+        status: 'unavailable',
+        database: 'unconfigured',
+        error: 'DATABASE_URL or DIRECT_URL is missing'
+      });
+    }
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ready', database: 'connected' });
+  } catch (error) {
+    console.error('[Database readiness]', error.code || error.name, error.message);
+    res.status(503).json({
+      status: 'unavailable',
+      database: 'unavailable',
+      error: error.message || 'Database connection failed'
+    });
+  }
+});
+
 export const getAutomationRunStatus = asyncHandler(async (_req, res) => {
   res.json(await getAutomationStatus());
 });
 
 export const getRecordsPage = asyncHandler(async (req, res) => {
-  res.json(await listRecordsPage(req.params.resource, req.user, req.query));
+  res.json(await (req.params.resource === 'dashboard-queue'
+    ? listDashboardQueue(req.user, req.query) : listRecordsPage(req.params.resource, req.user, req.query)));
+});
+
+export const getWorkspaceSummary = asyncHandler(async (req, res) => {
+  res.json(await workspaceSummary(req.user));
 });
 
 export const getReportSummary = asyncHandler(async (req, res) => {
@@ -348,11 +376,8 @@ export const getTimeline = asyncHandler(async (req, res) => {
   if (!entityType || !entityId) {
     return res.status(400).json({ error: 'entityType and entityId query parameters are required' });
   }
-  const timeline = await timelineService.getEntityTimeline({ entityType, entityId });
-  res.json(req.user.role === 'Sales Rep' ? timeline.filter(item => {
-    const field = { Deal: 'deals', Lead: 'leads', Contact: 'contacts', Company: 'companies', Task: 'tasks' }[item.linkedType];
-    return field && req.crmState[field].some(row => row.id === item.linkedId);
-  }) : timeline);
+  const page = await getTimelinePage(req.user, req.query);
+  res.json(page);
 });
 
 // Automation & Follow-up Rules

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { getScopedState, getStateCollections } from '../services/systemService.js';
+import { getStateCollections } from '../services/systemService.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { prisma } from '../prisma.js';
 
@@ -94,7 +94,7 @@ export const authorizeCRM = asyncHandler(async (req, _res, next) => {
     tasks: 'tasks', notes: 'notes', activities: 'activities',
     users: 'users', 'stage-gate-checks': 'stageGateChecks',
   }[resource];
-  const state = write ? null : resource === 'timeline' ? await getScopedState(req.user)
+  const state = (write || resource === 'timeline') ? null
     : readCollection ? await getStateCollections(req.user, [readCollection]) : {};
   if (state) req.crmState = state;
   const assertVisible = async (type, entityId) => {
@@ -116,7 +116,8 @@ export const authorizeCRM = asyncHandler(async (req, _res, next) => {
   if (resource === 'timeline') {
     const { entityType, entityId } = req.query;
     if (typeof entityType !== 'string' || typeof entityId !== 'string') fail(400, 'entityType and entityId are required');
-    await assertVisible(entityType, entityId);
+    const record = await visibleRecord(entityType, entityId, req.user);
+    if (!record) fail(404, 'Record not found');
   }
   if (!write) return next();
   if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) fail(400, 'A JSON object is required');

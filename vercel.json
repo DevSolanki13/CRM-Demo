@@ -1,4 +1,10 @@
 {
+    "crons": [
+        {
+            "path": "/api/internal/automation/run",
+            "schedule": "*/10 * * * *"
+        }
+    ],
     "services": {
         "frontend": {
             "root": ".",
