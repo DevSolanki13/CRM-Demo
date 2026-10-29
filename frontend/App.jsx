@@ -6,6 +6,9 @@ import {
   fetchRecordsPage,
   fetchRecord,
   fetchCurrentUser,
+  selectWorkspaceAccount,
+  getWorkspaceAccountId,
+  clearWorkspaceAccount,
   signIn,
   signOut,
   acceptInvitation,
@@ -74,6 +77,7 @@ import {
 } from 'lucide-react';
 
 import { normalizeStageColor, isRenewalStage } from '../backend/constants/stageConstants.js';
+import { canAccessPage, getRecordUsers } from '../shared/accessPolicy.js';
 
 const KNOWN_TABS = ['dashboard', 'leads', 'pipeline', 'contacts', 'companies', 'tasks', 'employees', 'reports', 'settings', 'connections'];
 const INITIAL_COLLECTIONS = ['branding', 'users', 'stages', 'pipelines', 'leads',
@@ -104,6 +108,9 @@ export default function App() {
   const [selectedPipelineId, setSelectedPipelineId] = useState('pipeline-sales');
   const [currentUser, setCurrentUser] = useState(null);
   const [canSignOut, setCanSignOut] = useState(false);
+  const [workspaceAccounts, setWorkspaceAccounts] = useState([]);
+  const [switchingAccountId, setSwitchingAccountId] = useState('');
+  const [accountSwitchError, setAccountSwitchError] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [tabLoadError, setTabLoadError] = useState('');
@@ -130,6 +137,7 @@ export default function App() {
 
   // Lead Journey Workspace State
   const [selectedLeadForJourney, setSelectedLeadForJourney] = useState(null);
+  const [leadCreateRequest, setLeadCreateRequest] = useState(0);
   const [journeyDeals, setJourneyDeals] = useState([]);
 
   useEffect(() => {
@@ -156,12 +164,31 @@ export default function App() {
     return state?.leads?.find(l => l.id === selectedLeadForJourney.id) || selectedLeadForJourney;
   }, [selectedLeadForJourney, state?.leads]);
 
-  const handleNavigateTab = (tab) => {
+  const handleNavigateTab = (tab, pipelineId) => {
+    if (!canAccessPage(currentUser, tab)) return;
+    if (tab === 'pipeline' && pipelineId) setSelectedPipelineId(pipelineId);
     setActiveTab(tab);
     if (tab === 'leads' && activeTab === 'leads') {
       setSelectedLeadForJourney(null);
     }
   };
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const navigateFromHash = () => {
+      const requested = window.location.hash.slice(1).split('?')[0] || 'dashboard';
+      const tab = canAccessPage(currentUser, requested) ? requested : 'dashboard';
+      if (tab !== requested) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search + '#dashboard');
+      }
+      setActiveTab(tab);
+      setSelectedLeadForJourney(null);
+      setIsMobileMenuOpen(false);
+      setDrawerState(previous => ({ ...previous, isOpen: false }));
+    };
+    window.addEventListener('hashchange', navigateFromHash);
+    return () => window.removeEventListener('hashchange', navigateFromHash);
+  }, [currentUser]);
 
   // Global Keyboard Shortcuts (Cmd+K / Ctrl+K) focuses header search input
   useEffect(() => {
@@ -180,12 +207,18 @@ export default function App() {
     let cancelled = false;
     async function loadData() {
       try {
-        const { user, authMode } = await fetchCurrentUser();
+        const { user, authMode, accounts = [] } = await fetchCurrentUser();
+        const requestedTab = window.location.hash.slice(1).split('?')[0];
+        if (KNOWN_TABS.includes(requestedTab) && !canAccessPage(user, requestedTab)) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search + '#dashboard');
+        }
         const [data, overview] = await Promise.all([fetchCRMState(INITIAL_COLLECTIONS), fetchWorkspaceSummary()]);
         if (!cancelled) {
           setState(normalizeStateStages({ ...data, overview, auditLogs: [] }));
           setCurrentUser(user);
+          setActiveTab(tab => canAccessPage(user, tab) ? tab : 'dashboard');
           setCanSignOut(authMode === 'session');
+          setWorkspaceAccounts(authMode === 'shared' ? accounts : []);
         }
       } catch (err) {
         if (!cancelled) {
@@ -201,6 +234,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!canAccessPage(currentUser, activeTab)) return;
     const missing = (TAB_COLLECTIONS[activeTab] || []).filter(key => state && state[key] === undefined);
     if (!missing.length) return;
     let cancelled = false;
@@ -211,7 +245,7 @@ export default function App() {
       if (!cancelled) setTabLoadError(error.message || 'Could not load this view.');
     });
     return () => { cancelled = true; };
-  }, [activeTab, state, tabRetry]);
+  }, [activeTab, state, tabRetry, currentUser]);
 
   // Memoized Pending Tasks and Renewals Count for badges (placed before any early return)
   const pendingTasksCount = state?.overview?.pendingTasksCount || 0;
@@ -223,7 +257,9 @@ export default function App() {
     const [data, overview] = await Promise.all([fetchCRMState(INITIAL_COLLECTIONS), fetchWorkspaceSummary()]);
     setState(normalizeStateStages({ ...data, overview, auditLogs: [] }));
     setCurrentUser(user);
+    setActiveTab(tab => canAccessPage(user, tab) ? tab : 'dashboard');
     setCanSignOut(true);
+    setWorkspaceAccounts([]);
     setAuthRequired(false);
     setLoadError('');
   };
@@ -240,6 +276,20 @@ export default function App() {
     }
   };
 
+  const handleSwitchAccount = async accountId => {
+    if (switchingAccountId || accountId === currentUser.id) return;
+    setSwitchingAccountId(accountId);
+    setAccountSwitchError('');
+    try {
+      await selectWorkspaceAccount(accountId);
+      window.history.replaceState(null, '', window.location.pathname + window.location.search + '#dashboard');
+      window.location.reload();
+    } catch (error) {
+      setAccountSwitchError(error.message || 'Could not switch accounts. Please try again.');
+      setSwitchingAccountId('');
+    }
+  };
+
   const handleAcceptInvitation = async password => {
     await acceptInvitation(inviteToken, password);
     await signOut().catch(() => {});
@@ -253,7 +303,11 @@ export default function App() {
 
   if (inviteToken) return <AcceptInvitationView onAccept={handleAcceptInvitation} />;
   if (authRequired) return <LoginView onLogin={handleLogin} />;
-  if (!loading && loadError) return <main className="p-8"><p role="alert">{loadError}</p><button onClick={() => window.location.reload()}>Retry</button></main>;
+  if (!loading && loadError) return <main className="p-8"><p role="alert">{loadError}</p><button onClick={() => window.location.reload()}>Retry</button>
+    {getWorkspaceAccountId() && <button className="ml-4 underline" onClick={() => {
+      clearWorkspaceAccount(); window.location.reload();
+    }}>Return to default account</button>}
+  </main>;
   if (loading || !state || !currentUser) {
     return (
       <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)] flex flex-col font-sans select-none" aria-busy="true" aria-label="Loading CRM Workspace">
@@ -297,12 +351,21 @@ export default function App() {
 
   // --- HANDLERS ---
 
+  const recordUsers = getRecordUsers(currentUser, state.users);
+
   const reloadState = async (...collections) => {
     const requested = collections.filter(key => key !== 'auditLogs');
     if (collections.length && !requested.length) return;
     const [data, overview] = await Promise.all([fetchCRMState(requested), fetchWorkspaceSummary()]);
     const updated = normalizeStateStages({ ...data, overview });
     setState(prev => requested.length && prev ? { ...prev, ...updated } : updated);
+    if (requested.includes('users')) {
+      const { user, authMode, accounts = [] } = await fetchCurrentUser();
+      setCurrentUser(user);
+      setCanSignOut(authMode === 'session');
+      setWorkspaceAccounts(authMode === 'shared' ? accounts : []);
+      setActiveTab(tab => canAccessPage(user, tab) ? tab : 'dashboard');
+    }
     setRevision(value => value + 1);
   };
 
@@ -635,13 +698,26 @@ export default function App() {
     }
   };
 
+  const reportApprovalFailure = async (error, fallback) => {
+    if ([404, 409].includes(error.status)) {
+      try {
+        await reloadState('deals', 'leads', 'tasks', 'activities', 'stageGateChecks');
+      } catch {
+        // Still invalidate the paginated queues if refreshing the workspace failed.
+        setRevision(value => value + 1);
+      }
+    }
+    toast.error(error.message || fallback);
+    error.userNotified = true;
+  };
+
   const handleApproveStageGateCheck = async (id, reviewer) => {
     try {
       await approveStageGateCheck(id, reviewer);
       await reloadState('deals', 'leads', 'tasks', 'activities', 'stageGateChecks', 'auditLogs');
       toast.success('Approval completed');
     } catch (err) {
-      toast.error(err.message || 'Approval failed');
+      await reportApprovalFailure(err, 'Approval failed');
       throw err;
     }
   };
@@ -652,7 +728,7 @@ export default function App() {
       await reloadState('deals', 'leads', 'tasks', 'activities', 'stageGateChecks', 'auditLogs');
       toast.success('Request rejected');
     } catch (err) {
-      toast.error(err.message || 'Rejection failed');
+      await reportApprovalFailure(err, 'Rejection failed');
       throw err;
     }
   };
@@ -730,7 +806,11 @@ export default function App() {
 
   // Quick Action Handler from Header
   const handleQuickAction = (type) => {
-    if (type === 'lead') setActiveTab('leads');
+    if (type === 'lead') {
+      setSelectedLeadForJourney(null);
+      setLeadCreateRequest(request => request + 1);
+      setActiveTab('leads');
+    }
     else if (type === 'deal') setActiveTab('pipeline');
     else if (type === 'contact') setActiveTab('contacts');
     else if (type === 'activity') setActiveTab('dashboard');
@@ -742,6 +822,7 @@ export default function App() {
       setActiveTab('leads');
       if (item) setSelectedLeadForJourney(item);
     } else if (type === 'deal') {
+      if (item?.pipelineId) setSelectedPipelineId(item.pipelineId);
       setActiveTab('pipeline');
       if (item) setDrawerState({ isOpen: true, type: 'deal', item });
     } else if (type === 'contact') {
@@ -758,22 +839,6 @@ export default function App() {
         {/* Toast Notification Container */}
         <Toaster position="top-right" richColors closeButton />
 
-        {/* Top Header with Inline Anchored Search Dropdown */}
-        <Header
-          branding={state.branding}
-          users={state.users}
-          currentUser={currentUser}
-          onLogout={canSignOut ? handleLogout : undefined}
-          state={state}
-          onSelectSearchResult={handleSelectSearchResult}
-          onNavigateTab={handleNavigateTab}
-          onOpenQuickAction={handleQuickAction}
-          onTriggerRenewalCheck={handleTriggerRenewalCheck}
-          renewalsDueCount={renewalsDueCount}
-          isMobileMenuOpen={isMobileMenuOpen}
-          onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)}
-        />
-
         {/* Main Body: Sidebar + Content */}
         <div className="flex-1 flex overflow-hidden">
 
@@ -782,6 +847,8 @@ export default function App() {
             activeTab={activeTab}
             setActiveTab={handleNavigateTab}
             userRole={currentUser.role}
+            currentUser={currentUser}
+            branding={state.branding}
             onLogout={canSignOut ? handleLogout : undefined}
             pendingTasksCount={pendingTasksCount}
             renewalsDueCount={renewalsDueCount}
@@ -790,8 +857,17 @@ export default function App() {
             onCloseMobile={() => setIsMobileMenuOpen(false)}
           />
 
+          <div className="flex min-w-0 flex-1 flex-col">
+          <Header activeTab={activeTab} currentUser={currentUser}
+            onLogout={canSignOut ? handleLogout : undefined}
+            accounts={workspaceAccounts} onSwitchAccount={handleSwitchAccount}
+            switchingAccountId={switchingAccountId} accountSwitchError={accountSwitchError}
+            onSelectSearchResult={handleSelectSearchResult}
+            onOpenQuickAction={handleQuickAction}
+            isMobileMenuOpen={isMobileMenuOpen}
+            onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)} />
           {/* Dynamic Tab Content View */}
-          <main className="flex-1 overflow-y-auto bg-[var(--canvas)] pb-16 md:pb-0">
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--canvas)] pb-16 md:pb-0">
             <Suspense fallback={<div className="p-8 text-sm text-[#5B6472]" role="status">Loading view…</div>}>
             {(TAB_COLLECTIONS[activeTab] || []).some(key => state[key] === undefined)
               ? <div className="p-8 text-sm text-[#5B6472]" role={tabLoadError ? 'alert' : 'status'}>
@@ -803,10 +879,9 @@ export default function App() {
               <DashboardView revision={revision}
                 state={state}
                 currentUser={currentUser}
-                onNavigateTab={setActiveTab}
+                onNavigateTab={handleNavigateTab}
                 onTriggerRenewalCheck={handleTriggerRenewalCheck}
-                onOpenLeadModal={() => setActiveTab('leads')}
-                onOpenDealModal={() => setActiveTab('pipeline')}
+                onOpenLeadModal={() => handleQuickAction('lead')}
                 onOpenDrawer={handleOpenDrawer}
                 onUpdateTask={handleUpdateTask}
                 onApproveStageGateCheck={handleApproveStageGateCheck}
@@ -819,7 +894,7 @@ export default function App() {
                   lead={currentJourneyLead}
                   stages={state.stages}
                   deals={journeyDeals}
-                  users={state.users}
+                  users={recordUsers}
                   currentUser={currentUser}
                   branding={state.branding}
                   onBack={() => setSelectedLeadForJourney(null)}
@@ -833,10 +908,12 @@ export default function App() {
                 />
               ) : (
                 <LeadsView revision={revision}
+                  createRequest={leadCreateRequest}
+                  onConsumeCreateRequest={() => setLeadCreateRequest(0)}
                   leads={state.leads}
                   stages={state.stages}
                   deals={state.deals}
-                  users={state.users}
+                  users={recordUsers}
                   currentUser={currentUser}
                   branding={state.branding}
                   onCreateLead={handleCreateLead}
@@ -869,7 +946,7 @@ export default function App() {
               <PipelineView revision={revision} key={selectedPipelineId}
                 deals={state.deals.filter(deal => deal.pipelineId === selectedPipelineId)}
                 stages={state.stages.filter(stage => stage.pipelineId === selectedPipelineId)}
-                users={state.users}
+                users={recordUsers}
                 companies={state.companies}
                 contacts={state.contacts}
                 currentUser={currentUser}
@@ -883,7 +960,7 @@ export default function App() {
                 onApproveStageGateCheck={handleApproveStageGateCheck}
                 onRejectStageGateCheck={handleRejectStageGateCheck}
                 onSavePartialGateCheck={handleSavePartialGateCheck}
-                onOpenSettings={() => setActiveTab('settings')}
+                onOpenSettings={() => handleNavigateTab('settings')}
                 onTransitionDealStage={handleTransitionDealStage}
                 onCloseLostDeal={handleCloseLostDeal}
                 onCreateRebuyDeal={handleCreateRebuyDeal}
@@ -896,7 +973,7 @@ export default function App() {
               <ContactsView revision={revision}
                 contacts={state.contacts}
                 companies={state.companies}
-                users={state.users}
+                users={recordUsers}
                 stages={state.stages}
                 deals={state.deals}
                 notes={state.notes}
@@ -930,7 +1007,7 @@ export default function App() {
             {activeTab === 'tasks' && (
               <TasksView revision={revision}
                 tasks={state.tasks}
-                users={state.users}
+                users={recordUsers}
                 leads={state.leads}
                 deals={state.deals}
                 stages={state.stages}
@@ -943,8 +1020,9 @@ export default function App() {
               />
             )}
 
-            {activeTab === 'employees' && (
+            {activeTab === 'employees' && canAccessPage(currentUser, 'employees') && (
               <EmployeesView
+                ownerStats={state.overview?.ownerStats || []}
                 users={state.users}
                 leads={state.leads}
                 deals={state.deals}
@@ -965,7 +1043,7 @@ export default function App() {
 
             {activeTab === 'connections' && <ConnectionsView />}
 
-            {activeTab === 'settings' && (
+            {activeTab === 'settings' && canAccessPage(currentUser, 'settings') && (
               <SettingsView
                 branding={state.branding}
                 stages={state.stages}
@@ -993,6 +1071,7 @@ export default function App() {
             </>}
             </Suspense>
           </main>
+          </div>
 
         </div>
 
@@ -1004,7 +1083,7 @@ export default function App() {
           lead={drawerState.type === 'lead' ? (state.leads.find(l => l.id === drawerState.item?.id) || drawerState.item) : null}
           type={drawerState.type}
           stages={state.stages}
-          users={state.users}
+          users={recordUsers}
           companies={state.companies}
           contacts={state.contacts}
           tasks={state.tasks}

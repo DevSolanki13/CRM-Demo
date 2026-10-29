@@ -12,6 +12,7 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { prisma } from '../backend/prisma.js';
+import { cleanupTestRecords } from './support/cleanupTestRecords.js';
 
 // ---------------------------------------------------------------------------
 // Suite 1 � Custom pipeline lifecycle (desktop only for brevity)
@@ -44,29 +45,9 @@ test.describe('Custom pipeline lifecycle', () => {
 
   test.afterAll(async () => {
     if (!pipelineId) return;
-    const children = await prisma.deal.findMany({
-      where: { OR: [{ id: { in: dealIds } }, { parentDealId: { in: dealIds } }] },
-      select: { id: true },
-    });
-    const allIds = [...new Set([...dealIds, ...children.map(c => c.id)])];
-    const checks = await prisma.stageGateCheck.findMany({
-      where: { dealId: { in: allIds } },
-      select: { id: true },
-    });
-    await prisma.task.deleteMany({
-      where: {
-        OR: [
-          { linkedId: { in: allIds } },
-          { stageGateCheckId: { in: checks.map(c => c.id) } },
-        ],
-      },
-    });
-    await prisma.activity.deleteMany({ where: { linkedId: { in: allIds } } });
-    await prisma.stageGateCheck.deleteMany({ where: { dealId: { in: allIds } } });
-    await prisma.auditLog.deleteMany({ where: { entityId: { in: allIds } } });
-    await prisma.deal.deleteMany({ where: { id: { in: allIds } } });
+    await cleanupTestRecords({ dealIds });
     await prisma.stage.deleteMany({ where: { pipelineId } });
-    await prisma.pipeline.delete({ where: { id: pipelineId } }).catch(() => {});
+    await prisma.pipeline.deleteMany({ where: { id: pipelineId } });
   });
 
   test('01: creates deals on the custom pipeline via API', async ({ request }) => {
@@ -146,11 +127,7 @@ test.describe('API validation rejection cases', () => {
   const suffix = randomUUID();
 
   test.afterAll(async () => {
-    await prisma.task.deleteMany({ where: { linkedId: { in: dealIds } } });
-    await prisma.activity.deleteMany({ where: { linkedId: { in: dealIds } } });
-    await prisma.stageGateCheck.deleteMany({ where: { dealId: { in: dealIds } } });
-    await prisma.auditLog.deleteMany({ where: { entityId: { in: dealIds } } });
-    await prisma.deal.deleteMany({ where: { id: { in: dealIds } } });
+    await cleanupTestRecords({ dealIds });
   });
 
   test('01: backward stage move without demotion reason is rejected (400)', async ({
@@ -301,14 +278,10 @@ for (const [device, viewport] of [
     });
 
     test.afterAll(async () => {
-      if (dealId)
-        await prisma.deal
-          .deleteMany({ where: { OR: [{ id: dealId }, { parentDealId: dealId }] } })
-          .catch(() => {});
-      if (leadId) await prisma.lead.delete({ where: { id: leadId } }).catch(() => {});
+      await cleanupTestRecords({ leadIds: [leadId], dealIds: [dealId] });
       if (pipelineId) {
         await prisma.stage.deleteMany({ where: { pipelineId } });
-        await prisma.pipeline.delete({ where: { id: pipelineId } }).catch(() => {});
+        await prisma.pipeline.deleteMany({ where: { id: pipelineId } });
       }
     });
 

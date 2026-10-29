@@ -48,7 +48,7 @@ test.describe('Mobile Responsive Experience E2E Suite', () => {
 
     // 4. Tap Dashboard to return
     await mobileNav.getByRole('button', { name: /Dashboard/i }).click();
-    await expect(page.getByText('Sales Operations Console')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { level: 1, name: /Good (morning|afternoon|evening),/ })).toBeVisible({ timeout: 10000 });
   });
 
   test('03: Mobile menu drawer opens and allows accessing secondary modules', async ({ page }) => {
@@ -58,7 +58,7 @@ test.describe('Mobile Responsive Experience E2E Suite', () => {
     await mobileNav.getByRole('button', { name: /More/i }).click();
 
     // 2. Mobile drawer is now visible with navigation items
-    const mobileDrawer = page.locator('div.fixed.inset-0.z-50');
+    const mobileDrawer = page.getByRole('dialog', { name: 'Navigation menu' });
     await expect(mobileDrawer).toBeVisible({ timeout: 5000 });
 
     // Check secondary modules
@@ -107,33 +107,13 @@ test.describe('Mobile Responsive Experience E2E Suite', () => {
     await expect(drawerDialog).toBeHidden();
   });
 
-  test('05: Pipeline bar graph adapts to mobile with horizontal bars and column view switcher', async ({ page }) => {
-    // 1. Dashboard is active by default
-    await expect(page.getByText('Pipeline Value by Stage')).toBeVisible({ timeout: 10000 });
-
-    // 2. Mobile switcher buttons (Bars and Columns) must be visible on mobile viewport
-    const barsBtn = page.getByRole('button', { name: 'Bars' });
-    const colsBtn = page.getByRole('button', { name: 'Columns' });
-    await expect(barsBtn).toBeVisible();
-    await expect(colsBtn).toBeVisible();
-
-    // 3. In default Bars mode, horizontal comparative bars container is visible
-    const mobileBarsContainer = page.locator('[data-testid="mobile-stage-bars"]');
-    await expect(mobileBarsContainer).toBeVisible();
-    await expect(mobileBarsContainer.getByText('New Lead')).toBeVisible();
-
-    // 4. Switch to Columns view on mobile
-    await colsBtn.click();
-
-    // 5. Swipeable columns view is rendered with swipe hint
-    const mobileColsContainer = page.locator('[data-testid="mobile-stage-columns"]');
-    await expect(mobileColsContainer).toBeVisible();
-    await expect(page.getByText('Swipe columns ➔')).toBeVisible();
-    await expect(mobileBarsContainer).toBeHidden();
-
-    // 6. Switch back to Bars view
-    await barsBtn.click();
-    await expect(mobileBarsContainer).toBeVisible();
-    await expect(page.getByText('Swipe columns ➔')).toBeHidden();
+  test('05: Pipeline overview keeps stage counts and board navigation usable on mobile', async ({ page }) => {
+    const pipeline = page.getByRole('region', { name: 'Pipeline overview' });
+    await expect(pipeline.getByRole('heading', { name: 'Pipeline overview' })).toBeVisible();
+    await expect(pipeline.getByLabel('Dashboard pipeline')).toBeVisible();
+    await expect(pipeline.getByRole('listitem').first()).toBeVisible();
+    await pipeline.getByRole('button', { name: 'View board' }).click();
+    await expect(page.getByRole('heading', { name: 'Pipeline Kanban Console' })).toBeVisible();
+    await expect(page.locator('#active-pipeline')).toHaveValue('pipeline-sales');
   });
 });

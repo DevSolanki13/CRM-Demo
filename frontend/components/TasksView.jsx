@@ -138,7 +138,8 @@ export const TasksView = ({
   const handleApproveCheck = async (task) => {
     const targetId = task.stageGateCheckId;
     if (!targetId || !onApproveStageGateCheck) return;
-    await onApproveStageGateCheck(targetId, currentUser);
+    try { await onApproveStageGateCheck(targetId, currentUser); }
+    catch { /* The parent reports the error and refreshes stale approval data. */ }
   };
 
   const handleRejectCheck = async (task) => {
@@ -146,7 +147,8 @@ export const TasksView = ({
     if (!targetId || !onRejectStageGateCheck) return;
     const reason = window.prompt("Enter rejection reason for this stage change request:", "Requirements incomplete");
     if (reason === null) return;
-    await onRejectStageGateCheck(targetId, currentUser, reason);
+    try { await onRejectStageGateCheck(targetId, currentUser, reason); }
+    catch { /* The parent reports the error and refreshes stale approval data. */ }
   };
 
   // Helper renderer for a standard rep task card

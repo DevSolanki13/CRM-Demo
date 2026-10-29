@@ -24,6 +24,8 @@ import { AddActivityModal } from './AddActivityModal.jsx';
 
 export const LeadsView = ({
   revision = 0,
+  createRequest = 0,
+  onConsumeCreateRequest,
   stages = [],
   deals: contextualDeals = [],
   users,
@@ -229,6 +231,12 @@ export const LeadsView = ({
     setIsModalOpen(true);
   };
 
+  React.useEffect(() => {
+    if (!createRequest) return;
+    handleOpenAddModal();
+    onConsumeCreateRequest?.();
+  }, [createRequest]);
+
   const handleSave = async (e) => {
     e.preventDefault();
     setFormValidationError('');
@@ -345,7 +353,7 @@ export const LeadsView = ({
             onChange={(e) => setSelectedOwner(e.target.value)}
             className="bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
           >
-            <option value="All">All Reps</option>
+            <option value="All">{currentUser.role === 'Sales Rep' ? 'My leads' : 'All Reps'}</option>
             {users.map(u => (
               <option key={u.id} value={u.id}>{u.name}</option>
             ))}

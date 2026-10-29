@@ -19,6 +19,7 @@ import { formatCurrency } from '../utils/crmHelpers.js';
 import { UnifiedTimeline } from './UnifiedTimeline.jsx';
 import { MergeCustomerDialog } from './MergeCustomerDialog.jsx';
 import { AttachmentsPanel } from './AttachmentsPanel.jsx';
+import { canEditCompany } from '../../shared/accessPolicy.js';
 
 export const CompaniesView = ({
   revision = 0,
@@ -63,6 +64,7 @@ export const CompaniesView = ({
   };
 
   const handleOpenEdit = (comp) => {
+    if (!canEditCompany(currentUser, comp)) return;
     setEditingCompany(comp);
     setFormData({ ...comp });
     setIsModalOpen(true);
@@ -207,7 +209,7 @@ export const CompaniesView = ({
                             {['Admin', 'Manager'].includes(currentUser?.role) && companies.length > 1 && <button
                               onClick={() => setMergeTargetId(comp.id)} aria-label={`Merge ${comp.name} with another company`}
                               className="px-2 py-1 text-[11px] font-semibold text-[#1D4E63] hover:underline">Merge</button>}
-                            <button
+                            {canEditCompany(currentUser, comp) && <><button
                               onClick={() => handleOpenEdit(comp)}
                               aria-label={`Edit ${comp.name}`}
                               className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg transition-colors"
@@ -220,7 +222,7 @@ export const CompaniesView = ({
                               className="p-1.5 text-[#922D27] hover:bg-[#FDF2F1] rounded-lg transition-colors"
                             >
                               <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                            </button>
+                            </button></>}
                           </div>
                         </td>
                       </tr>

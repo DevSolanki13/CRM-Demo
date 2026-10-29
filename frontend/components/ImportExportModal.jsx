@@ -127,7 +127,7 @@ export const ImportExportModal = ({
 
         <div className="space-y-4 py-2">
           <p className="text-[#5B6472] font-medium">
-            Download formatted CSV file exports of your Contacts, Leads, and Pipeline Deals. All pages across the entire database are retrieved:
+            Download CSV files of the contacts, leads, and deals available to your account. Exports include every page you have permission to view.
           </p>
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

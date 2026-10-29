@@ -28,6 +28,7 @@ import { AttachmentsPanel } from './AttachmentsPanel.jsx';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
 import { isRenewalStage } from '../../backend/constants/stageConstants.js';
 import { toast } from 'sonner';
+import { canManageTeam } from '../../shared/accessPolicy.js';
 
 export const DetailDrawer = ({
   isOpen,
@@ -552,11 +553,12 @@ export const DetailDrawer = ({
                         <label htmlFor="drawer-field-owner" className="block text-[11px] font-bold text-[#5B6472] mb-1">Assigned Owner</label>
                         <select
                           id="drawer-field-owner"
+                          disabled={!canManageTeam(currentUser)}
                           value={formData.ownerId || ''}
                           onChange={(e) => setFormData({ ...formData, ownerId: e.target.value })}
                           className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] focus:ring-1 focus:ring-[#1D4E63]/30 transition-all"
                         >
-                          <option value="">Unassigned</option>
+                          {canManageTeam(currentUser) && <option value="">Unassigned</option>}
                           {users.map(u => (
                             <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
                           ))}

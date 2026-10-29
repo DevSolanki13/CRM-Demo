@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { prisma } from '../backend/prisma.js';
+import { cleanupTestRecords } from './support/cleanupTestRecords.js';
 
 for (const [device, viewport] of [['desktop', { width: 1440, height: 900 }], ['mobile', { width: 390, height: 844 }]]) {
 test(`${device}: qualification, approval, demotion, won, lost, and renewal`, async ({ page }) => {
@@ -122,19 +123,7 @@ test(`${device}: qualification, approval, demotion, won, lost, and renewal`, asy
     await expect(page.getByText(qualifiedTitle, { exact: true }).first()).toBeVisible();
     await expect(page.getByText(lostTitle, { exact: true }).first()).toBeVisible();
   } finally {
-    const children = await prisma.deal.findMany({ where: { parentDealId: qualifiedId }, select: { id: true } });
-    const cleanupIds = [...new Set([...ids, ...children.map(child => child.id)])];
-    const checks = await prisma.stageGateCheck.findMany({
-      where: { dealId: { in: cleanupIds } }, select: { id: true }
-    });
-    await prisma.task.deleteMany({ where: { OR: [
-      { linkedId: { in: cleanupIds } },
-      { stageGateCheckId: { in: checks.map(check => check.id) } }
-    ] } });
-    await prisma.activity.deleteMany({ where: { linkedId: { in: cleanupIds } } });
-    await prisma.stageGateCheck.deleteMany({ where: { dealId: { in: cleanupIds } } });
-    await prisma.auditLog.deleteMany({ where: { entityId: { in: cleanupIds } } });
-    await prisma.deal.deleteMany({ where: { id: { in: cleanupIds } } });
+    await cleanupTestRecords({ dealIds: ids });
   }
 });
 }

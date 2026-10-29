@@ -12,7 +12,7 @@ test.describe('CRM Features Automated Test Suite', () => {
     await expect(nav.getByRole('button', { name: /Dashboard/i })).toBeVisible();
     await expect(nav.getByRole('button', { name: /Leads/i })).toBeVisible();
     await expect(nav.getByRole('button', { name: /Pipeline/i })).toBeVisible();
-    await expect(nav.getByRole('button', { name: /Follow-ups \/ Tasks/i })).toBeVisible();
+    await expect(nav.getByRole('button', { name: /^Tasks/i })).toBeVisible();
   });
 
   test('02: Automatic follow-up engine generates task upon lead creation', async ({ page }) => {
@@ -39,7 +39,7 @@ test.describe('CRM Features Automated Test Suite', () => {
     await page.getByRole('button', { name: 'Save Lead' }).click();
 
     // 4. Navigate to Follow-ups / Tasks tab
-    await nav.getByRole('button', { name: /Follow-ups \/ Tasks/i }).click();
+    await nav.getByRole('button', { name: /^Tasks/i }).click();
 
     // Switch scope to "All / Team" if needed to ensure all tasks are listed
     const teamScopeBtn = page.getByRole('button', { name: /Team Tasks|All Tasks/i });
@@ -50,16 +50,7 @@ test.describe('CRM Features Automated Test Suite', () => {
     // 5. Verify the automated outreach task is listed in the tasks view
     await expect(page.getByText(new RegExp(`First contact outreach for ${testLeadName}`, 'i'))).toBeVisible({ timeout: 10000 });
 
-    // Clean up created test lead and its task so tests leave no residue in database
-    const leadsRes = await page.request.get('/api/leads');
-    if (leadsRes.ok()) {
-      const allLeads = await leadsRes.json();
-      const leadsList = Array.isArray(allLeads) ? allLeads : (allLeads.items || []);
-      const created = leadsList.find(l => l.title === testLeadName);
-      if (created) {
-        await page.request.delete(`/api/leads/${created.id}`);
-      }
-    }
+    // The page fixture removes this lead and its generated records even if an assertion fails.
   });
 
   test('03: Unified 360° Timeline renders for deals with multi-source events', async ({ page }) => {
@@ -100,7 +91,7 @@ test.describe('CRM Features Automated Test Suite', () => {
     await expect(page.getByRole('button', { name: /^All \d+/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /^Overdue \d+/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /^Approvals \d+/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Closing Soon \d+/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Closing \d+/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /^Renewals \d+/i })).toBeVisible();
 
     // 4. Test Live Feed toggle and return to Queue

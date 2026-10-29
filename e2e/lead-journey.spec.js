@@ -96,16 +96,7 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
     // 6. Verify toast and activity record appears in the timeline
     await expect(page.getByText(uniqueComment)).toBeVisible({ timeout: 10000 });
 
-    // Clean up test activity record so test data leaves no residue
-    const actsRes = await page.request.get('/api/activities');
-    if (actsRes.ok()) {
-      const allActs = await actsRes.json();
-      const list = Array.isArray(allActs) ? allActs : allActs.items || [];
-      const created = list.find(a => a.description === uniqueComment);
-      if (created) {
-        await page.request.delete(`/api/activities/${created.id}`);
-      }
-    }
+    // The page fixture removes the exact activity returned by the API, including on failure.
   });
 
   test('04: Open Lead 360 opens drawer and Back to Ledger returns to Leads table', async ({ page }) => {
