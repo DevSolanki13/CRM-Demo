@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma.js';
 import { recordVisibility, invalid } from './recordQuery.js';
+import { canManageTeam } from '../../shared/accessPolicy.js';
 import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUtils.js';
 
 function queueQuery(actor) {
@@ -49,7 +50,8 @@ export async function getWorkspaceSummary(actor) {
     prisma.$queryRaw(Prisma.sql`SELECT u.id,
       (SELECT count(*)::int FROM "Lead" r WHERE r."ownerId" = u.id AND ${recordVisibility('leads', actor)}) AS leads,
       (SELECT count(*)::int FROM "Deal" r WHERE r."ownerId" = u.id AND status NOT IN ('Won','Lost') AND ${recordVisibility('deals', actor)}) AS deals,
-      (SELECT COALESCE(sum(value),0)::float8 FROM "Deal" r WHERE r."ownerId" = u.id AND status NOT IN ('Won','Lost') AND ${recordVisibility('deals', actor)}) AS value FROM "User" u`),
+      (SELECT COALESCE(sum(value),0)::float8 FROM "Deal" r WHERE r."ownerId" = u.id AND status NOT IN ('Won','Lost') AND ${recordVisibility('deals', actor)}) AS value FROM "User" u
+      WHERE (${canManageTeam(actor)} OR u.id = ${actor.id})`),
   ], { isolationLevel: 'RepeatableRead' });
   const queueCounts = Object.fromEntries(queues.map(row => [row.kind, row.count]));
   queueCounts.all = queues.reduce((sum, row) => sum + row.count, 0);

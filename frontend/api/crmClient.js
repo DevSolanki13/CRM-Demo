@@ -1,11 +1,36 @@
 const BASE_URL = '/api';
+const WORKSPACE_ACCOUNT_KEY = 'crm.workspaceAccountId';
+
+export function getWorkspaceAccountId() {
+  try { return globalThis.sessionStorage?.getItem(WORKSPACE_ACCOUNT_KEY) || ''; }
+  catch { return ''; }
+}
+
+export function clearWorkspaceAccount() {
+  globalThis.sessionStorage.removeItem(WORKSPACE_ACCOUNT_KEY);
+}
+
+export async function selectWorkspaceAccount(accountId) {
+  const identity = await fetchCurrentUser(accountId);
+  if (identity.authMode !== 'shared' || identity.user.id !== accountId) {
+    throw new Error('Account switching is unavailable in this workspace.');
+  }
+  // Keep each tab's identity independent. Reloading then clears all prior account data.
+  globalThis.sessionStorage.setItem(WORKSPACE_ACCOUNT_KEY, accountId);
+}
 
 async function apiFetch(url, options = {}) {
   const write = options.method && !['GET', 'HEAD'].includes(options.method);
+  const accountId = getWorkspaceAccountId();
   const res = await fetch(url, {
     ...options,
     credentials: 'same-origin',
-    ...(write ? { body: options.body ?? '{}', headers: { 'Content-Type': 'application/json', ...options.headers } } : {}),
+    headers: {
+      ...(accountId ? { 'X-CRM-Workspace-User': accountId } : {}),
+      ...(write ? { 'Content-Type': 'application/json' } : {}),
+      ...options.headers,
+    },
+    ...(write ? { body: options.body ?? '{}' } : {}),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -15,8 +40,10 @@ async function apiFetch(url, options = {}) {
   return res;
 }
 
-export async function fetchCurrentUser() {
-  return (await apiFetch(`${BASE_URL}/me`)).json();
+export async function fetchCurrentUser(accountId) {
+  return (await apiFetch(`${BASE_URL}/me`, accountId === undefined ? {} : {
+    headers: { 'X-CRM-Workspace-User': accountId },
+  })).json();
 }
 
 export async function signIn(email, password) {

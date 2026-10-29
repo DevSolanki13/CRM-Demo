@@ -1,5 +1,6 @@
 import { validatedInput, brandingSchema } from '../middleware/validation.js';
 import { PUBLIC_USER_SELECT } from '../auth/identity.js';
+import { canManageTeam } from '../../shared/accessPolicy.js';
 import { prisma } from '../prisma.js';
 import {
   initialBranding,
@@ -41,7 +42,8 @@ export async function getStateCollections(user, requested = STATE_COLLECTIONS) {
   };
   const queries = {
     branding: () => prisma.branding.findUnique({ where: { id: 'default' } }),
-    users: () => prisma.user.findMany({ orderBy: { name: 'asc' }, select: PUBLIC_USER_SELECT }),
+    users: () => prisma.user.findMany({ where: canManageTeam(user) ? {} : { id: user.id },
+      orderBy: { name: 'asc' }, select: PUBLIC_USER_SELECT }),
     stages: () => prisma.stage.findMany({ orderBy: { order: 'asc' } }),
     pipelines: () => prisma.pipeline.findMany({ orderBy: { name: 'asc' } }),
     companies: pageCollection('companies'), contacts: pageCollection('contacts'),
@@ -61,7 +63,8 @@ export const getScopedState = async (user) => {
   const [branding, users, stages, companies, contacts, leads, deals,
     tasks, notes, activities, auditLogs] = await Promise.all([
     prisma.branding.findUnique({ where: { id: 'default' } }),
-    prisma.user.findMany({ orderBy: { name: 'asc' }, select: PUBLIC_USER_SELECT }),
+    prisma.user.findMany({ where: canManageTeam(user) ? {} : { id: user.id },
+      orderBy: { name: 'asc' }, select: PUBLIC_USER_SELECT }),
     prisma.stage.findMany({ orderBy: { order: 'asc' } }),
     ...['companies', 'contacts', 'leads', 'deals', 'tasks', 'notes', 'activities', 'audit-logs']
       .map(resource => allVisiblePages(resource, user)),

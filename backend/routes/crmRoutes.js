@@ -1,5 +1,5 @@
 import { protectWrites } from '../auth/sessions.js';
-import { attachWorkspaceActor } from '../auth/demoActor.js';
+import { attachWorkspaceActor, getWorkspaceIdentity } from '../auth/demoActor.js';
 import { authorizeCRM } from '../auth/permissions.js';
 import { Router } from 'express';
 import * as crmController from '../controllers/crmController.js';
@@ -53,7 +53,7 @@ for (const resource of ['companies', 'contacts', 'leads', 'deals', 'tasks', 'not
 }
 crmRouter.get('/reports/summary', attachWorkspaceActor, crmController.getReportSummary);
 crmRouter.get('/reports/audit', attachWorkspaceActor, crmController.getReportAuditPage);
-crmRouter.get('/me', attachWorkspaceActor, (req, res) => res.json({ user: req.user, authMode: req.authMode }));
+crmRouter.get('/me', attachWorkspaceActor, getWorkspaceIdentity);
 crmRouter.get('/state', attachWorkspaceActor, crmController.getState);
 crmRouter.use(protectWrites, attachWorkspaceActor, authorizeCRM);
 crmRouter.post('/state/reset', crmController.resetState);

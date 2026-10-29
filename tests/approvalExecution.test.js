@@ -4,6 +4,7 @@ import { prisma } from '../backend/prisma.js';
 import { createStageGateCheck, approveStageGateCheck, rejectStageGateCheck } from '../backend/services/stageGateService.js';
 import { updateTask, deleteTask } from '../backend/services/taskService.js';
 import { updateDeal, transitionDealStage } from '../backend/services/dealService.js';
+import { cleanupTestRecords } from '../e2e/support/cleanupTestRecords.js';
 
 const reviewer = { id: 'u-2', name: 'Sarah Jenkins' };
 const created = [];
@@ -20,13 +21,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  for (const { dealId, checkId } of created.splice(0)) {
-    await prisma.task.deleteMany({ where: { OR: [{ stageGateCheckId: checkId }, { linkedId: dealId }] } });
-    await prisma.activity.deleteMany({ where: { linkedId: dealId } });
-    await prisma.auditLog.deleteMany({ where: { OR: [{ entityId: dealId }, { metadata: { path: ['checkId'], equals: checkId } }] } });
-    await prisma.stageGateCheck.deleteMany({ where: { id: checkId } });
-    await prisma.deal.deleteMany({ where: { id: dealId } });
-  }
+  await cleanupTestRecords({ dealIds: created.splice(0).map(record => record.dealId) });
 });
 
 const request = async (from = source, to = target) => {
@@ -35,11 +30,11 @@ const request = async (from = source, to = target) => {
     id: dealId, title: 'Approval integration test', stageId: from.id,
     stageName: from.name, status: 'Active', value: 100
   } });
+  created.push({ dealId });
   const check = await createStageGateCheck({
     dealId, fromStageId: from.id, targetStageId: to.id,
     submittedBy: 'test-rep', submittedByName: 'Test Rep'
   });
-  created.push({ dealId, checkId: check.id });
   return { dealId, check };
 };
 
@@ -62,6 +57,14 @@ describe('database-backed approval decisions', () => {
     expect(await prisma.task.count({ where: { stageGateCheckId: check.id, status: 'pending' } })).toBe(0);
     expect(await prisma.activity.count({ where: { id: `act-gate-${check.id}` } })).toBe(1);
     expect(await prisma.auditLog.count({ where: { id: `aud-gate-${check.id}` } })).toBe(1);
+  });
+
+  it('rejects a matching pending request when its deal status is inconsistent', async () => {
+    const { dealId, check } = await request();
+    await prisma.deal.update({ where: { id: dealId }, data: { status: 'Active' } });
+    await expect(approveStageGateCheck(check.id, reviewer)).rejects.toMatchObject({ statusCode: 409 });
+    expect((await prisma.deal.findUnique({ where: { id: dealId } })).stageId).toBe(source.id);
+    expect(await prisma.auditLog.count({ where: { id: `aud-gate-${check.id}` } })).toBe(0);
   });
 
   it('allows only one of two competing decisions to commit', async () => {

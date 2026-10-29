@@ -4,6 +4,7 @@ import { prisma } from '../backend/prisma.js';
 import { createApprovalRequest, decideApproval } from '../backend/services/approvalExecutionService.js';
 import { closeLostDeal, transitionDealStage } from '../backend/services/dealService.js';
 import { ensureRebuyDeal } from '../backend/services/renewalService.js';
+import { cleanupTestRecords } from '../e2e/support/cleanupTestRecords.js';
 
 describe('database-backed section 2 workflows', () => {
   it('covers qualification, stale movement, demotion, won, lost, and renewal paths', async () => {
@@ -75,21 +76,7 @@ describe('database-backed section 2 workflows', () => {
       expect(first.deal.expectedCloseDate).toBe('2020-01-31');
       ids.push(first.deal.id);
     } finally {
-      const children = await prisma.deal.findMany({
-        where: { parentDealId: qualifiedId }, select: { id: true }
-      });
-      const cleanupIds = [...new Set([...ids, ...children.map(child => child.id)])];
-      const checks = await prisma.stageGateCheck.findMany({
-        where: { dealId: { in: cleanupIds } }, select: { id: true }
-      });
-      await prisma.task.deleteMany({ where: { OR: [
-        { linkedId: { in: cleanupIds } },
-        { stageGateCheckId: { in: checks.map(check => check.id) } }
-      ] } });
-      await prisma.activity.deleteMany({ where: { linkedId: { in: cleanupIds } } });
-      await prisma.stageGateCheck.deleteMany({ where: { dealId: { in: cleanupIds } } });
-      await prisma.auditLog.deleteMany({ where: { entityId: { in: cleanupIds } } });
-      await prisma.deal.deleteMany({ where: { id: { in: cleanupIds } } });
+      await cleanupTestRecords({ dealIds: ids });
     }
   }, 30000);
 });
