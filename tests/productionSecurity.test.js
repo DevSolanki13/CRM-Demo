@@ -73,16 +73,16 @@ describe('Production security and readiness', () => {
     expect(body.error).toBe('Use application/json for API writes');
   });
 
-  it('blocks unconfigured workspace in production mode with 503', async () => {
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
+  it('blocks unconfigured workspace when REQUIRE_ADMIN_AUTH is true', async () => {
+    const originalAuth = process.env.REQUIRE_ADMIN_AUTH;
+    process.env.REQUIRE_ADMIN_AUTH = 'true';
     try {
       const res = await fetch(`${baseUrl}/api/me`);
       expect(res.status).toBe(503);
       const body = await res.json();
       expect(body.error).toContain('Administrator sign-in is not configured');
     } finally {
-      process.env.NODE_ENV = originalEnv;
+      process.env.REQUIRE_ADMIN_AUTH = originalAuth;
     }
   });
 });
