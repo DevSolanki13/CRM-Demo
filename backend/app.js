@@ -10,6 +10,7 @@ export function createApp() {
   if (process.env.TRUST_PROXY || process.env.VERCEL || process.env.NODE_ENV === 'production') {
     app.set('trust proxy', 1);
   }
+  app.get('/favicon.ico', (_req, res) => res.status(204).end());
   app.use(express.json({ limit: '10mb' }));
   app.use('/api', (_req, res, next) => {
     res.set('Cache-Control', 'no-store');
