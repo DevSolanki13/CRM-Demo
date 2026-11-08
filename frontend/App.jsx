@@ -523,9 +523,9 @@ export default function App() {
     }
   };
 
-  const handleImportRecurringLeadCompanies = async (names) => {
+  const handleImportRecurringLeadCompanies = async (rows) => {
     try {
-      const result = await importRecurringLeadCompanies(names);
+      const result = await importRecurringLeadCompanies(rows);
       await reloadState('leads', 'auditLogs');
       const imported = result.stats.successfullyImported;
       if (imported > 0) toast.success(`Imported ${imported} recurring leads`);

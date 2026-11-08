@@ -66,7 +66,7 @@ const recurringImportFrequency = 'monthly';
 const recurringImportInterval = 1;
 const maxRecurringLeadImportRows = 10000;
 
-export function classifyRecurringLeadImport(names, existingLeads = []) {
+export function classifyRecurringLeadImport(rows, existingLeads = []) {
   const existingNames = new Set();
   for (const lead of existingLeads) {
     for (const value of [lead.title, lead.companyName]) {
@@ -77,36 +77,44 @@ export function classifyRecurringLeadImport(names, existingLeads = []) {
   }
 
   const seen = new Set();
-  const rows = names.map((value, index) => {
-    if (typeof value !== 'string') {
-      return { rowNumber: index + 2, companyName: '', status: 'invalid' };
-    }
-
-    const companyName = value.trim();
+  const classifiedRows = rows.map((value, index) => {
+    const companyName = typeof value?.companyName === 'string' ? value.companyName.trim() : '';
+    const contactName = optionalValue(value?.contactName);
+    const contactEmail = optionalValue(value?.contactEmail);
+    const contactPhone = optionalValue(value?.contactPhone);
+    const alternatePhone = optionalValue(value?.alternatePhone);
+    const row = {
+      rowNumber: index + 2,
+      companyName,
+      contactName,
+      contactEmail,
+      contactPhone,
+      alternatePhone,
+    };
     if (!companyName || companyName.length > 300 || companyName.includes('\0')) {
-      return { rowNumber: index + 2, companyName, status: 'invalid' };
+      return { ...row, status: 'invalid' };
     }
 
     const key = companyName.toLowerCase();
     if (seen.has(key)) {
-      return { rowNumber: index + 2, companyName, status: 'duplicate-workbook' };
+      return { ...row, status: 'duplicate-workbook' };
     }
     seen.add(key);
 
     if (existingNames.has(key)) {
-      return { rowNumber: index + 2, companyName, status: 'already-exists' };
+      return { ...row, status: 'already-exists' };
     }
 
-    return { rowNumber: index + 2, companyName, status: 'ready' };
+    return { ...row, status: 'ready' };
   });
 
-  const duplicateEntriesInWorkbook = rows.filter(row => row.status === 'duplicate-workbook').length;
-  const alreadyExisting = rows.filter(row => row.status === 'already-exists').length;
-  const invalidRows = rows.filter(row => row.status === 'invalid').length;
-  const readyToImport = rows.filter(row => row.status === 'ready').length;
+  const duplicateEntriesInWorkbook = classifiedRows.filter(row => row.status === 'duplicate-workbook').length;
+  const alreadyExisting = classifiedRows.filter(row => row.status === 'already-exists').length;
+  const invalidRows = classifiedRows.filter(row => row.status === 'invalid').length;
+  const readyToImport = classifiedRows.filter(row => row.status === 'ready').length;
 
   return {
-    rows,
+    rows: classifiedRows,
     stats: {
       totalRows: rows.length,
       readyToImport,
@@ -120,11 +128,12 @@ export function classifyRecurringLeadImport(names, existingLeads = []) {
   };
 }
 
-async function getRecurringLeadImportPreview(names, database = prisma) {
-  if (!Array.isArray(names) || names.length > maxRecurringLeadImportRows) {
-    throw Object.assign(new Error(`Provide at most ${maxRecurringLeadImportRows} company names.`), { statusCode: 400 });
+async function getRecurringLeadImportPreview(rows, database = prisma) {
+  if (!Array.isArray(rows) || rows.length > maxRecurringLeadImportRows) {
+    throw Object.assign(new Error(`Provide at most ${maxRecurringLeadImportRows} company rows.`), { statusCode: 400 });
   }
-  const candidateNames = [...new Set(names
+  const candidateNames = [...new Set(rows
+    .map(value => value?.companyName)
     .filter(value => typeof value === 'string')
     .map(value => value.trim())
     .filter(value => value.length > 0 && value.length <= 300 && !value.includes('\0'))
@@ -140,25 +149,25 @@ async function getRecurringLeadImportPreview(names, database = prisma) {
           )
       `)
     : [];
-  return classifyRecurringLeadImport(names, existingLeads);
+  return classifyRecurringLeadImport(rows, existingLeads);
 }
 
-export const previewRecurringLeadImport = async names =>
-  getRecurringLeadImportPreview(names);
+export const previewRecurringLeadImport = async rows =>
+  getRecurringLeadImportPreview(rows);
 
-export const importRecurringLeads = async (names, actor) => {
+export const importRecurringLeads = async (rows, actor) => {
   if (actor?.role !== 'Admin') {
     throw Object.assign(new Error('Administrator permission required.'), { statusCode: 403 });
   }
-  if (!Array.isArray(names) || names.length > maxRecurringLeadImportRows) {
-    throw Object.assign(new Error(`Provide at most ${maxRecurringLeadImportRows} company names.`), { statusCode: 400 });
+  if (!Array.isArray(rows) || rows.length > maxRecurringLeadImportRows) {
+    throw Object.assign(new Error(`Provide at most ${maxRecurringLeadImportRows} company rows.`), { statusCode: 400 });
   }
-  const initialPreview = classifyRecurringLeadImport(names);
+  const initialPreview = classifyRecurringLeadImport(rows);
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       return await prisma.$transaction(async tx => {
-        const currentPreview = await getRecurringLeadImportPreview(names, tx);
+        const currentPreview = await getRecurringLeadImportPreview(rows, tx);
         const currentRowsToImport = currentPreview.rows.filter(row => row.status === 'ready');
         if (currentRowsToImport.length === 0) return currentPreview;
 
@@ -176,10 +185,10 @@ export const importRecurringLeads = async (names, actor) => {
               id: ids[index],
               title: row.companyName,
               companyName: row.companyName,
-              contactName: null,
-              contactEmail: null,
-              contactPhone: null,
-              alternatePhone: null,
+              contactName: row.contactName,
+              contactEmail: row.contactEmail,
+              contactPhone: row.contactPhone,
+              alternatePhone: row.alternatePhone,
               category: null,
               location: null,
               notes: null,

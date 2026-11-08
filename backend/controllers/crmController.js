@@ -166,12 +166,12 @@ export const createLead = asyncHandler(async (req, res) => {
 });
 
 export const previewRecurringLeadImport = asyncHandler(async (req, res) => {
-  res.json(await leadService.previewRecurringLeadImport(req.body.names));
+  res.json(await leadService.previewRecurringLeadImport(req.body.rows));
 });
 
 export const importRecurringLeads = asyncHandler(async (req, res) => {
   try {
-    res.status(201).json(await leadService.importRecurringLeads(req.body.names, req.user));
+    res.status(201).json(await leadService.importRecurringLeads(req.body.rows, req.user));
   } catch (error) {
     if (error.importStats) {
       return res.status(error.statusCode || 500).json({

@@ -90,17 +90,17 @@ export async function fetchRecordsPage(resource, filters = {}, signal) {
   return (await apiFetch(`${BASE_URL}/pages/${encodeURIComponent(resource)}?${query}`, { signal })).json();
 }
 
-export async function previewRecurringLeadImport(names) {
+export async function previewRecurringLeadImport(rows) {
   return (await apiFetch(`${BASE_URL}/leads/recurring-import/preview`, {
     method: 'POST',
-    body: JSON.stringify({ names }),
+    body: JSON.stringify({ rows }),
   })).json();
 }
 
-export async function importRecurringLeads(names) {
+export async function importRecurringLeads(rows) {
   return (await apiFetch(`${BASE_URL}/leads/recurring-import/import`, {
     method: 'POST',
-    body: JSON.stringify({ names }),
+    body: JSON.stringify({ rows }),
   })).json();
 }
 

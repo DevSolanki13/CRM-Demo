@@ -118,8 +118,16 @@ export const leadSchema = z.object({
 
 export const updateLeadSchema = updateSchema(leadSchema);
 
+const recurringLeadImportRowSchema = z.object({
+  companyName: z.string().max(300).nullable(),
+  contactName: z.string().max(400).nullable().optional().default(null),
+  contactEmail: z.string().max(320).nullable().optional().default(null),
+  contactPhone: z.string().max(100).nullable().optional().default(null),
+  alternatePhone: z.string().max(100).nullable().optional().default(null),
+}).strict();
+
 export const recurringLeadImportSchema = z.object({
-  names: z.array(z.unknown()).max(10000, 'A workbook can contain at most 10,000 rows.'),
+  rows: z.array(recurringLeadImportRowSchema).max(10000, 'A workbook can contain at most 10,000 rows.'),
 }).strict();
 
 // 4. Deals

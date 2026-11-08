@@ -51,7 +51,7 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
   const dialogRef = useRef(null);
   const busyRef = useRef(false);
   const [fileName, setFileName] = useState('');
-  const [names, setNames] = useState([]);
+  const [rows, setRows] = useState([]);
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -98,7 +98,7 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
 
   const reset = () => {
     setFileName('');
-    setNames([]);
+    setRows([]);
     setPreview(null);
     setResult(null);
     setError('');
@@ -113,13 +113,13 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
     setFileName(file.name);
     setPreview(null);
     setResult(null);
-    setNames([]);
+    setRows([]);
     setError('');
     setIsReading(true);
     try {
-      const importedNames = await parseRecurringLeadWorkbook(file);
-      setNames(importedNames);
-      setPreview(await previewRecurringLeadImport(importedNames));
+      const importedRows = await parseRecurringLeadWorkbook(file);
+      setRows(importedRows);
+      setPreview(await previewRecurringLeadImport(importedRows));
     } catch (readError) {
       setError(readError.message || 'Could not read this workbook.');
     } finally {
@@ -128,11 +128,11 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
   };
 
   const handleImport = async () => {
-    if (!names.length || !onImport) return;
+    if (!rows.length || !onImport) return;
     setError('');
     setIsImporting(true);
     try {
-      const imported = await onImport(names);
+      const imported = await onImport(rows);
       setResult(imported);
       onImported?.(imported);
     } catch (importError) {
@@ -189,7 +189,9 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
           <div className="flex flex-col gap-3 rounded-xl border border-[#E3E6EA] p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold">Choose an Excel workbook</p>
-              <p className="mt-1 text-[11px] text-[#5B6472]">Sheet1 must contain a Name column. Empty rows are skipped.</p>
+              <p className="mt-1 text-[11px] text-[#5B6472]">
+                Sheet1 needs a Name or Company Name column. First/last name, email, phone, and mobile phone columns are mapped automatically.
+              </p>
               {fileName && <p className="mt-1 truncate text-[11px] font-medium text-[#1D4E63]">{fileName}</p>}
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -231,11 +233,15 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
               )}
               <div className="overflow-hidden rounded-xl border border-[#E3E6EA]">
                 <div className="max-h-64 overflow-auto">
-                  <table className="w-full min-w-[420px] text-left text-xs">
+                  <table className="w-full min-w-[760px] text-left text-xs">
                     <thead className="sticky top-0 bg-[#F6F7F8] text-[10px] uppercase tracking-wide text-[#5B6472]">
                       <tr>
                         <th scope="col" className="px-3 py-2.5">Row</th>
                         <th scope="col" className="px-3 py-2.5">Company name</th>
+                        <th scope="col" className="px-3 py-2.5">Contact</th>
+                        <th scope="col" className="px-3 py-2.5">Email</th>
+                        <th scope="col" className="px-3 py-2.5">Phone</th>
+                        <th scope="col" className="px-3 py-2.5">Mobile</th>
                         <th scope="col" className="px-3 py-2.5">Import status</th>
                       </tr>
                     </thead>
@@ -249,6 +255,10 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
                           <tr key={`${row.rowNumber}-${row.companyName}`} className="bg-white">
                             <td className="px-3 py-2 text-[#5B6472] tabular-nums">{row.rowNumber}</td>
                             <td className="max-w-[360px] truncate px-3 py-2 font-medium text-[#12161C]">{row.companyName || '—'}</td>
+                            <td className="max-w-[180px] truncate px-3 py-2 text-[#5B6472]">{row.contactName || '—'}</td>
+                            <td className="max-w-[200px] truncate px-3 py-2 text-[#5B6472]">{row.contactEmail || '—'}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-[#5B6472]">{row.contactPhone || '—'}</td>
+                            <td className="whitespace-nowrap px-3 py-2 text-[#5B6472]">{row.alternatePhone || '—'}</td>
                             <td className="px-3 py-2">
                               <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold ${appearance.className}`}>
                                 {appearance.label}
@@ -258,7 +268,7 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
                         );
                       })}
                       {displayedRows.length === 0 && (
-                        <tr><td colSpan={3} className="px-3 py-6 text-center text-[#5B6472]">No company rows found.</td></tr>
+                        <tr><td colSpan={7} className="px-3 py-6 text-center text-[#5B6472]">No company rows found.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -275,7 +285,7 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
 
         <footer className="flex flex-col-reverse gap-2 border-t border-[#E3E6EA] bg-[#F6F7F8] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[10px] text-[#5B6472]">
-            New entries recur monthly from December 1, 2026. Other details remain blank.
+            New entries recur monthly from December 1, 2026. Mapped contact details are saved with each lead.
           </p>
           <div className="flex shrink-0 justify-end gap-2">
             {result ? (

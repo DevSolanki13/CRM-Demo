@@ -24,16 +24,34 @@ function workbookFile(extension, rows) {
 describe('recurring lead workbook import', () => {
   it.each(['xlsx', 'xls'])('reads the Name column and empty rows from .%s workbooks', async extension => {
     const file = workbookFile(extension, [
-      ['Company', ' NAME '],
-      ['source', ' Acme Ltd '],
-      [null, null],
-      ['source', 'Beta Ltd'],
+      ['Company', ' NAME ', 'First Name', 'Last Name', 'Email', 'Phone', 'Mobile Phone'],
+      ['source', ' Acme Ltd ', 'Ada', 'Lovelace', 'ada@example.com', '555-0101', '555-0102'],
+      [null, null, null, null, null, null, null],
+      ['source', 'Beta Ltd', 'Grace', 'Hopper', 'grace@example.com', '555-0111', '555-0112'],
     ]);
 
     await expect(parseRecurringLeadWorkbook(file)).resolves.toEqual([
-      ' Acme Ltd ',
-      null,
-      'Beta Ltd',
+      {
+        companyName: ' Acme Ltd ',
+        contactName: 'Ada Lovelace',
+        contactEmail: 'ada@example.com',
+        contactPhone: '555-0101',
+        alternatePhone: '555-0102',
+      },
+      {
+        companyName: null,
+        contactName: null,
+        contactEmail: null,
+        contactPhone: null,
+        alternatePhone: null,
+      },
+      {
+        companyName: 'Beta Ltd',
+        contactName: 'Grace Hopper',
+        contactEmail: 'grace@example.com',
+        contactPhone: '555-0111',
+        alternatePhone: '555-0112',
+      },
     ]);
   });
 
@@ -51,11 +69,35 @@ describe('recurring lead workbook import', () => {
       size: missingSheetData.byteLength,
       arrayBuffer: async () => missingSheetData,
     })).rejects.toThrow('Sheet1');
+
+    const missingCompanyName = workbookFile('xlsx', [['First Name', 'Email'], ['Ada', 'ada@example.com']]);
+    await expect(parseRecurringLeadWorkbook(missingCompanyName)).rejects.toThrow('Name or Company Name');
+  });
+
+  it('recognizes common contact header variations', async () => {
+    const file = workbookFile('xlsx', [
+      ['Company Name', 'First Name', 'Last Name', 'Email Address', 'Telephone', 'Cell Phone'],
+      ['Acme Ltd', 'Ada', 'Lovelace', 'ada@example.com', '555-0101', '555-0102'],
+    ]);
+
+    await expect(parseRecurringLeadWorkbook(file)).resolves.toEqual([{
+      companyName: 'Acme Ltd',
+      contactName: 'Ada Lovelace',
+      contactEmail: 'ada@example.com',
+      contactPhone: '555-0101',
+      alternatePhone: '555-0102',
+    }]);
   });
 
   it('trims names and classifies workbook and existing recurring duplicates case-insensitively', () => {
     const preview = classifyRecurringLeadImport(
-      [' Acme Ltd ', 'acme ltd', 'Known Company', '', null],
+      [
+        { companyName: ' Acme Ltd ', contactEmail: 'ada@example.com' },
+        { companyName: 'acme ltd' },
+        { companyName: 'Known Company' },
+        { companyName: '' },
+        { companyName: null },
+      ],
       [{ title: 'Known Opportunity', companyName: ' Known Company ' }]
     );
 
@@ -77,7 +119,7 @@ describe('recurring lead workbook import', () => {
   });
 
   it('classifies names containing null bytes as invalid without querying them', async () => {
-    const preview = await previewRecurringLeadImport(['Invalid\u0000Name']);
+    const preview = await previewRecurringLeadImport([{ companyName: 'Invalid\u0000Name' }]);
     expect(preview.rows[0].status).toBe('invalid');
     expect(preview.stats.invalidRows).toBe(1);
   });
@@ -95,7 +137,7 @@ describe('recurring lead workbook import', () => {
       path: '/leads/recurring-import/preview',
       method: 'POST',
       user: { id: 'test-user', name: 'Test User', role },
-      body: { names: [] },
+      body: { rows: [] },
     }, {}, resolve));
 
     expect(error).toMatchObject({ statusCode: 403 });
@@ -106,7 +148,7 @@ describe('recurring lead workbook import', () => {
       path: '/leads/recurring-import/import',
       method: 'POST',
       user: { id: 'u-1', name: 'Admin', role: 'Admin' },
-      body: { names: [] },
+      body: { rows: [] },
     }, {}, resolve));
 
     expect(next).toBeUndefined();
@@ -118,7 +160,19 @@ describe('recurring lead workbook import', () => {
     const parallelName = `Concurrent Import ${suffix}`;
     const existingName = `Existing Import ${suffix}`;
     const existingId = `ld-existing-import-${suffix}`;
-    const names = [importName, ` ${importName.toLowerCase()} `, existingName, null, '  '];
+    const rows = [
+      {
+        companyName: importName,
+        contactName: ' Ada Lovelace ',
+        contactEmail: ' ada@example.com ',
+        contactPhone: ' 555-0101 ',
+        alternatePhone: ' 555-0102 ',
+      },
+      { companyName: ` ${importName.toLowerCase()} ` },
+      { companyName: existingName },
+      { companyName: null },
+      { companyName: '  ' },
+    ];
     try {
       await prisma.lead.create({
         data: {
@@ -129,10 +183,10 @@ describe('recurring lead workbook import', () => {
         },
       });
 
-      const before = await previewRecurringLeadImport(names);
+      const before = await previewRecurringLeadImport(rows);
       expect(before.stats.readyToImport).toBe(1);
 
-      const result = await importRecurringLeads(names, { id: 'u-1', name: 'Admin', role: 'Admin' });
+      const result = await importRecurringLeads(rows, { id: 'u-1', name: 'Admin', role: 'Admin' });
       expect(result.stats).toMatchObject({
         totalRows: 5,
         successfullyImported: 1,
@@ -143,6 +197,12 @@ describe('recurring lead workbook import', () => {
         failedRecords: 0,
       });
       expect(result.rows.find(row => row.companyName === importName).status).toBe('imported');
+      expect(result.rows.find(row => row.companyName === importName)).toMatchObject({
+        contactName: 'Ada Lovelace',
+        contactEmail: 'ada@example.com',
+        contactPhone: '555-0101',
+        alternatePhone: '555-0102',
+      });
 
       const saved = await prisma.lead.findMany({ where: { title: importName } });
       expect(saved).toHaveLength(1);
@@ -154,10 +214,10 @@ describe('recurring lead workbook import', () => {
         recurrenceDate: '2026-12-01',
         recurrenceInterval: 1,
         nextRecurrenceDate: '2027-01-01',
-        contactName: null,
-        contactEmail: null,
-        contactPhone: null,
-        alternatePhone: null,
+        contactName: 'Ada Lovelace',
+        contactEmail: 'ada@example.com',
+        contactPhone: '555-0101',
+        alternatePhone: '555-0102',
         category: null,
         location: null,
         notes: null,
@@ -173,7 +233,7 @@ describe('recurring lead workbook import', () => {
         isRecurring: true,
       });
 
-      const retry = await importRecurringLeads(names, {
+      const retry = await importRecurringLeads(rows, {
         id: 'u-1',
         name: 'Admin',
         role: 'Admin',
@@ -183,8 +243,8 @@ describe('recurring lead workbook import', () => {
       expect(await prisma.lead.count({ where: { title: importName } })).toBe(1);
 
       const simultaneous = await Promise.all([
-        importRecurringLeads([parallelName], { id: 'u-1', name: 'Admin', role: 'Admin' }),
-        importRecurringLeads([parallelName], { id: 'u-1', name: 'Admin', role: 'Admin' }),
+        importRecurringLeads([{ companyName: parallelName }], { id: 'u-1', name: 'Admin', role: 'Admin' }),
+        importRecurringLeads([{ companyName: parallelName }], { id: 'u-1', name: 'Admin', role: 'Admin' }),
       ]);
       expect(simultaneous.reduce((total, response) => total + response.stats.successfullyImported, 0)).toBe(1);
       expect(await prisma.lead.count({ where: { title: parallelName } })).toBe(1);
