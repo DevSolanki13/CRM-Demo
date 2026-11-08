@@ -190,7 +190,7 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
             <div>
               <p className="text-xs font-semibold">Choose an Excel workbook</p>
               <p className="mt-1 text-[11px] text-[#5B6472]">
-                Sheet1 needs a Name or Company Name column. First/last name, email, phone, and mobile phone columns are mapped automatically.
+                A worksheet needs a Name or Company Name column. First/last name, email, phone, and mobile phone columns are mapped automatically.
               </p>
               {fileName && <p className="mt-1 truncate text-[11px] font-medium text-[#1D4E63]">{fileName}</p>}
             </div>
@@ -237,8 +237,8 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
                     <thead className="sticky top-0 bg-[#F6F7F8] text-[10px] uppercase tracking-wide text-[#5B6472]">
                       <tr>
                         <th scope="col" className="px-3 py-2.5">Row</th>
-                        <th scope="col" className="px-3 py-2.5">Company name</th>
-                        <th scope="col" className="px-3 py-2.5">Contact</th>
+                        <th scope="col" className="px-3 py-2.5">Lead name</th>
+                        <th scope="col" className="px-3 py-2.5">Company</th>
                         <th scope="col" className="px-3 py-2.5">Email</th>
                         <th scope="col" className="px-3 py-2.5">Phone</th>
                         <th scope="col" className="px-3 py-2.5">Mobile</th>
@@ -254,8 +254,10 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
                         return (
                           <tr key={`${row.rowNumber}-${row.companyName}`} className="bg-white">
                             <td className="px-3 py-2 text-[#5B6472] tabular-nums">{row.rowNumber}</td>
-                            <td className="max-w-[360px] truncate px-3 py-2 font-medium text-[#12161C]">{row.companyName || '—'}</td>
-                            <td className="max-w-[180px] truncate px-3 py-2 text-[#5B6472]">{row.contactName || '—'}</td>
+                            <td className="max-w-[240px] truncate px-3 py-2 font-medium text-[#12161C]">
+                              {row.contactName || row.companyName || '—'}
+                            </td>
+                            <td className="max-w-[240px] truncate px-3 py-2 text-[#5B6472]">{row.companyName || '—'}</td>
                             <td className="max-w-[200px] truncate px-3 py-2 text-[#5B6472]">{row.contactEmail || '—'}</td>
                             <td className="whitespace-nowrap px-3 py-2 text-[#5B6472]">{row.contactPhone || '—'}</td>
                             <td className="whitespace-nowrap px-3 py-2 text-[#5B6472]">{row.alternatePhone || '—'}</td>

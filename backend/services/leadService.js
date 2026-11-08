@@ -65,6 +65,7 @@ const recurringImportStartDate = '2026-12-01';
 const recurringImportFrequency = 'monthly';
 const recurringImportInterval = 1;
 const maxRecurringLeadImportRows = 10000;
+export const getRecurringLeadTitle = row => row.contactName || row.companyName;
 
 export function classifyRecurringLeadImport(rows, existingLeads = []) {
   const existingNames = new Set();
@@ -183,7 +184,7 @@ export const importRecurringLeads = async (rows, actor) => {
           await tx.lead.createMany({
             data: currentRowsToImport.map((row, index) => ({
               id: ids[index],
-              title: row.companyName,
+              title: getRecurringLeadTitle(row),
               companyName: row.companyName,
               contactName: row.contactName,
               contactEmail: row.contactEmail,
@@ -219,7 +220,7 @@ export const importRecurringLeads = async (rows, actor) => {
               action: 'LEAD_CREATED',
               entityType: 'Lead',
               entityId: ids[index],
-              entityTitle: row.companyName,
+              entityTitle: getRecurringLeadTitle(row),
               reason: 'Recurring lead imported from company workbook',
               metadata: {
                 importSource: 'recurring-company-workbook',
@@ -269,6 +270,71 @@ export const importRecurringLeads = async (rows, actor) => {
       });
     }
   }
+};
+
+export const clearRecurringLeads = async (actor, database = prisma) => {
+  if (actor?.role !== 'Admin') {
+    throw Object.assign(new Error('Administrator permission required.'), { statusCode: 403 });
+  }
+
+  return database.$transaction(async tx => {
+    const leads = await tx.$queryRaw`
+      SELECT id, title
+      FROM "Lead"
+      WHERE "isRecurring" = TRUE
+      ORDER BY id
+      FOR UPDATE
+    `;
+    if (!leads.length) return { deletedCount: 0 };
+
+    const leadIds = leads.map(lead => lead.id);
+    const [deals, tasks, notes, activities, attachments] = await Promise.all([
+      tx.deal.count({ where: { leadId: { in: leadIds } } }),
+      tx.task.count({ where: { linkedType: 'Lead', linkedId: { in: leadIds } } }),
+      tx.note.count({ where: { linkedType: 'Lead', linkedId: { in: leadIds } } }),
+      tx.activity.count({ where: { linkedType: 'Lead', linkedId: { in: leadIds } } }),
+      tx.attachment.count({
+        where: { recordType: 'Lead', recordId: { in: leadIds }, deletedAt: null },
+      }),
+    ]);
+    const linkedRecordCounts = { deals, tasks, notes, activities, attachments };
+    const linkedRecords = Object.entries(linkedRecordCounts)
+      .filter(([, count]) => count > 0)
+      .map(([type, count]) => `${count} ${type}`)
+      .join(', ');
+    if (linkedRecords) {
+      throw Object.assign(
+        new Error(`Recurring leads have linked records (${linkedRecords}). No leads were deleted. Move or remove the linked records, then try again.`),
+        { statusCode: 409 }
+      );
+    }
+
+    const timestamp = new Date().toISOString();
+    await tx.auditLog.createMany({
+      data: leads.map(lead => ({
+        id: `aud-delete-${randomUUID()}`,
+        timestamp,
+        actorId: actor.id,
+        actorName: actor.name,
+        action: 'RECORD_DELETED',
+        entityType: 'Lead',
+        entityId: lead.id,
+        entityTitle: lead.title,
+        reason: 'Recurring leads cleared in bulk.',
+        metadata: { recordId: lead.id, bulkAction: 'clear-recurring-leads' },
+      })),
+    });
+
+    const result = await tx.lead.deleteMany({
+      where: { id: { in: leadIds }, isRecurring: true },
+    });
+    if (result.count !== leads.length) {
+      throw Object.assign(new Error('Recurring lead list changed while clearing. No leads were deleted.'), {
+        statusCode: 409,
+      });
+    }
+    return { deletedCount: result.count };
+  }, { isolationLevel: 'Serializable' });
 };
 
 // Only monthly recurrence is supported.

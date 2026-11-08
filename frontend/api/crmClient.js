@@ -104,6 +104,13 @@ export async function importRecurringLeads(rows) {
   })).json();
 }
 
+export async function clearRecurringLeads() {
+  return (await apiFetch(`${BASE_URL}/leads/recurring-import/clear`, {
+    method: 'POST',
+    body: JSON.stringify({ confirmation: 'DELETE' }),
+  })).json();
+}
+
 export async function fetchRecord(resource, id) {
   const page = await fetchRecordsPage(resource, { id, limit: 1 });
   if (!page.items.length) throw new Error('Record no longer exists or is unavailable.');

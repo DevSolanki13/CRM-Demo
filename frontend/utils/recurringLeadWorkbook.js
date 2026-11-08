@@ -9,6 +9,19 @@ function findColumn(headers, aliases) {
   return headers.findIndex(header => aliasSet.has(normalizeHeader(header)));
 }
 
+function getColumns(headers) {
+  if (!Array.isArray(headers)) return null;
+  const columns = {
+    companyName: findColumn(headers, ['name', 'companyname', 'businessname']),
+    firstName: findColumn(headers, ['firstname']),
+    lastName: findColumn(headers, ['lastname']),
+    contactEmail: findColumn(headers, ['email', 'emailaddress']),
+    contactPhone: findColumn(headers, ['phone', 'telephone']),
+    alternatePhone: findColumn(headers, ['mobilephone', 'mobile', 'cellphone', 'cell']),
+  };
+  return columns.companyName === -1 ? null : columns;
+}
+
 function cellText(value) {
   if (value == null || (typeof value === 'string' && !value.trim())) return null;
   return String(value);
@@ -25,47 +38,37 @@ export async function parseRecurringLeadWorkbook(file) {
 
   const XLSX = await import('@e965/xlsx');
   const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-  const sheet = workbook.Sheets.Sheet1;
-  if (!sheet) throw new Error('The workbook must contain a Sheet1 worksheet.');
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
 
-  const rows = XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    raw: false,
-    defval: null,
-    blankrows: true,
-  });
-  const header = rows[0];
-  if (!Array.isArray(header)) {
-    throw new Error('Sheet1 must contain a header row with a Name or Company Name column.');
+    const rows = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      raw: false,
+      defval: null,
+      blankrows: true,
+    });
+    const columns = getColumns(rows[0]);
+    if (!columns) continue;
+
+    const dataRows = rows.slice(1);
+    while (dataRows.length && dataRows.at(-1).every(isEmptyCell)) {
+      dataRows.pop();
+    }
+    return dataRows.map(row => {
+      const firstName = cellText(row[columns.firstName]);
+      const lastName = cellText(row[columns.lastName]);
+      const contactName = [firstName, lastName].filter(Boolean).join(' ') || null;
+
+      return {
+        companyName: cellText(row[columns.companyName]),
+        contactName,
+        contactEmail: cellText(row[columns.contactEmail]),
+        contactPhone: cellText(row[columns.contactPhone]),
+        alternatePhone: cellText(row[columns.alternatePhone]),
+      };
+    });
   }
 
-  const columns = {
-    companyName: findColumn(header, ['name', 'companyname', 'businessname']),
-    firstName: findColumn(header, ['firstname']),
-    lastName: findColumn(header, ['lastname']),
-    contactEmail: findColumn(header, ['email', 'emailaddress']),
-    contactPhone: findColumn(header, ['phone', 'telephone']),
-    alternatePhone: findColumn(header, ['mobilephone', 'mobile', 'cellphone', 'cell']),
-  };
-  if (columns.companyName === -1) {
-    throw new Error('Could not find a Name or Company Name column in Sheet1.');
-  }
-
-  const dataRows = rows.slice(1);
-  while (dataRows.length && dataRows.at(-1).every(isEmptyCell)) {
-    dataRows.pop();
-  }
-  return dataRows.map(row => {
-    const firstName = cellText(row[columns.firstName]);
-    const lastName = cellText(row[columns.lastName]);
-    const contactName = [firstName, lastName].filter(Boolean).join(' ') || null;
-
-    return {
-      companyName: cellText(row[columns.companyName]),
-      contactName,
-      contactEmail: cellText(row[columns.contactEmail]),
-      contactPhone: cellText(row[columns.contactPhone]),
-      alternatePhone: cellText(row[columns.alternatePhone]),
-    };
-  });
+  throw new Error('Could not find a Name or Company Name header in any worksheet.');
 }

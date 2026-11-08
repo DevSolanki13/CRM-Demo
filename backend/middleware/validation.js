@@ -130,6 +130,10 @@ export const recurringLeadImportSchema = z.object({
   rows: z.array(recurringLeadImportRowSchema).max(10000, 'A workbook can contain at most 10,000 rows.'),
 }).strict();
 
+export const clearRecurringLeadsSchema = z.object({
+  confirmation: z.literal('DELETE'),
+}).strict();
+
 // 4. Deals
 export const dealSchema = z.object({
   id: z.string().optional(),

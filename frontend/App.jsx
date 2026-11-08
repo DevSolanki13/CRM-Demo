@@ -27,6 +27,7 @@ import {
   updateLead,
   deleteLead,
   importRecurringLeads as importRecurringLeadCompanies,
+  clearRecurringLeads as clearRecurringLeadRecords,
   createStage,
   updateStage,
   createPipeline,
@@ -538,6 +539,18 @@ export default function App() {
     }
   };
 
+  const handleClearRecurringLeadRecords = async () => {
+    try {
+      const result = await clearRecurringLeadRecords();
+      await reloadState('leads', 'auditLogs');
+      toast.success(`Deleted ${result.deletedCount} recurring lead${result.deletedCount === 1 ? '' : 's'}`);
+      return result;
+    } catch (err) {
+      toast.error(err.message || 'Could not clear recurring leads');
+      throw err;
+    }
+  };
+
   // Deals Basic CRUD with state reload for complete data synchronization
   const handleCreateDeal = async (deal) => {
     try {
@@ -934,6 +947,7 @@ export default function App() {
                   branding={state.branding}
                   onCreateLead={handleCreateLead}
                   onImportRecurringLeads={handleImportRecurringLeadCompanies}
+                  onClearRecurringLeads={handleClearRecurringLeadRecords}
                   onUpdateLead={handleUpdateLead}
                   onDeleteLead={handleDeleteLead}
                   onConvertToDeal={handleConvertToDeal}

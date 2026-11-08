@@ -12,6 +12,7 @@ import {
   leadSchema,
   updateLeadSchema,
   recurringLeadImportSchema,
+  clearRecurringLeadsSchema,
   dealSchema,
   updateDealSchema,
   dealTransitionSchema,
@@ -79,6 +80,7 @@ crmRouter.post('/contacts/:id/merge', validateBody(mergeCustomerSchema), crmCont
 crmRouter.post('/leads', validateBody(leadSchema), crmController.createLead);
 crmRouter.post('/leads/recurring-import/preview', validateBody(recurringLeadImportSchema), crmController.previewRecurringLeadImport);
 crmRouter.post('/leads/recurring-import/import', validateBody(recurringLeadImportSchema), crmController.importRecurringLeads);
+crmRouter.post('/leads/recurring-import/clear', validateBody(clearRecurringLeadsSchema), crmController.clearRecurringLeads);
 crmRouter.put('/leads/:id', validateBody(updateLeadSchema), crmController.updateLead);
 crmRouter.delete('/leads/:id', crmController.deleteLead);
 

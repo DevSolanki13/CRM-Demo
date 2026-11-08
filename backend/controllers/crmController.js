@@ -183,6 +183,10 @@ export const importRecurringLeads = asyncHandler(async (req, res) => {
   }
 });
 
+export const clearRecurringLeads = asyncHandler(async (req, res) => {
+  res.json(await leadService.clearRecurringLeads(req.user));
+});
+
 export const updateLead = asyncHandler(async (req, res) => {
   const updated = await leadService.updateLead(req.params.id, req.body);
   if (updated) {

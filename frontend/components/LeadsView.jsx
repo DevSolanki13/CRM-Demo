@@ -43,6 +43,7 @@ export const LeadsView = ({
   branding,
   onCreateLead,
   onImportRecurringLeads,
+  onClearRecurringLeads,
   onUpdateLead,
   onDeleteLead,
   onConvertToDeal,
@@ -88,6 +89,8 @@ export const LeadsView = ({
   const [formValidationError, setFormValidationError] = useState('');
   const [customFieldsText, setCustomFieldsText] = useState('{}');
   const [isRecurringImportOpen, setIsRecurringImportOpen] = useState(false);
+  const [isClearingRecurring, setIsClearingRecurring] = useState(false);
+  const [recurringClearError, setRecurringClearError] = useState('');
 
   // Selection state for multi-delete
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
@@ -322,6 +325,27 @@ export const LeadsView = ({
     await onDeleteLead(lead.id);
   };
 
+  const handleClearRecurringLeads = async () => {
+    if (!isAdmin || isClearingRecurring || !window.confirm(
+      'Permanently delete all recurring leads in this workspace? This is not limited to the current page or filters. Leads with linked deals, tasks, notes, activity, or active attachments will prevent the entire clear. This cannot be undone.'
+    )) return;
+    setRecurringClearError('');
+    setIsClearingRecurring(true);
+    try {
+      await onClearRecurringLeads();
+      setRecurringSearch('');
+      setRecurringStatus('All');
+      setRecurringOwner('All');
+      setRecurringDateFilter('');
+      setRecurringSort('recurrence-asc');
+      recurringPage.firstPage();
+    } catch (error) {
+      setRecurringClearError(error.message || 'Could not clear recurring leads.');
+    } finally {
+      setIsClearingRecurring(false);
+    }
+  };
+
   const handleRecurringImportComplete = result => {
     if (!result?.stats?.successfullyImported) return;
     setRecurringSearch('');
@@ -421,16 +445,27 @@ export const LeadsView = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {leadSection === 'recurring' && isAdmin && (
-            <button
-              type="button"
-              onClick={() => setIsRecurringImportOpen(true)}
-              className="px-4 py-2 bg-[#FFFFFF] hover:bg-[#F6F7F8] text-[#1D4E63] border border-[#D8E8EF] rounded-xl text-xs font-bold flex items-center gap-2 transition-colors"
-            >
-              <Upload className="w-4 h-4" aria-hidden="true" />
-              <span>Import Companies</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setIsRecurringImportOpen(true)}
+                className="px-4 py-2 bg-[#FFFFFF] hover:bg-[#F6F7F8] text-[#1D4E63] border border-[#D8E8EF] rounded-xl text-xs font-bold flex items-center gap-2 transition-colors"
+              >
+                <Upload className="w-4 h-4" aria-hidden="true" />
+                <span>Import Companies</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleClearRecurringLeads}
+                disabled={!onClearRecurringLeads || isClearingRecurring}
+                className="px-4 py-2 bg-[#FFFFFF] hover:bg-[#FDF2F1] text-[#922D27] border border-[#F4C4C1] rounded-xl text-xs font-bold flex items-center gap-2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#922D27] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+                <span>{isClearingRecurring ? 'Clearing…' : 'Clear All'}</span>
+              </button>
+            </>
           )}
           {leadSection === 'regular' && selectedLeadIds.length > 0 && (
             <button
@@ -967,6 +1002,11 @@ export const LeadsView = ({
 
       {leadSection === 'recurring' && (
         <section aria-label="Recurring leads" className="space-y-4">
+          {recurringClearError && (
+            <p role="alert" className="rounded-xl border border-[#F4C4C1] bg-[#FDF2F1] px-4 py-3 text-xs font-medium text-[#922D27]">
+              {recurringClearError}
+            </p>
+          )}
           <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-4 shadow-2xs">
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
               <label className="relative sm:col-span-2 xl:col-span-2">
@@ -1046,7 +1086,7 @@ export const LeadsView = ({
               <article key={lead.id} className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="text-sm font-bold text-[#12161C] truncate">{lead.title}</h2>
+                    <h2 className="text-sm font-bold text-[#12161C] truncate">{lead.contactName || lead.title}</h2>
                     <p className="text-[11px] text-[#5B6472] mt-1">{lead.companyName || 'Company unavailable'}</p>
                   </div>
                   <span className="shrink-0 rounded-full bg-[#EFF6F9] px-2.5 py-1 text-[10px] font-bold text-[#1D4E63]">
@@ -1114,7 +1154,7 @@ export const LeadsView = ({
                   const isUpcoming = lead.nextRecurrenceDate && lead.nextRecurrenceDate >= today && lead.nextRecurrenceDate <= upcomingLimit;
                   return (
                     <tr key={lead.id} className="hover:bg-[#F6F7F8]">
-                      <td className="px-4 py-3 font-bold text-[#12161C]">{lead.title}</td>
+                      <td className="px-4 py-3 font-bold text-[#12161C]">{lead.contactName || lead.title}</td>
                       <td className="px-4 py-3 text-[#5B6472]">{lead.companyName || '—'}</td>
                       <td className="px-4 py-3">
                         <div className="text-[#12161C]">{lead.contactEmail || '—'}</div>
