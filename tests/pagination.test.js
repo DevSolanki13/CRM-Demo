@@ -5,6 +5,24 @@ import { listRecordsPage } from '../backend/services/paginatedRecords.js';
 import { getScopedState } from '../backend/services/systemService.js';
 
 describe('paginated record access', () => {
+  it('returns an empty recurring page when sorting by next recurrence date', async () => {
+    const suffix = randomUUID();
+    const page = await listRecordsPage('leads', {
+      id: `pg-empty-${suffix}`,
+      role: 'Sales Rep',
+    }, {
+      q: suffix,
+      recurring: 'true',
+      sort: 'recurrence-asc',
+    });
+
+    expect(page).toMatchObject({
+      items: [],
+      total: 0,
+      nextCursor: null,
+    });
+  });
+
   it('uses database scope and stable cursors for deals and related activity', async () => {
     const suffix = randomUUID();
     const owned = [`pg-a-${suffix}`, `pg-b-${suffix}`];

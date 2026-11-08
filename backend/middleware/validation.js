@@ -90,12 +90,26 @@ export const leadSchema = z.object({
   contactName: z.string().nullable().optional().default(''),
   contactEmail: optionalEmail.default(''),
   contactPhone: z.string().nullable().optional().default(''),
+  alternatePhone: z.string().nullable().optional().default(''),
   companyName: z.string().nullable().optional().default(''),
-  source: z.string().nullable().optional().default('Inbound'),
-  isOutbound: z.boolean().optional().default(false),
-  status: z.enum(['New', 'Working', 'Qualified', 'Unqualified', 'Converted', 'Follow up', 'Pending Review']).optional().default('New'),
-  ownerId: z.string().nullable().optional().default('u-1'),
-  ownerName: z.string().nullable().optional().default('Alex Vance'),
+  category: z.string().max(200).nullable().optional().default(''),
+  location: z.string().max(500).nullable().optional().default(''),
+  notes: optionalText.default(''),
+  source: z.string().nullable().optional(),
+  isOutbound: z.boolean().nullable().optional().default(false),
+  status: z.union([
+    z.enum(['New', 'Working', 'Qualified', 'Unqualified', 'Converted', 'Follow up', 'Pending Review']),
+    z.literal(''),
+    z.null(),
+  ]).optional().default('New'),
+  isRecurring: z.boolean().optional().default(false),
+  recurrenceFrequency: z.enum(['yearly', 'monthly', 'custom']).nullable().optional().default('monthly'),
+  recurrenceDate: optionalDate,
+  recurrenceInterval: z.number().int().positive().max(3650).nullable().optional(),
+  lastContactedDate: optionalDate,
+  nextFollowUpDate: optionalDate,
+  ownerId: z.string().nullable().optional(),
+  ownerName: z.string().nullable().optional(),
   customFields: customFieldsSchema.optional().default({}),
   pendingGateCheck: optionalJson,
   createdAt: z.string().optional(),
@@ -103,6 +117,10 @@ export const leadSchema = z.object({
 }).strip();
 
 export const updateLeadSchema = updateSchema(leadSchema);
+
+export const recurringLeadImportSchema = z.object({
+  names: z.array(z.unknown()).max(10000, 'A workbook can contain at most 10,000 rows.'),
+}).strict();
 
 // 4. Deals
 export const dealSchema = z.object({

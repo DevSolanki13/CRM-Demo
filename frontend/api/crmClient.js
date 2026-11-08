@@ -34,7 +34,11 @@ async function apiFetch(url, options = {}) {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    const error = Object.assign(new Error(data.error || 'Request failed'), { status: res.status, details: data.details });
+    const error = Object.assign(new Error(data.error || 'Request failed'), {
+      status: res.status,
+      details: data.details,
+      stats: data.stats,
+    });
     throw error;
   }
   return res;
@@ -84,6 +88,20 @@ export async function fetchCRMState(collections = []) {
 export async function fetchRecordsPage(resource, filters = {}, signal) {
   const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== undefined && value !== null));
   return (await apiFetch(`${BASE_URL}/pages/${encodeURIComponent(resource)}?${query}`, { signal })).json();
+}
+
+export async function previewRecurringLeadImport(names) {
+  return (await apiFetch(`${BASE_URL}/leads/recurring-import/preview`, {
+    method: 'POST',
+    body: JSON.stringify({ names }),
+  })).json();
+}
+
+export async function importRecurringLeads(names) {
+  return (await apiFetch(`${BASE_URL}/leads/recurring-import/import`, {
+    method: 'POST',
+    body: JSON.stringify({ names }),
+  })).json();
 }
 
 export async function fetchRecord(resource, id) {

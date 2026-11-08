@@ -26,6 +26,7 @@ import {
   createLead,
   updateLead,
   deleteLead,
+  importRecurringLeads as importRecurringLeadCompanies,
   createStage,
   updateStage,
   createPipeline,
@@ -479,7 +480,7 @@ export default function App() {
     try {
       const created = await createLead(lead);
       await reloadState('leads', 'tasks', 'auditLogs');
-      toast.success("Lead created");
+      toast.success(lead.isRecurring ? 'Recurring lead created' : 'Lead created');
       return created;
     } catch (err) {
       console.error("Error creating lead", err);
@@ -497,7 +498,7 @@ export default function App() {
         leads: (prev.leads || []).map(l => l.id === id ? { ...l, ...updated } : l)
       } : prev);
       await reloadState('leads');
-      toast.success("Lead updated");
+      toast.success(lead.isRecurring === true ? 'Recurring lead updated' : 'Lead updated');
       return updated;
     } catch (err) {
       console.error("Error updating lead", err);
@@ -518,6 +519,21 @@ export default function App() {
       toast.info("Lead deleted");
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
+      throw err;
+    }
+  };
+
+  const handleImportRecurringLeadCompanies = async (names) => {
+    try {
+      const result = await importRecurringLeadCompanies(names);
+      await reloadState('leads', 'auditLogs');
+      const imported = result.stats.successfullyImported;
+      if (imported > 0) toast.success(`Imported ${imported} recurring leads`);
+      else toast.info('No new recurring leads to import');
+      return result;
+    } catch (err) {
+      console.error('Error importing recurring leads', err);
+      toast.error(err.message || 'Could not import recurring leads');
       throw err;
     }
   };
@@ -917,6 +933,7 @@ export default function App() {
                   currentUser={currentUser}
                   branding={state.branding}
                   onCreateLead={handleCreateLead}
+                  onImportRecurringLeads={handleImportRecurringLeadCompanies}
                   onUpdateLead={handleUpdateLead}
                   onDeleteLead={handleDeleteLead}
                   onConvertToDeal={handleConvertToDeal}

@@ -1,13 +1,17 @@
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 
 export function RecordPagination({ page, label = 'records' }) {
+  if (!page.loading && !page.error && page.total <= page.items.length && page.number === 1) {
+    return null;
+  }
+
   return <nav aria-label={`${label} pagination`} className="flex flex-wrap items-center justify-between gap-3 py-3 text-xs text-[var(--ink-muted)]">
     <div aria-live="polite" role="status">
-      {page.loading ? `Loading ${label}…` : `${page.items.length} of ${page.total.toLocaleString()} matching ${label} · Page ${page.number}`}
+      {page.loading ? `Loading ${label}…` : page.error ? `Could not load ${label}` : `${page.items.length} of ${page.total.toLocaleString()} matching ${label} · Page ${page.number}`}
     </div>
     {page.error && <div role="alert" className="flex items-center gap-2 text-[var(--danger)]">
-      <span>{page.error}</span>
-      <button type="button" onClick={page.retry} className="underline underline-offset-2">Try again</button>
+      <span>Check your connection and retry.</span>
+      <button type="button" onClick={page.retry} className="font-semibold underline underline-offset-2">Retry</button>
     </div>}
     <div className="flex items-center gap-2">
       <button type="button" aria-label={`Previous ${label} page`} onClick={page.previous}

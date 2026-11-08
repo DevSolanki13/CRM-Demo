@@ -70,7 +70,7 @@ export const ImportExportModal = ({
         ContactEmail: l.contactEmail,
         Company: l.companyName,
         Source: l.source,
-        Outbound: l.isOutbound ? 'Yes' : 'No',
+        Outbound: l.isOutbound == null ? 'Unavailable' : l.isOutbound ? 'Yes' : 'No',
         Status: l.status,
         Owner: l.ownerName,
         CreatedAt: l.createdAt

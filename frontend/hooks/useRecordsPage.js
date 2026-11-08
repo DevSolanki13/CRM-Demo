@@ -31,6 +31,7 @@ export function useRecordsPage(resource, filters = {}, revision = 0, enabled = t
   return { ...page, number: cursors.length,
     previous: () => setNavigation({ key, cursors: cursors.slice(0, -1) }),
     next: () => page.nextCursor && setNavigation({ key, cursors: [...cursors, page.nextCursor] }),
+    firstPage: () => setNavigation({ key, cursors: [''] }),
     retry: () => setRetry(value => value + 1),
   };
 }

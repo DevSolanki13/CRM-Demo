@@ -2,14 +2,15 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma.js';
 import { COLLECTIONS, invalid, recordFilters } from './recordQuery.js';
 import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUtils.js';
+import { refreshRecurringLeadDates } from './leadService.js';
 
 export function recordFacets(resource, actor) {
   const today = getLocalDateString();
   const stale = getLocalDateStringAfterDays(-10);
   if (resource === 'leads') return Prisma.sql`
     count(*)::int AS "All", count(*) FILTER (WHERE r."ownerId" = ${actor.id})::int AS "MyLeads",
-    count(*) FILTER (WHERE r."isOutbound")::int AS "Outbound",
-    count(*) FILTER (WHERE NOT r."isOutbound")::int AS "Inbound",
+    count(*) FILTER (WHERE r."isOutbound" IS TRUE)::int AS "Outbound",
+    count(*) FILTER (WHERE r."isOutbound" IS FALSE)::int AS "Inbound",
     count(*) FILTER (WHERE r.status = 'New')::int AS "New"`;
   if (resource === 'deals') return Prisma.sql`
     count(*)::int AS "All", count(*) FILTER (WHERE r."ownerId" = ${actor.id})::int AS "MyDeals",
@@ -29,26 +30,34 @@ export function recordFacets(resource, actor) {
 
 export async function listRecordsPage(resource, actor, query = {}) {
   const { cursor = '', limit = 50, sort = 'id' } = query;
+  if (resource === 'leads' && query.recurring === 'true') await refreshRecurringLeadDates(actor);
   const pageSize = Number(limit);
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw invalid('Use a page size from 1 to 100.');
   const filters = recordFilters(resource, actor, query);
-  const titleSort = resource === 'leads' && ['title-asc', 'title-desc'].includes(sort);
-  if (!titleSort && (!['id', 'recent'].includes(sort) || (sort === 'recent' && !['notes', 'activities', 'audit-logs', 'stageGateChecks'].includes(resource)))) throw invalid('Choose a valid sort order.');
+  const sortExpressions = {
+    'title-asc': { expression: Prisma.sql`lower(COALESCE(r.title, ''))`, descending: false },
+    'title-desc': { expression: Prisma.sql`lower(COALESCE(r.title, ''))`, descending: true },
+    'status-asc': { expression: Prisma.sql`lower(COALESCE(r.status, ''))`, descending: false },
+    'recurrence-asc': { expression: Prisma.sql`COALESCE(r."nextRecurrenceDate", '9999-12-31')`, descending: false },
+  };
+  const selectedSort = resource === 'leads' ? sortExpressions[sort] : null;
+  const recentSort = sort === 'recent' && ['notes', 'activities', 'audit-logs', 'stageGateChecks'].includes(resource);
+  if (!selectedSort && !['id'].includes(sort) && !recentSort) throw invalid('Choose a valid sort order.');
   let boundary = Prisma.sql`r.id > ${cursor}`;
   let order = Prisma.sql`r.id ASC`;
-  if (titleSort) {
-    const descending = sort === 'title-desc';
-    order = descending ? Prisma.sql`lower(COALESCE(r.title, '')) DESC, r.id ASC` : Prisma.sql`lower(COALESCE(r.title, '')) ASC, r.id ASC`;
+  if (selectedSort) {
+    const { expression, descending } = selectedSort;
+    order = descending ? Prisma.sql`${expression} DESC, r.id ASC` : Prisma.sql`${expression} ASC, r.id ASC`;
     boundary = Prisma.sql`TRUE`;
     if (cursor) {
       let value;
       try { value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')); } catch { throw invalid('Invalid lead cursor.'); }
       if (!Array.isArray(value) || value.length !== 2 || value.some(item => typeof item !== 'string')) throw invalid('Invalid lead cursor.');
-      boundary = descending ? Prisma.sql`(lower(COALESCE(r.title, '')) < ${value[0]} OR (lower(COALESCE(r.title, '')) = ${value[0]} AND r.id > ${value[1]}))`
-        : Prisma.sql`(lower(COALESCE(r.title, '')) > ${value[0]} OR (lower(COALESCE(r.title, '')) = ${value[0]} AND r.id > ${value[1]}))`;
+      boundary = descending ? Prisma.sql`(${expression} < ${value[0]} OR (${expression} = ${value[0]} AND r.id > ${value[1]}))`
+        : Prisma.sql`(${expression} > ${value[0]} OR (${expression} = ${value[0]} AND r.id > ${value[1]}))`;
     }
   }
-  if (sort === 'recent') {
+  if (recentSort) {
     order = Prisma.sql`COALESCE(r.timestamp, '') DESC, r.id ASC`;
     boundary = Prisma.sql`TRUE`;
     if (cursor) {
@@ -77,8 +86,13 @@ export async function listRecordsPage(resource, actor, query = {}) {
   ], { isolationLevel: 'RepeatableRead' });
   const items = rows.slice(0, pageSize);
   const last = items.at(-1);
+  const sortValue = selectedSort && last
+    ? sort === 'title-asc' || sort === 'title-desc' ? (last.title || '').toLowerCase()
+      : sort === 'status-asc' ? (last.status || '').toLowerCase()
+        : last.nextRecurrenceDate || '9999-12-31'
+    : null;
   return { items, total: counts[0].total, facets: facets[0], stageTotals,
-    nextCursor: rows.length > pageSize ? titleSort
-      ? Buffer.from(JSON.stringify([(last.title || '').toLowerCase(), last.id])).toString('base64url') : sort === 'recent'
+    nextCursor: rows.length > pageSize ? selectedSort
+      ? Buffer.from(JSON.stringify([sortValue, last.id])).toString('base64url') : recentSort
       ? Buffer.from(JSON.stringify([last.timestamp || '', last.id])).toString('base64url') : last.id : null };
 }

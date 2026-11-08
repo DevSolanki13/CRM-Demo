@@ -63,6 +63,7 @@ export const DetailDrawer = ({
   // Quick task state
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDueDate, setNewTaskDueDate] = useState(getLocalDateInputValueAfterDays(3));
+  const readOnlyRecurringLead = type === 'lead' && lead?.isRecurring && currentUser?.role !== 'Admin';
 
   // Editable deal properties state
   const [formData, setFormData] = useState({});
@@ -93,8 +94,8 @@ export const DetailDrawer = ({
         contactEmail: lead.contactEmail || '',
         contactPhone: lead.contactPhone || '',
         companyName: lead.companyName || '',
-        status: lead.status || 'New',
-        source: lead.source || 'Website',
+        status: lead.isRecurring ? lead.status || '' : lead.status || 'New',
+        source: lead.isRecurring ? lead.source || '' : lead.source || 'Website',
         ownerId: lead.ownerId || '',
         notes: lead.notes || ''
       });
@@ -209,10 +210,11 @@ export const DetailDrawer = ({
         });
         toast.success("Deal updated successfully");
       } else if (type === 'lead' && onUpdateLead) {
+        if (lead.isRecurring) recordFields.notes = notes || '';
         await onUpdateLead(lead.id, recordFields);
         toast.success("Lead updated successfully");
       }
-      if (notes?.trim() && onCreateNote) {
+      if (!(type === 'lead' && lead?.isRecurring) && notes?.trim() && onCreateNote) {
         await onCreateNote({
           text: notes.trim(), linkedType: type === 'deal' ? 'Deal' : 'Lead',
           linkedId: type === 'deal' ? deal.id : lead.id,
@@ -512,12 +514,30 @@ export const DetailDrawer = ({
 
                   {/* Form Fields */}
                   <div className="space-y-3">
+                    {type === 'lead' && lead?.isRecurring && (
+                      <div className="grid grid-cols-2 gap-3 rounded-xl border border-[#D8E8EF] bg-[#F8FBFC] p-3">
+                        <div>
+                          <div className="text-[10px] font-semibold text-[#5B6472]">Recurrence start</div>
+                          <div className="mt-1 text-xs font-bold text-[#12161C]">{formatDate(lead.recurrenceDate) || '—'}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-semibold text-[#5B6472]">Next recurrence</div>
+                          <div className="mt-1 text-xs font-bold text-[#1D4E63]">{formatDate(lead.nextRecurrenceDate) || '—'}</div>
+                        </div>
+                        <div className="col-span-2 text-[10px] text-[#5B6472]">
+                          Frequency: {lead.recurrenceFrequency || 'monthly'}
+                          {lead.recurrenceFrequency === 'custom' && lead.recurrenceInterval
+                            ? ` · every ${lead.recurrenceInterval} days` : ''}
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <label htmlFor="drawer-field-title" className="block text-[11px] font-bold text-[#5B6472] mb-1">Title</label>
                       <input
                         id="drawer-field-title"
                         type="text"
                         value={formData.title || ''}
+                        disabled={readOnlyRecurringLead}
                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                         className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] focus:ring-1 focus:ring-[#1D4E63]/30 transition-all"
                       />
@@ -553,7 +573,7 @@ export const DetailDrawer = ({
                         <label htmlFor="drawer-field-owner" className="block text-[11px] font-bold text-[#5B6472] mb-1">Assigned Owner</label>
                         <select
                           id="drawer-field-owner"
-                          disabled={!canManageTeam(currentUser)}
+                          disabled={!canManageTeam(currentUser) || readOnlyRecurringLead}
                           value={formData.ownerId || ''}
                           onChange={(e) => setFormData({ ...formData, ownerId: e.target.value })}
                           className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] focus:ring-1 focus:ring-[#1D4E63]/30 transition-all"
@@ -569,6 +589,7 @@ export const DetailDrawer = ({
                         <label htmlFor="drawer-field-priority" className="block text-[11px] font-bold text-[#5B6472] mb-1">Priority</label>
                         <select
                           id="drawer-field-priority"
+                          disabled={readOnlyRecurringLead}
                           value={formData.priority || 'Medium'}
                           onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
                           className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] focus:ring-1 focus:ring-[#1D4E63]/30 transition-all"
@@ -586,6 +607,7 @@ export const DetailDrawer = ({
                         id="drawer-field-notes"
                         rows={3}
                         value={formData.notes || ''}
+                        disabled={readOnlyRecurringLead}
                         onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                         placeholder="Add strategic notes or customer context..."
                         className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] focus:ring-1 focus:ring-[#1D4E63]/30 transition-all"
@@ -593,16 +615,18 @@ export const DetailDrawer = ({
                     </div>
                   </div>
 
-                  <div className="pt-2 flex items-center justify-end gap-2">
-                    <button
-                      type="submit"
-                      disabled={isSaving}
-                      className="px-4 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold rounded-xl text-xs transition-colors shadow-2xs flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4E63]"
-                    >
-                      {isSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                      <span>Save Changes</span>
-                    </button>
-                  </div>
+                  {!readOnlyRecurringLead && (
+                    <div className="pt-2 flex items-center justify-end gap-2">
+                      <button
+                        type="submit"
+                        disabled={isSaving}
+                        className="px-4 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold rounded-xl text-xs transition-colors shadow-2xs flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4E63]"
+                      >
+                        {isSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                        <span>Save Changes</span>
+                      </button>
+                    </div>
+                  )}
                 </form>
               </div>
             )}

@@ -49,7 +49,7 @@ export async function visibleRecord(type, id, user) {
   }, select: { id: true, ownerId: true } });
   const model = { Contact: prisma.contact, Lead: prisma.lead, Deal: prisma.deal }[type];
   if (model) return model.findFirst({ where: { id, ...(privileged ? {} : { ownerId: user.id }) },
-    select: { id: true, ownerId: true } });
+    select: type === 'Lead' ? { id: true, ownerId: true, isRecurring: true } : { id: true, ownerId: true } });
   if (type === 'Task') {
     const task = await prisma.task.findUnique({ where: { id },
       select: { id: true, ownerId: true, type: true, stageGateCheckId: true, linkedType: true, linkedId: true } });
@@ -80,9 +80,12 @@ async function visibleApproval(id, user) {
 export const authorizeCRM = asyncHandler(async (req, _res, next) => {
   const [resource, id, action] = req.path.split('/').filter(Boolean);
   const write = !['GET', 'HEAD'].includes(req.method);
+  const recurringLeadImport = resource === 'leads' && id === 'recurring-import';
   const known = ['state', 'branding', 'companies', 'contacts', 'leads', 'stages', 'pipelines', 'deals', 'audit-logs', 'tasks', 'notes', 'activities', 'attachments', 'users', 'stage-gate-checks', 'import', 'timeline', 'settings'];
   if (!known.includes(resource)) fail(404, 'API endpoint not found');
-  const adminOnly = (resource === 'state' && write) || resource === 'branding' || resource === 'settings' || (resource === 'stages' && write) || (resource === 'pipelines' && write) || (resource === 'users' && write);
+  const adminOnly = (resource === 'state' && write) || resource === 'branding' || resource === 'settings' ||
+    (resource === 'stages' && write) || (resource === 'pipelines' && write) ||
+    (resource === 'users' && write) || (recurringLeadImport && write);
   if (adminOnly && req.user.role !== 'Admin') fail(403, 'Administrator permission required');
   if (((resource === 'stage-gate-checks' && ['approve', 'reject'].includes(action)) || (resource === 'deals' && id === 'check-renewals')) && !managed(req.user)) fail(403, 'Manager permission required');
 
@@ -104,8 +107,15 @@ export const authorizeCRM = asyncHandler(async (req, _res, next) => {
     return record;
   };
   const resourceType = { companies: 'Company', contacts: 'Contact', leads: 'Lead', deals: 'Deal', tasks: 'Task' }[resource];
-  const resourceRecord = resourceType && id && id !== 'check-renewals' && id !== 'duplicates'
+  const resourceRecord = resourceType && id && id !== 'check-renewals' && id !== 'duplicates' && !recurringLeadImport
     ? await assertVisible(resourceType, id) : null;
+  if (resource === 'leads' && write && req.user.role !== 'Admin') {
+    const recurringRecord = resourceRecord?.isRecurring === true;
+    const recurringRequest = req.body?.isRecurring === true ||
+      ['recurrenceDate', 'recurrenceFrequency', 'recurrenceInterval'].some(key =>
+        req.body?.[key] != null && req.body[key] !== '');
+    if (recurringRecord || recurringRequest) fail(403, 'Administrator permission required for recurring leads');
+  }
   if (action === 'merge' && ['companies', 'contacts'].includes(resource)) {
     if (!managed(req.user)) fail(403, 'Manager permission required to merge customer records');
     await assertVisible(resourceType, req.body?.sourceId);
@@ -144,8 +154,18 @@ export const authorizeCRM = asyncHandler(async (req, _res, next) => {
     if (linkedId) await assertVisible(linkedType, linkedId);
     if (resource === 'tasks' && !managed(req.user) && (old?.type === 'Approval' || req.body.type === 'Approval' || old?.stageGateCheckId || req.body.stageGateCheckId)) fail(403, 'Approval tasks are managed by the approval workflow');
   }
-  if (['contacts', 'leads', 'deals', 'companies', 'tasks'].includes(resource) && !action && id !== 'check-renewals') {
-    await assignOwner(req.body, req.user, !id);
+  if (['contacts', 'leads', 'deals', 'companies', 'tasks'].includes(resource) && !action && id !== 'check-renewals' && !recurringLeadImport) {
+    const isRecurringLead = resource === 'leads' &&
+      (req.body.isRecurring === true || resourceRecord?.isRecurring === true);
+    if (isRecurringLead && !id && !req.body.ownerId) {
+      req.body.ownerId = null;
+      req.body.ownerName = null;
+    } else if (isRecurringLead && id && 'ownerId' in req.body && !req.body.ownerId) {
+      req.body.ownerId = null;
+      req.body.ownerName = null;
+    } else {
+      await assignOwner(req.body, req.user, !id);
+    }
   }
   if (!id && req.method === 'POST' && !['pipelines', 'attachments'].includes(resource)) req.body.id = randomUUID();
   if (id) delete req.body.id;

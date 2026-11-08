@@ -116,28 +116,43 @@ model Contact {
 }
 
 // 6. Leads
+
 model Lead {
-  id               String  @id
-  title            String
-  contactName      String?
-  contactEmail     String?
-  contactPhone     String?
-  companyName      String?
-  source           String?
-  isOutbound       Boolean @default(false)
-  status           String  @default("New")
-  ownerId          String?
-  ownerName        String?
-  createdAt        String?
-  lastActivityDate String?
-  pendingGateCheck Json?
-  customFields     Json?
+  id                  String  @id
+  title               String
+  contactName         String?
+  contactEmail        String?
+  contactPhone        String?
+  alternatePhone      String?
+  companyName         String?
+  category            String?
+  location            String?
+  notes               String?
+  source              String?
+  isOutbound          Boolean? @default(false)
+  status              String? @default("New")
+  isRecurring         Boolean @default(false)
+  recurrenceFrequency String?
+  recurrenceDate      String?
+  recurrenceInterval  Int?
+  nextRecurrenceDate  String?
+  lastContactedDate   String?
+  nextFollowUpDate    String?
+  ownerId             String?
+  ownerName           String?
+  createdAt           String?
+  lastActivityDate    String?
+  pendingGateCheck    Json?
+  customFields        Json?
+
   owner User? @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   deals Deal[]
 
   @@index([ownerId])
   @@index([ownerId, id])
+  @@index([isRecurring, nextRecurrenceDate])
 }
+
 
 // 7. Deals / Pipeline Opportunities
 model Deal {

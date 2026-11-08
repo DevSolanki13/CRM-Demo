@@ -17,10 +17,20 @@ import {
   AlertTriangle,
   Clock,
   Layers,
-  ExternalLink
+  ExternalLink,
+  Repeat,
+  CalendarClock,
+  Eye,
+  Upload
 } from 'lucide-react';
-import { formatDate, getStageBadgeStyle, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
+import { formatDate, getStageBadgeStyle, getLocalDateInputValue, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
 import { AddActivityModal } from './AddActivityModal.jsx';
+import { RecurringLeadImportModal } from './RecurringLeadImportModal.jsx';
+import {
+  DEFAULT_LEAD_RECURRENCE_FREQUENCY,
+  getDefaultLeadRecurrenceDate,
+  getNextLeadRecurrenceDate,
+} from '../../shared/leadRecurrence.js';
 
 export const LeadsView = ({
   revision = 0,
@@ -32,6 +42,7 @@ export const LeadsView = ({
   currentUser,
   branding,
   onCreateLead,
+  onImportRecurringLeads,
   onUpdateLead,
   onDeleteLead,
   onConvertToDeal,
@@ -50,6 +61,13 @@ export const LeadsView = ({
   const [selectedOwner, setSelectedOwner] = useState('All');
   const [selectedStage, setSelectedStage] = useState('All');
   const [quickLeadFilter, setQuickLeadFilter] = useState('All'); // 'All' | 'MyLeads' | 'Outbound' | 'Inbound' | 'New'
+  const [leadSection, setLeadSection] = useState('regular');
+  const [recurringSearch, setRecurringSearch] = useState('');
+  const [recurringStatus, setRecurringStatus] = useState('All');
+  const [recurringOwner, setRecurringOwner] = useState('All');
+  const [recurringDateFilter, setRecurringDateFilter] = useState('');
+  const [recurringSort, setRecurringSort] = useState('recurrence-asc');
+  const isAdmin = currentUser.role === 'Admin';
 
   // 3-Dots Menu & Action Modals State
   const [openMenuLeadId, setOpenMenuLeadId] = useState(null);
@@ -68,6 +86,8 @@ export const LeadsView = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLead, setEditingLead] = useState(null);
   const [formValidationError, setFormValidationError] = useState('');
+  const [customFieldsText, setCustomFieldsText] = useState('{}');
+  const [isRecurringImportOpen, setIsRecurringImportOpen] = useState(false);
 
   // Selection state for multi-delete
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
@@ -80,15 +100,32 @@ export const LeadsView = ({
     contactName: '',
     contactEmail: '',
     contactPhone: '',
+    alternatePhone: '',
     companyName: '',
     source: 'Website',
     status: 'New',
     ownerId: currentUser.id,
-    notes: ''
+    notes: '',
+    isRecurring: false,
+    recurrenceFrequency: null,
+    recurrenceDate: '',
+    recurrenceInterval: null,
+    category: '',
+    location: '',
+    lastContactedDate: '',
+    nextFollowUpDate: ''
   });
 
   const page = useRecordsPage('leads', { q: searchQuery, source: selectedSource,
-    owner: selectedOwner, stage: selectedStage, quick: quickLeadFilter }, revision);
+    owner: selectedOwner, stage: selectedStage, quick: quickLeadFilter, recurring: 'false' }, revision, leadSection === 'regular');
+  const recurringPage = useRecordsPage('leads', {
+    q: recurringSearch,
+    owner: recurringOwner,
+    status: recurringStatus,
+    recurrenceDate: recurringDateFilter || 'All',
+    recurring: 'true',
+    sort: recurringSort,
+  }, revision, leadSection === 'recurring');
   const leads = page.items;
   const deals = [...leads.map(lead => lead.primaryDeal).filter(Boolean), ...contextualDeals];
   const filteredLeads = leads;
@@ -207,19 +244,30 @@ export const LeadsView = ({
     setActivityModalLead(null);
   };
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = (isRecurring = false) => {
     setEditingLead(null);
     setFormValidationError('');
+    setCustomFieldsText('{}');
     setFormData({
       title: '',
       contactName: '',
       contactEmail: '',
       contactPhone: '',
+      alternatePhone: '',
       companyName: '',
-      source: 'Website',
-      status: 'New',
-      ownerId: currentUser.id,
-      notes: ''
+      category: '',
+      location: '',
+      source: isRecurring ? '' : 'Website',
+      isOutbound: isRecurring ? null : false,
+      status: isRecurring ? '' : 'New',
+      ownerId: isRecurring ? '' : currentUser.id,
+      notes: '',
+      isRecurring,
+      recurrenceFrequency: isRecurring ? DEFAULT_LEAD_RECURRENCE_FREQUENCY : null,
+      recurrenceDate: isRecurring ? getDefaultLeadRecurrenceDate() : '',
+      recurrenceInterval: null,
+      lastContactedDate: '',
+      nextFollowUpDate: ''
     });
     setIsModalOpen(true);
   };
@@ -227,8 +275,61 @@ export const LeadsView = ({
   const handleOpenEditModal = (lead) => {
     setEditingLead(lead);
     setFormValidationError('');
-    setFormData({ ...lead });
+    setCustomFieldsText(JSON.stringify(lead.customFields || {}, null, 2));
+    setFormData({
+      ...lead,
+      contactName: lead.contactName || '',
+      contactEmail: lead.contactEmail || '',
+      contactPhone: lead.contactPhone || '',
+      alternatePhone: lead.alternatePhone || '',
+      companyName: lead.companyName || '',
+      category: lead.category || '',
+      location: lead.location || '',
+      source: lead.source || '',
+      ownerId: lead.ownerId || '',
+      notes: lead.notes || '',
+      recurrenceFrequency: lead.recurrenceFrequency || DEFAULT_LEAD_RECURRENCE_FREQUENCY,
+      recurrenceDate: lead.recurrenceDate || getDefaultLeadRecurrenceDate(),
+      recurrenceInterval: lead.recurrenceInterval ?? '',
+      lastContactedDate: lead.lastContactedDate || '',
+      nextFollowUpDate: lead.nextFollowUpDate || '',
+    });
     setIsModalOpen(true);
+  };
+
+  const handleMoveToRecurring = async (lead) => {
+    if (!isAdmin || !window.confirm(`Move "${lead.title}" to Recurring Leads? Existing lead details will be preserved.`)) return;
+    await onUpdateLead(lead.id, {
+      isRecurring: true,
+      recurrenceFrequency: DEFAULT_LEAD_RECURRENCE_FREQUENCY,
+      recurrenceDate: getDefaultLeadRecurrenceDate(),
+      recurrenceInterval: null,
+    });
+  };
+
+  const handleMoveToRegular = async (lead) => {
+    if (!isAdmin || !window.confirm(`Move "${lead.title}" back to regular leads? Existing lead details will be preserved.`)) return;
+    await onUpdateLead(lead.id, {
+      isRecurring: false,
+      recurrenceFrequency: null,
+      recurrenceDate: null,
+      recurrenceInterval: null,
+    });
+  };
+
+  const handleDeleteRecurring = async (lead) => {
+    if (!isAdmin || !window.confirm(`Delete "${lead.title}" permanently? This cannot be undone.`)) return;
+    await onDeleteLead(lead.id);
+  };
+
+  const handleRecurringImportComplete = result => {
+    if (!result?.stats?.successfullyImported) return;
+    setRecurringSearch('');
+    setRecurringStatus('All');
+    setRecurringOwner('All');
+    setRecurringDateFilter('');
+    setRecurringSort('recurrence-asc');
+    recurringPage.firstPage();
   };
 
   React.useEffect(() => {
@@ -244,27 +345,55 @@ export const LeadsView = ({
     const titleTrimmed = (formData.title || '').trim();
     const contactTrimmed = (formData.contactName || '').trim();
 
-    if (!titleTrimmed || !contactTrimmed) {
-      setFormValidationError('Lead Title and Contact Name are required.');
+    if (!titleTrimmed || (!formData.isRecurring && !contactTrimmed)) {
+      setFormValidationError(formData.isRecurring ? 'Lead name is required.' : 'Lead title and contact name are required.');
       return;
     }
 
     // Validation: Lead title cannot consist of only numbers (must include text/letters or string with numbers)
-    if (/^\d+$/.test(titleTrimmed) || !/[a-zA-Z]/.test(titleTrimmed)) {
+    if (!formData.isRecurring && (/^\d+$/.test(titleTrimmed) || !/[a-zA-Z]/.test(titleTrimmed))) {
       setFormValidationError('Lead Title cannot be purely numeric. Please include letters or descriptive text (e.g. "Lead 101" or "AeroTech Inquiry").');
       return;
     }
 
-    if (/^\d+$/.test(contactTrimmed) || !/[a-zA-Z]/.test(contactTrimmed)) {
+    if (!formData.isRecurring && (/^\d+$/.test(contactTrimmed) || !/[a-zA-Z]/.test(contactTrimmed))) {
       setFormValidationError('Contact Name cannot be purely numeric. Please enter a valid name (e.g. "David Miller").');
       return;
     }
 
+    let customFields;
+    try {
+      customFields = JSON.parse(customFieldsText || '{}');
+      if (!customFields || Array.isArray(customFields) || typeof customFields !== 'object' ||
+          Object.values(customFields).some(value => !['string', 'number', 'boolean'].includes(typeof value) && value !== null)) {
+        throw new Error();
+      }
+    } catch {
+      setFormValidationError('Custom fields must be a JSON object with text, number, boolean, or null values.');
+      return;
+    }
+
     const { notes, ...leadFields } = formData;
+    leadFields.notes = notes || '';
+    leadFields.customFields = customFields;
+    if (formData.isRecurring) {
+      leadFields.ownerId = formData.ownerId || null;
+      leadFields.recurrenceInterval = formData.recurrenceFrequency === 'custom' && formData.recurrenceInterval !== ''
+        ? Number(formData.recurrenceInterval) : null;
+      if (formData.recurrenceFrequency === 'custom' && !leadFields.recurrenceInterval) {
+        setFormValidationError('Enter the custom recurrence interval in days.');
+        return;
+      }
+    } else {
+      delete leadFields.recurrenceFrequency;
+      delete leadFields.recurrenceDate;
+      delete leadFields.recurrenceInterval;
+      leadFields.isRecurring = false;
+    }
     const saved = editingLead
       ? await onUpdateLead(editingLead.id, leadFields)
       : await onCreateLead(leadFields);
-    if (notes?.trim() && saved?.id && onCreateNote) {
+    if (!formData.isRecurring && notes?.trim() && saved?.id && onCreateNote) {
       try {
         await onCreateNote({
           text: notes.trim(), linkedType: 'Lead', linkedId: saved.id,
@@ -293,7 +422,17 @@ export const LeadsView = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {selectedLeadIds.length > 0 && (
+          {leadSection === 'recurring' && isAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsRecurringImportOpen(true)}
+              className="px-4 py-2 bg-[#FFFFFF] hover:bg-[#F6F7F8] text-[#1D4E63] border border-[#D8E8EF] rounded-xl text-xs font-bold flex items-center gap-2 transition-colors"
+            >
+              <Upload className="w-4 h-4" aria-hidden="true" />
+              <span>Import Companies</span>
+            </button>
+          )}
+          {leadSection === 'regular' && selectedLeadIds.length > 0 && (
             <button
               onClick={handleBulkDelete}
               className="px-4 py-2 bg-[#B5423A] hover:bg-[#96342E] text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-colors shadow-2xs"
@@ -303,18 +442,48 @@ export const LeadsView = ({
             </button>
           )}
 
-          <button
-            onClick={handleOpenAddModal}
-            className="px-4 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-colors shadow-2xs"
-          >
-            <Plus className="w-4 h-4 text-white" />
-            <span>Add New Lead</span>
-          </button>
+          {(leadSection === 'regular' || isAdmin) && (
+            <button
+              onClick={() => handleOpenAddModal(leadSection === 'recurring')}
+              className="px-4 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-colors shadow-2xs"
+            >
+              <Plus className="w-4 h-4 text-white" />
+              <span>{leadSection === 'recurring' ? 'Add Recurring Lead' : 'Add New Lead'}</span>
+            </button>
+          )}
         </div>
       </div>
 
+      <div role="tablist" aria-label="Lead type" className="flex items-center gap-2 border-b border-[#E3E6EA]">
+        {[
+          { id: 'regular', label: 'New / Uncontacted Leads', count: page.facets?.New || 0 },
+          { id: 'recurring', label: 'Recurring Leads', count: recurringPage.total },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={leadSection === tab.id}
+            onClick={() => {
+              setLeadSection(tab.id);
+              setSelectedLeadIds([]);
+            }}
+            className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-bold transition-colors focus-visible:outline-2 focus-visible:outline-[#1D4E63] ${
+              leadSection === tab.id
+                ? 'border-[#1D4E63] text-[#1D4E63]'
+                : 'border-transparent text-[#5B6472] hover:text-[#12161C]'
+            }`}
+          >
+            <span>{tab.label}</span>
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${leadSection === tab.id ? 'bg-[#EFF6F9]' : 'bg-[#F6F7F8]'}`}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* Filter Bar */}
-      <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-4 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center gap-3 shadow-2xs">
+      <div className={`${leadSection === 'regular' ? 'flex' : 'hidden'} bg-[#FFFFFF] border border-[#E3E6EA] p-4 rounded-2xl flex-col md:flex-row items-stretch md:items-center gap-3 shadow-2xs`}>
 
         {/* Search */}
         <div className="w-full sm:w-64 relative shrink-0">
@@ -377,10 +546,12 @@ export const LeadsView = ({
 
       </div>
 
-      <RecordPagination page={page} label="leads" />
+      <div className={leadSection === 'regular' ? '' : 'hidden'}>
+        <RecordPagination page={page} label="leads" />
+      </div>
 
       {/* Quick Filter Chips */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+      <div className={`${leadSection === 'regular' ? 'flex' : 'hidden'} items-center gap-2 overflow-x-auto no-scrollbar py-1`}>
         {[
           { id: 'All', label: 'All Leads', count: page.facets?.All || 0 },
           { id: 'MyLeads', label: 'My Leads', count: myLeadsCount },
@@ -408,7 +579,7 @@ export const LeadsView = ({
       </div>
 
       {/* Responsive Mobile Cards View (< md) */}
-      <div className="block md:hidden space-y-3">
+      <div className={`${leadSection === 'regular' ? 'block md:hidden' : 'hidden'} space-y-3`}>
         {filteredLeads.length === 0 ? (
           <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-6 text-center text-xs text-[#5B6472]">
             No leads found matching criteria.
@@ -495,6 +666,15 @@ export const LeadsView = ({
                             <ExternalLink className="w-3.5 h-3.5 text-[#1D4E63]" />
                             <span>Open Lead 360</span>
                           </button>
+                          {isAdmin && (
+                             <button
+                               onClick={() => handleMoveToRecurring(lead)}
+                               className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
+                             >
+                               <Repeat className="w-3.5 h-3.5 text-[#1D4E63]" />
+                               <span>Move to Recurring Leads</span>
+                             </button>
+                          )}
                           <button
                             onClick={() => handleOpenAddActivityModal(lead)}
                             className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
@@ -523,11 +703,11 @@ export const LeadsView = ({
                         </span>
                       );
                     })()}
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${lead.isOutbound
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${lead.isOutbound === true
                         ? 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
                         : 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]'
                       }`}>
-                      {lead.isOutbound ? 'Outbound' : 'Inbound'}
+                      {lead.isOutbound === true ? 'Outbound' : lead.isOutbound === false ? 'Inbound' : 'Unavailable'}
                     </span>
                   </div>
                 </div>
@@ -545,7 +725,7 @@ export const LeadsView = ({
       </div>
 
       {/* Desktop Leads Table (>= md) */}
-      <div className="hidden md:block bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm">
+      <div className={`${leadSection === 'regular' ? 'hidden md:block' : 'hidden'} bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm`}>
         <div className="overflow-x-auto max-h-[640px] overflow-y-auto no-scrollbar pb-10">
           <table className="w-full text-left text-xs text-[var(--ink)]">
             <thead className="sticky top-0 z-10 bg-[var(--canvas)] text-[var(--ink-muted)] uppercase font-mono font-bold text-[10px] tracking-wider border-b border-[var(--border)] shadow-xs">
@@ -670,11 +850,11 @@ export const LeadsView = ({
                       {/* Source & Effort */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${lead.isOutbound
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${lead.isOutbound === true
                               ? 'bg-[#FEFCE8] text-[#A16207] border-[#FEF08A]'
                               : 'bg-[#FFFFFF] text-[#12161C] border-[#E3E6EA]'
                             }`}>
-                            {lead.isOutbound ? 'Cold Outbound' : 'Inbound'}
+                            {lead.isOutbound === true ? 'Cold Outbound' : lead.isOutbound === false ? 'Inbound' : 'Unavailable'}
                           </span>
                           <span className="text-[10px] text-[#5B6472] font-mono">({lead.source})</span>
                         </div>
@@ -754,6 +934,15 @@ export const LeadsView = ({
                                   <ExternalLink className="w-3.5 h-3.5 text-[#1D4E63]" />
                                   <span>Open Lead 360</span>
                                 </button>
+                                {isAdmin && (
+                                   <button
+                                     onClick={() => handleMoveToRecurring(lead)}
+                                     className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
+                                   >
+                                     <Repeat className="w-3.5 h-3.5 text-[#1D4E63]" />
+                                     <span>Move to Recurring Leads</span>
+                                   </button>
+                                )}
                                 <button
                                   onClick={() => handleOpenAddActivityModal(lead)}
                                   className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
@@ -776,6 +965,191 @@ export const LeadsView = ({
         </div>
       </div>
 
+      {leadSection === 'recurring' && (
+        <section aria-label="Recurring leads" className="space-y-4">
+          <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-4 shadow-2xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+              <label className="relative sm:col-span-2 xl:col-span-2">
+                <span className="sr-only">Search recurring leads</span>
+                <Search aria-hidden="true" className="w-4 h-4 text-[#5B6472] absolute left-3.5 top-2.5" />
+                <input
+                  type="search"
+                  value={recurringSearch}
+                  onChange={event => setRecurringSearch(event.target.value)}
+                  placeholder="Search name, company, phone, or email"
+                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl pl-10 pr-4 py-2 text-xs text-[#12161C] placeholder-[#5B6472] focus:outline-none focus:border-[#1D4E63]"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-xs font-semibold text-[#5B6472]">
+                <span>Status</span>
+                <select
+                  value={recurringStatus}
+                  onChange={event => setRecurringStatus(event.target.value)}
+                  className="min-w-0 flex-1 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                >
+                  <option value="All">All statuses</option>
+                  {['New', 'Working', 'Qualified', 'Unqualified', 'Converted', 'Follow up', 'Pending Review'].map(status => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs font-semibold text-[#5B6472]">
+                <span>Owner</span>
+                <select
+                  value={recurringOwner}
+                  onChange={event => setRecurringOwner(event.target.value)}
+                  className="min-w-0 flex-1 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                >
+                  <option value="All">All employees</option>
+                  <option value="__unassigned">Unassigned</option>
+                  {users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs font-semibold text-[#5B6472]">
+                <span>Start date</span>
+                <input
+                  type="date"
+                  value={recurringDateFilter}
+                  onChange={event => setRecurringDateFilter(event.target.value)}
+                  className="min-w-0 flex-1 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-2 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-xs font-semibold text-[#5B6472]">
+                <span>Sort</span>
+                <select
+                  value={recurringSort}
+                  onChange={event => setRecurringSort(event.target.value)}
+                  className="min-w-0 flex-1 bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                >
+                  <option value="recurrence-asc">Next recurrence</option>
+                  <option value="title-asc">Name</option>
+                  <option value="status-asc">Status</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <RecordPagination page={recurringPage} label="recurring leads" />
+
+          <div className="space-y-3 md:hidden">
+            {recurringPage.items.length === 0 && !recurringPage.loading ? (
+              <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-6 text-center">
+                <Repeat className="w-5 h-5 text-[#1D4E63] mx-auto mb-2" />
+                <p className="text-xs font-bold text-[#12161C]">No recurring leads match these filters</p>
+                {isAdmin && <p className="text-[11px] text-[#5B6472] mt-1">Add a name now and fill in the remaining details later.</p>}
+              </div>
+            ) : recurringPage.items.map(lead => {
+              const today = getLocalDateInputValue();
+              const upcomingLimit = getLocalDateInputValueAfterDays(30);
+              const isUpcoming = lead.nextRecurrenceDate && lead.nextRecurrenceDate >= today && lead.nextRecurrenceDate <= upcomingLimit;
+              return (
+              <article key={lead.id} className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-bold text-[#12161C] truncate">{lead.title}</h2>
+                    <p className="text-[11px] text-[#5B6472] mt-1">{lead.companyName || 'Company unavailable'}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-[#EFF6F9] px-2.5 py-1 text-[10px] font-bold text-[#1D4E63]">
+                    {lead.status || 'Unavailable'}
+                  </span>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
+                  <div><dt className="text-[#5B6472]">Email</dt><dd className="break-all text-[#12161C]">{lead.contactEmail || '—'}</dd></div>
+                  <div><dt className="text-[#5B6472]">Phone</dt><dd className="text-[#12161C]">{lead.contactPhone || '—'}</dd></div>
+                  <div><dt className="text-[#5B6472]">Recurrence date</dt><dd className="text-[#12161C]">{formatDate(lead.recurrenceDate) || '—'}</dd></div>
+                  <div><dt className="text-[#5B6472]">Next recurrence</dt><dd className="flex flex-wrap items-center gap-1 text-[#12161C]">{formatDate(lead.nextRecurrenceDate) || '—'}{isUpcoming && <span className="inline-flex items-center gap-1 rounded-full bg-[#FEF8EC] px-2 py-0.5 text-[9px] font-bold text-[#805500]"><CalendarClock size={12} aria-hidden="true" />Upcoming</span>}</dd></div>
+                  <div><dt className="text-[#5B6472]">Assigned employee</dt><dd className="text-[#12161C]">{lead.ownerName || 'Unassigned'}</dd></div>
+                  <div><dt className="text-[#5B6472]">Next follow-up</dt><dd className="text-[#12161C]">{formatDate(lead.nextFollowUpDate) || '—'}</dd></div>
+                  <div><dt className="text-[#5B6472]">Last contacted</dt><dd className="text-[#12161C]">{formatDate(lead.lastContactedDate) || '—'}</dd></div>
+                </dl>
+                <div className="flex flex-wrap items-center gap-2 border-t border-[#E3E6EA] pt-3">
+                  <button type="button" onClick={() => onOpenDrawer?.('lead', lead)} className="inline-flex items-center gap-1 rounded-lg border border-[#E3E6EA] px-2.5 py-1.5 text-[11px] font-semibold text-[#1D4E63]">
+                    <Eye size={14} aria-hidden="true" /> View history
+                  </button>
+                  {isAdmin && (
+                    <>
+                      <button type="button" onClick={() => handleOpenEditModal(lead)} className="inline-flex items-center gap-1 rounded-lg border border-[#E3E6EA] px-2.5 py-1.5 text-[11px] font-semibold text-[#12161C]">
+                        <Edit3 size={14} aria-hidden="true" /> Edit
+                      </button>
+                      <button type="button" onClick={() => handleMoveToRegular(lead)} className="inline-flex items-center gap-1 rounded-lg border border-[#E3E6EA] px-2.5 py-1.5 text-[11px] font-semibold text-[#12161C]">
+                        <ArrowRightLeft size={14} aria-hidden="true" /> Move to regular
+                      </button>
+                      <button type="button" onClick={() => handleDeleteRecurring(lead)} className="inline-flex items-center gap-1 rounded-lg border border-[#F4C4C1] px-2.5 py-1.5 text-[11px] font-semibold text-[#922D27]">
+                        <Trash2 size={14} aria-hidden="true" /> Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl shadow-2xs">
+            <table className="min-w-[1180px] w-full text-left text-xs">
+              <thead className="bg-[#F6F7F8] border-b border-[#E3E6EA] text-[10px] uppercase tracking-wide text-[#5B6472]">
+                <tr>
+                  <th scope="col" className="px-4 py-3">Lead name</th>
+                  <th scope="col" className="px-4 py-3">Company</th>
+                  <th scope="col" className="px-4 py-3">Email / phone</th>
+                  <th scope="col" className="px-4 py-3">Status</th>
+                  <th scope="col" className="px-4 py-3">Assigned employee</th>
+                  <th scope="col" className="px-4 py-3">Recurrence date</th>
+                  <th scope="col" className="px-4 py-3">Next recurrence</th>
+                  <th scope="col" className="px-4 py-3">Next follow-up</th>
+                  <th scope="col" className="px-4 py-3">Last contacted</th>
+                  <th scope="col" className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E3E6EA]">
+                {recurringPage.items.length === 0 && !recurringPage.loading ? (
+                  <tr><td colSpan={10} className="px-4 py-12 text-center text-[#5B6472]">
+                    <Repeat className="w-5 h-5 text-[#1D4E63] mx-auto mb-2" />
+                    <p className="font-bold text-xs text-[#12161C]">No recurring leads match these filters</p>
+                    {isAdmin && <p className="text-[11px] mt-1">Add a name now and fill in the remaining details later.</p>}
+                  </td></tr>
+                ) : recurringPage.items.map(lead => {
+                  const today = getLocalDateInputValue();
+                  const upcomingLimit = getLocalDateInputValueAfterDays(30);
+                  const isUpcoming = lead.nextRecurrenceDate && lead.nextRecurrenceDate >= today && lead.nextRecurrenceDate <= upcomingLimit;
+                  return (
+                    <tr key={lead.id} className="hover:bg-[#F6F7F8]">
+                      <td className="px-4 py-3 font-bold text-[#12161C]">{lead.title}</td>
+                      <td className="px-4 py-3 text-[#5B6472]">{lead.companyName || '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-[#12161C]">{lead.contactEmail || '—'}</div>
+                        <div className="text-[10px] text-[#5B6472] mt-0.5">{lead.contactPhone || '—'}</div>
+                      </td>
+                      <td className="px-4 py-3"><span className="rounded-full bg-[#F6F7F8] px-2 py-1 text-[10px] font-semibold text-[#12161C]">{lead.status || 'Unavailable'}</span></td>
+                      <td className="px-4 py-3 text-[#12161C]">{lead.ownerName || 'Unassigned'}</td>
+                      <td className="px-4 py-3 text-[#5B6472]">{formatDate(lead.recurrenceDate) || '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className="text-[#12161C]">{formatDate(lead.nextRecurrenceDate) || '—'}</span>
+                        {isUpcoming && <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[#FEF8EC] px-2 py-0.5 text-[9px] font-bold text-[#805500]"><CalendarClock size={12} aria-hidden="true" />Upcoming</span>}
+                      </td>
+                      <td className="px-4 py-3 text-[#5B6472]">{formatDate(lead.nextFollowUpDate) || '—'}</td>
+                      <td className="px-4 py-3 text-[#5B6472]">{formatDate(lead.lastContactedDate) || '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <button type="button" aria-label={`View history for ${lead.title}`} onClick={() => onOpenDrawer?.('lead', lead)} className="rounded-lg p-2 text-[#1D4E63] hover:bg-[#EFF6F9]"><Eye size={15} aria-hidden="true" /></button>
+                          {isAdmin && (
+                            <>
+                              <button type="button" aria-label={`Edit ${lead.title}`} onClick={() => handleOpenEditModal(lead)} className="rounded-lg p-2 text-[#5B6472] hover:bg-[#F6F7F8]"><Edit3 size={15} aria-hidden="true" /></button>
+                              <button type="button" aria-label={`Move ${lead.title} to regular leads`} onClick={() => handleMoveToRegular(lead)} className="rounded-lg p-2 text-[#5B6472] hover:bg-[#F6F7F8]"><ArrowRightLeft size={15} aria-hidden="true" /></button>
+                              <button type="button" aria-label={`Delete ${lead.title}`} onClick={() => handleDeleteRecurring(lead)} className="rounded-lg p-2 text-[#922D27] hover:bg-[#FDF2F1]"><Trash2 size={15} aria-hidden="true" /></button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       {/* Add / Edit Lead Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -783,7 +1157,9 @@ export const LeadsView = ({
 
             <div className="flex items-center justify-between border-b border-[#E3E6EA] pb-3">
               <h2 className="font-display text-sm font-bold text-[#12161C]">
-                {editingLead ? 'Edit Lead Opportunity' : 'Create New Lead Opportunity'}
+                {editingLead
+                  ? formData.isRecurring ? 'Edit Recurring Lead' : 'Edit Lead Opportunity'
+                  : formData.isRecurring ? 'Create Recurring Lead' : 'Create New Lead Opportunity'}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -793,7 +1169,7 @@ export const LeadsView = ({
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-3.5 text-xs">
+            <form onSubmit={handleSave} className="space-y-3.5 text-xs max-h-[75vh] overflow-y-auto pr-1">
               {formValidationError && (
                 <div className="p-3 bg-[#FDF2F1] border border-[#F4C4C1] rounded-xl text-[#922D27] text-xs font-bold flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-[#922D27] shrink-0" />
@@ -802,19 +1178,21 @@ export const LeadsView = ({
               )}
 
               <div>
-                <label className="block text-[#5B6472] font-semibold mb-1">Lead Opportunity Title *</label>
+                <label className="block text-[#5B6472] font-semibold mb-1">
+                  {formData.isRecurring ? 'Lead Name *' : 'Lead Opportunity Title *'}
+                </label>
                 <input
                   type="text"
                   required
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="e.g. AeroTech Circuit Thermal Pads Supply"
-                  className={`w-full bg-[#F6F7F8] border rounded-xl p-2.5 text-[#12161C] focus:outline-none ${/^\d+$/.test((formData.title || '').trim()) && formData.title.trim().length > 0
+                  placeholder={formData.isRecurring ? 'Enter the lead name' : 'e.g. AeroTech Circuit Thermal Pads Supply'}
+                  className={`w-full bg-[#F6F7F8] border rounded-xl p-2.5 text-[#12161C] focus:outline-none ${!formData.isRecurring && /^\d+$/.test((formData.title || '').trim()) && formData.title.trim().length > 0
                       ? 'border-[#B5423A] focus:border-[#B5423A]'
                       : 'border-[#E3E6EA] focus:border-[#1D4E63]'
                     }`}
                 />
-                {/^\d+$/.test((formData.title || '').trim()) && formData.title.trim().length > 0 && (
+                {!formData.isRecurring && /^\d+$/.test((formData.title || '').trim()) && formData.title.trim().length > 0 && (
                   <p className="text-[11px] text-[#922D27] font-semibold mt-1 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3 text-[#922D27]" />
                     <span>Title cannot be only numbers. Must include letters or text (e.g. "Lead 123").</span>
@@ -824,10 +1202,10 @@ export const LeadsView = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[#5B6472] font-semibold mb-1">Contact Name *</label>
+                  <label className="block text-[#5B6472] font-semibold mb-1">Contact Name{formData.isRecurring ? '' : ' *'}</label>
                   <input
                     type="text"
-                    required
+                    required={!formData.isRecurring}
                     value={formData.contactName}
                     onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
                     placeholder="e.g. David Miller"
@@ -869,7 +1247,7 @@ export const LeadsView = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[#5B6472] font-semibold mb-1">Source</label>
                   <select
@@ -877,6 +1255,7 @@ export const LeadsView = ({
                     onChange={(e) => setFormData({ ...formData, source: e.target.value })}
                     className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
                   >
+                    {formData.isRecurring && <option value="">Unavailable</option>}
                     <option value="Website">Website</option>
                     <option value="Cold Outbound">Cold Outbound</option>
                     <option value="Inbound Inquiry">Inbound Inquiry</option>
@@ -889,15 +1268,18 @@ export const LeadsView = ({
                 <div>
                   <label className="block text-[#5B6472] font-semibold mb-1">Status</label>
                   <select
-                    value={formData.status}
+                    value={formData.status || ''}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
                   >
+                    {(formData.isRecurring || !formData.status) && <option value="">Unavailable</option>}
                     <option value="New">New</option>
                     <option value="Working">Working</option>
                     <option value="Qualified">Qualified</option>
                     <option value="Unqualified">Unqualified</option>
                     <option value="Converted">Converted</option>
+                    <option value="Follow up">Follow up</option>
+                    <option value="Pending Review">Pending Review</option>
                   </select>
                 </div>
 
@@ -908,6 +1290,7 @@ export const LeadsView = ({
                     onChange={(e) => setFormData({ ...formData, ownerId: e.target.value })}
                     className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
                   >
+                    {formData.isRecurring && <option value="">Unassigned</option>}
                     {users.map(u => (
                       <option key={u.id} value={u.id}>{u.name}</option>
                     ))}
@@ -915,8 +1298,148 @@ export const LeadsView = ({
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#5B6472] font-semibold mb-1">Alternate Phone</label>
+                  <input
+                    type="text"
+                    value={formData.alternatePhone || ''}
+                    onChange={event => setFormData({ ...formData, alternatePhone: event.target.value })}
+                    className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#5B6472] font-semibold mb-1">Lead Category</label>
+                  <input
+                    type="text"
+                    value={formData.category || ''}
+                    onChange={event => setFormData({ ...formData, category: event.target.value })}
+                    placeholder="Optional"
+                    className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#5B6472] font-semibold mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={formData.location || ''}
+                    onChange={event => setFormData({ ...formData, location: event.target.value })}
+                    placeholder="Optional"
+                    className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#5B6472] font-semibold mb-1">Lead Type</label>
+                  <select
+                    value={formData.isOutbound == null ? '' : formData.isOutbound ? 'outbound' : 'inbound'}
+                    onChange={event => setFormData({ ...formData, isOutbound: event.target.value === '' ? null : event.target.value === 'outbound' })}
+                    className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                  >
+                    {(formData.isRecurring || formData.isOutbound == null) && <option value="">Unavailable</option>}
+                    <option value="inbound">Inbound</option>
+                    <option value="outbound">Outbound</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#5B6472] font-semibold mb-1">Last Contacted</label>
+                  <input
+                    type="date"
+                    value={formData.lastContactedDate || ''}
+                    onChange={event => setFormData({ ...formData, lastContactedDate: event.target.value })}
+                    className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#5B6472] font-semibold mb-1">Next Follow-up</label>
+                  <input
+                    type="date"
+                    value={formData.nextFollowUpDate || ''}
+                    onChange={event => setFormData({ ...formData, nextFollowUpDate: event.target.value })}
+                    className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                  />
+                </div>
+              </div>
+
+              {formData.isRecurring && (
+                <div className="rounded-xl border border-[#D8E8EF] bg-[#F8FBFC] p-3 space-y-3">
+                  <div className="flex items-center gap-2 font-bold text-[#1D4E63]">
+                    <Repeat className="w-4 h-4" />
+                    <span>Recurrence schedule</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[#5B6472] font-semibold mb-1">Recurrence start date *</label>
+                      <input
+                        type="date"
+                        required
+                        value={formData.recurrenceDate || ''}
+                        onChange={event => setFormData({ ...formData, recurrenceDate: event.target.value })}
+                        className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#5B6472] font-semibold mb-1">Frequency</label>
+                      <select
+                        value={formData.recurrenceFrequency || DEFAULT_LEAD_RECURRENCE_FREQUENCY}
+                        onChange={event => setFormData({ ...formData, recurrenceFrequency: event.target.value })}
+                        className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                      >
+                        <option value="yearly">Yearly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="custom">Custom interval</option>
+                      </select>
+                    </div>
+                  </div>
+                  {formData.recurrenceFrequency === 'custom' && (
+                    <div>
+                      <label className="block text-[#5B6472] font-semibold mb-1">Repeat every (days) *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="3650"
+                        required
+                        value={formData.recurrenceInterval ?? ''}
+                        onChange={event => setFormData({ ...formData, recurrenceInterval: event.target.value === '' ? '' : Number(event.target.value) })}
+                        className="w-full bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                      />
+                    </div>
+                  )}
+                  {formData.recurrenceDate && (
+                    <p className="text-[11px] text-[#5B6472]">
+                      Next recurrence after the start date:{' '}
+                      <strong className="text-[#12161C]">
+                        {formatDate(getNextLeadRecurrenceDate(
+                          formData.recurrenceDate,
+                          formData.recurrenceFrequency || DEFAULT_LEAD_RECURRENCE_FREQUENCY,
+                          Number(formData.recurrenceInterval) || null,
+                          formData.recurrenceDate
+                        )) || '—'}
+                      </strong>
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div>
-                <label className="block text-[#5B6472] font-semibold mb-1">Initial Notes</label>
+                <label className="block text-[#5B6472] font-semibold mb-1">Additional custom fields (JSON)</label>
+                <textarea
+                  rows={3}
+                  value={customFieldsText}
+                  onChange={event => setCustomFieldsText(event.target.value)}
+                  spellCheck="false"
+                  placeholder="{}"
+                  className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 font-mono text-[11px] text-[#12161C] focus:outline-none focus:border-[#1D4E63]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#5B6472] font-semibold mb-1">{formData.isRecurring ? 'Notes and remarks' : 'Initial Notes'}</label>
                 <textarea
                   rows={2}
                   value={formData.notes || ''}
@@ -948,6 +1471,15 @@ export const LeadsView = ({
       )}
 
       {/* 1. ADD ACTIVITY MODAL WITH INTEGRATED STAGE QUALIFICATION & AUTO FOLLOW-UP */}
+      {isRecurringImportOpen && (
+        <RecurringLeadImportModal
+          isOpen
+          onClose={() => setIsRecurringImportOpen(false)}
+          onImport={onImportRecurringLeads}
+          onImported={handleRecurringImportComplete}
+        />
+      )}
+
       <AddActivityModal
         isOpen={Boolean(activityModalLead)}
         onClose={() => setActivityModalLead(null)}

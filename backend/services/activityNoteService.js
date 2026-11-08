@@ -95,7 +95,13 @@ export const createActivity = async (activity) => {
     }
     const saved = await tx.activity.create({ data: newActivity });
     const model = { Deal: tx.deal, Lead: tx.lead }[newActivity.linkedType];
-    if (model && newActivity.linkedId) await model.update({ where: { id: newActivity.linkedId }, data: { lastActivityDate: todayStr } });
+    if (model && newActivity.linkedId) {
+      const updates = { lastActivityDate: todayStr };
+      if (newActivity.linkedType === 'Lead' && ['Call', 'Meeting', 'Email'].includes(newActivity.type)) {
+        updates.lastContactedDate = todayStr;
+      }
+      await model.update({ where: { id: newActivity.linkedId }, data: updates });
+    }
     return saved;
   });
 };

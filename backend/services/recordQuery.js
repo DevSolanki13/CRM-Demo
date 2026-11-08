@@ -4,7 +4,7 @@ import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUt
 export const COLLECTIONS = {
   companies: ['Company', ['name', 'industry', 'website']],
   contacts: ['Contact', ['name', 'email', 'phone', 'companyName']],
-  leads: ['Lead', ['title', 'contactName', 'companyName', 'contactEmail', 'contactPhone']],
+  leads: ['Lead', ['title', 'contactName', 'companyName', 'contactEmail', 'contactPhone', 'alternatePhone', 'location', 'category']],
   deals: ['Deal', ['title', 'companyName', 'contactName']],
   tasks: ['Task', ['title', 'linkedTitle', 'note']],
   notes: ['Note', ['text']],
@@ -40,12 +40,13 @@ export function recordFilters(resource, actor, query = {}) {
   if (!COLLECTIONS[resource]) throw Object.assign(new Error('Unknown record collection.'), { statusCode: 404 });
   const filters = [recordVisibility(resource, actor)];
   const supported = ['cursor', 'limit', 'q', 'owner', 'status', 'stage', 'pipeline', 'source', 'quick',
-    'type', 'queue', 'showCompleted', 'linkedType', 'linkedId', 'leadId', 'companyId', 'contactId', 'id', 'sort'];
+    'recurring', 'recurrenceDate', 'type', 'queue', 'showCompleted', 'linkedType', 'linkedId', 'leadId',
+    'companyId', 'contactId', 'id', 'sort'];
   if (Object.keys(query).some(key => !supported.includes(key)) || Object.entries(query)
     .some(([key, value]) => key !== 'limit' && (typeof value !== 'string' || value.length > (key === 'cursor' ? 2048 : 256)))) {
     throw invalid('Use supported text filters of up to 256 characters.');
   }
-  const { q = '', owner, status, stage, pipeline, source, quick, type, queue, showCompleted } = query;
+  const { q = '', owner, status, stage, pipeline, source, quick, recurring, recurrenceDate, type, queue, showCompleted } = query;
   const requireResource = (choices, label) => {
     if (!choices.includes(resource)) throw invalid(`${label} filtering is unavailable for this collection.`);
   };
@@ -53,7 +54,9 @@ export function recordFilters(resource, actor, query = {}) {
     Prisma.sql`strpos(lower(COALESCE(${col(field)}, '')), lower(${q.trim()})) > 0`), ' OR ')})`);
   if (owner && owner !== 'All') {
     requireResource(['companies', 'contacts', 'leads', 'deals', 'tasks'], 'Owner');
-    filters.push(Prisma.sql`r."ownerId" = ${owner}`);
+    filters.push(owner === '__unassigned'
+      ? Prisma.sql`NULLIF(r."ownerId", '') IS NULL`
+      : Prisma.sql`r."ownerId" = ${owner}`);
   }
   if (status && status !== 'All') {
     requireResource(['leads', 'deals', 'tasks', 'stageGateChecks'], 'Status');
@@ -73,6 +76,15 @@ export function recordFilters(resource, actor, query = {}) {
     requireResource(['leads'], 'Source');
     filters.push(source === 'Outbound' ? Prisma.sql`r."isOutbound"`
       : source === 'Inbound' ? Prisma.sql`NOT r."isOutbound"` : Prisma.sql`r.source = ${source}`);
+  }
+  if (recurring && recurring !== 'All') {
+    requireResource(['leads'], 'Recurring lead');
+    if (!['true', 'false'].includes(recurring)) throw invalid('Use true or false for recurring leads.');
+    filters.push(Prisma.sql`r."isRecurring" = ${recurring === 'true'}`);
+  }
+  if (recurrenceDate && recurrenceDate !== 'All') {
+    requireResource(['leads'], 'Recurrence date');
+    filters.push(Prisma.sql`r."recurrenceDate" = ${recurrenceDate}`);
   }
   if (quick && quick !== 'All') {
     if ((resource === 'leads' && quick === 'MyLeads') || (resource === 'deals' && quick === 'MyDeals')) filters.push(Prisma.sql`r."ownerId" = ${actor.id}`);

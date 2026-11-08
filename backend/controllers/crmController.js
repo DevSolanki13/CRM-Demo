@@ -165,6 +165,24 @@ export const createLead = asyncHandler(async (req, res) => {
   res.status(201).json(newLead);
 });
 
+export const previewRecurringLeadImport = asyncHandler(async (req, res) => {
+  res.json(await leadService.previewRecurringLeadImport(req.body.names));
+});
+
+export const importRecurringLeads = asyncHandler(async (req, res) => {
+  try {
+    res.status(201).json(await leadService.importRecurringLeads(req.body.names, req.user));
+  } catch (error) {
+    if (error.importStats) {
+      return res.status(error.statusCode || 500).json({
+        error: error.message,
+        stats: error.importStats,
+      });
+    }
+    throw error;
+  }
+});
+
 export const updateLead = asyncHandler(async (req, res) => {
   const updated = await leadService.updateLead(req.params.id, req.body);
   if (updated) {
