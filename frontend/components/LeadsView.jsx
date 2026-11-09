@@ -20,7 +20,6 @@ import {
   ExternalLink,
   Repeat,
   CalendarClock,
-  Eye,
   Upload
 } from 'lucide-react';
 import { formatDate, getStageBadgeStyle, getLocalDateInputValue, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
@@ -1083,7 +1082,21 @@ export const LeadsView = ({
               const upcomingLimit = getLocalDateInputValueAfterDays(30);
               const isUpcoming = lead.nextRecurrenceDate && lead.nextRecurrenceDate >= today && lead.nextRecurrenceDate <= upcomingLimit;
               return (
-              <article key={lead.id} className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-4 space-y-3">
+              <article
+                key={lead.id}
+                tabIndex={0}
+                aria-label={`Open Lead 360 for ${lead.contactName || lead.title}`}
+                onClick={event => {
+                  if (event.target.closest('button, input, select, textarea, a')) return;
+                  onOpenDrawer?.('lead', lead);
+                }}
+                onKeyDown={event => {
+                  if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
+                  event.preventDefault();
+                  onOpenDrawer?.('lead', lead);
+                }}
+                className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-4 space-y-3 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#1D4E63] focus-visible:outline-offset-2"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="text-sm font-bold text-[#12161C] truncate">{lead.contactName || lead.title}</h2>
@@ -1103,9 +1116,6 @@ export const LeadsView = ({
                   <div><dt className="text-[#5B6472]">Last contacted</dt><dd className="text-[#12161C]">{formatDate(lead.lastContactedDate) || '—'}</dd></div>
                 </dl>
                 <div className="flex flex-wrap items-center gap-2 border-t border-[#E3E6EA] pt-3">
-                  <button type="button" onClick={() => onOpenDrawer?.('lead', lead)} className="inline-flex items-center gap-1 rounded-lg border border-[#E3E6EA] px-2.5 py-1.5 text-[11px] font-semibold text-[#1D4E63]">
-                    <Eye size={14} aria-hidden="true" /> View history
-                  </button>
                   {isAdmin && (
                     <>
                       <button type="button" onClick={() => handleOpenEditModal(lead)} className="inline-flex items-center gap-1 rounded-lg border border-[#E3E6EA] px-2.5 py-1.5 text-[11px] font-semibold text-[#12161C]">
@@ -1153,7 +1163,21 @@ export const LeadsView = ({
                   const upcomingLimit = getLocalDateInputValueAfterDays(30);
                   const isUpcoming = lead.nextRecurrenceDate && lead.nextRecurrenceDate >= today && lead.nextRecurrenceDate <= upcomingLimit;
                   return (
-                    <tr key={lead.id} className="hover:bg-[#F6F7F8]">
+                    <tr
+                      key={lead.id}
+                      tabIndex={0}
+                      aria-label={`Open Lead 360 for ${lead.contactName || lead.title}`}
+                      onClick={event => {
+                        if (event.target.closest('button, input, select, textarea, a')) return;
+                        onOpenDrawer?.('lead', lead);
+                      }}
+                      onKeyDown={event => {
+                        if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
+                        event.preventDefault();
+                        onOpenDrawer?.('lead', lead);
+                      }}
+                      className="hover:bg-[#F6F7F8] cursor-pointer focus-visible:outline-2 focus-visible:outline-[#1D4E63] focus-visible:outline-offset-[-2px]"
+                    >
                       <td className="px-4 py-3 font-bold text-[#12161C]">{lead.contactName || lead.title}</td>
                       <td className="px-4 py-3 text-[#5B6472]">{lead.companyName || '—'}</td>
                       <td className="px-4 py-3">
@@ -1171,7 +1195,6 @@ export const LeadsView = ({
                       <td className="px-4 py-3 text-[#5B6472]">{formatDate(lead.lastContactedDate) || '—'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          <button type="button" aria-label={`View history for ${lead.title}`} onClick={() => onOpenDrawer?.('lead', lead)} className="rounded-lg p-2 text-[#1D4E63] hover:bg-[#EFF6F9]"><Eye size={15} aria-hidden="true" /></button>
                           {isAdmin && (
                             <>
                               <button type="button" aria-label={`Edit ${lead.title}`} onClick={() => handleOpenEditModal(lead)} className="rounded-lg p-2 text-[#5B6472] hover:bg-[#F6F7F8]"><Edit3 size={15} aria-hidden="true" /></button>
