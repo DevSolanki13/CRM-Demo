@@ -15,7 +15,7 @@ import {
   Clock,
   Sparkles
 } from 'lucide-react';
-import { formatCurrency } from '../utils/crmHelpers.js';
+import { formatCurrency, isMockCompany } from '../utils/crmHelpers.js';
 import { UnifiedTimeline } from './UnifiedTimeline.jsx';
 import { MergeCustomerDialog } from './MergeCustomerDialog.jsx';
 import { AttachmentsPanel } from './AttachmentsPanel.jsx';
@@ -23,8 +23,7 @@ import { canEditCompany } from '../../shared/accessPolicy.js';
 
 export const CompaniesView = ({
   revision = 0,
-
-
+  branding,
   currentUser,
   onCreateCompany,
   onUpdateCompany,
@@ -50,7 +49,10 @@ export const CompaniesView = ({
   });
 
   const page = useRecordsPage('companies', { q: searchQuery }, revision);
-  const companies = page.items;
+  const showMockData = Boolean(branding?.customFields?.showMockData ?? (typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true'));
+  const companies = useMemo(() => {
+    return showMockData ? page.items : page.items.filter(comp => !isMockCompany(comp));
+  }, [page.items, showMockData]);
   const contactPage = useRecordsPage('contacts', { companyId: selectedCompany?.id }, revision, Boolean(selectedCompany));
   const dealPage = useRecordsPage('deals', { companyId: selectedCompany?.id }, revision, Boolean(selectedCompany));
   const contacts = contactPage.items;

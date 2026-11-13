@@ -18,7 +18,7 @@ import {
   Clock,
   Sparkles
 } from 'lucide-react';
-import { formatDate, getLocalDateInputValueAfterDays, formatCurrency } from '../utils/crmHelpers.js';
+import { formatDate, getLocalDateInputValueAfterDays, formatCurrency, isMockContact } from '../utils/crmHelpers.js';
 import { AddActivityModal } from './AddActivityModal.jsx';
 import { UnifiedTimeline } from './UnifiedTimeline.jsx';
 import { MergeCustomerDialog } from './MergeCustomerDialog.jsx';
@@ -26,6 +26,7 @@ import { AttachmentsPanel } from './AttachmentsPanel.jsx';
 
 export const ContactsView = ({
   revision = 0,
+  branding,
   companies = [],
   users = [],
   stages = [],
@@ -103,7 +104,10 @@ export const ContactsView = ({
   });
 
   const page = useRecordsPage('contacts', { q: searchQuery, companyId: selectedCompanyId === 'All' ? undefined : selectedCompanyId }, revision);
-  const contacts = page.items;
+  const showMockData = Boolean(branding?.customFields?.showMockData ?? (typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true'));
+  const contacts = useMemo(() => {
+    return showMockData ? page.items : page.items.filter(contact => !isMockContact(contact));
+  }, [page.items, showMockData]);
   const filteredContacts = contacts;
   const dealPage = useRecordsPage('deals', { contactId: selectedContact?.id }, revision, Boolean(selectedContact));
   const notePage = useRecordsPage('notes', { linkedType: 'Contact', linkedId: selectedContact?.id, sort: 'recent' }, revision, Boolean(selectedContact));

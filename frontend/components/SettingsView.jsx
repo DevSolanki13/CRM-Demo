@@ -58,6 +58,30 @@ export const SettingsView = ({
     ...DEFAULT_APPROVAL_POLICY, ...(branding.customFields?.approvalPolicy || {})
   }));
 
+  const [showMockData, setShowMockData] = useState(() => {
+    if (branding?.customFields?.showMockData !== undefined) {
+      return Boolean(branding.customFields.showMockData);
+    }
+    const local = typeof window !== 'undefined' ? localStorage.getItem('crm.showMockData') : null;
+    return local !== null ? local === 'true' : false; // Default: false (hidden)
+  });
+
+  const handleToggleMockData = async () => {
+    const nextVal = !showMockData;
+    setShowMockData(nextVal);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('crm.showMockData', String(nextVal));
+    }
+    try {
+      await onUpdateBranding({
+        customFields: { ...(branding?.customFields || {}), showMockData: nextVal }
+      });
+      toast.success(nextVal ? 'Mock data is now visible' : 'Mock data is now hidden (default)');
+    } catch (err) {
+      toast.success(nextVal ? 'Mock data visible (saved locally)' : 'Mock data hidden (saved locally)');
+    }
+  };
+
   useEffect(() => {
     async function loadRules() {
       setLoadingRules(true);
@@ -664,24 +688,68 @@ export const SettingsView = ({
       {activeTab === 'links' && <ReferenceRepairView records={records} onResolved={onHistoricalLinkResolved} />}
 
       {activeTab === 'reset' && (
-        <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl max-w-2xl space-y-4 text-xs text-[#12161C] shadow-[0_1px_2px_rgba(18,22,28,0.06)]">
-          <div className="border-b border-[#E3E6EA] pb-3">
-            <h3 className="font-display font-bold text-sm text-[#922D27] flex items-center gap-2">
-              <RotateCcw className="w-4 h-4 text-[#922D27]" />
-              <span>Reset Application State to Seed Demo Data</span>
-            </h3>
-            <p className="text-[#5B6472] mt-1 font-medium">
-              Restores default demo employees, companies, contacts, leads, deals, and activity logs.
-            </p>
+        <div className="space-y-6 max-w-2xl">
+          {/* Mock Data Visibility Toggle */}
+          <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl space-y-4 text-xs text-[#12161C] shadow-[0_1px_2px_rgba(18,22,28,0.06)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="font-display font-bold text-sm text-[#12161C] flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#1D4E63]" />
+                  <span>Show / Hide Mock Data</span>
+                </h3>
+                <p className="text-[#5B6472] mt-1 font-medium text-xs leading-relaxed">
+                  Controls whether sample demo leads (ld-1 to ld-9), companies (c-1 to c-9), and contacts (cnt-1 to cnt-9) are displayed.
+                  <br />
+                  <span className="text-[#12161C] font-semibold">By default, mock data is hidden.</span> All 194 recurring leads, real client records, and the 4 user accounts are always active and preserved.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showMockData}
+                onClick={handleToggleMockData}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#1D4E63] focus:ring-offset-2 ${
+                  showMockData ? 'bg-[#1D4E63]' : 'bg-[#CBD2D8]'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    showMockData ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+            <div className="pt-2 border-t border-[#E3E6EA] flex items-center justify-between">
+              <span className="text-[11px] text-[#5B6472] font-semibold">
+                Status: {showMockData ? (
+                  <span className="text-[#255B40] font-bold">Showing Mock Data</span>
+                ) : (
+                  <span className="text-[#5B6472] font-bold">Mock Data Hidden (Default)</span>
+                )}
+              </span>
+            </div>
           </div>
 
-          <button
-            onClick={onResetDemoData}
-            className="px-5 py-2.5 bg-[#922D27] hover:bg-[#78231E] text-white font-bold rounded-full text-xs flex items-center gap-2 shadow-2xs transition-colors focus-visible:outline-2 focus-visible:outline-[#922D27]"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Reset Demo Data</span>
-          </button>
+          {/* Reset Demo Data */}
+          <div className="bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl space-y-4 text-xs text-[#12161C] shadow-[0_1px_2px_rgba(18,22,28,0.06)]">
+            <div className="border-b border-[#E3E6EA] pb-3">
+              <h3 className="font-display font-bold text-sm text-[#922D27] flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-[#922D27]" />
+                <span>Reset Application State to Seed Demo Data</span>
+              </h3>
+              <p className="text-[#5B6472] mt-1 font-medium">
+                Restores default demo employees, companies, contacts, leads, deals, and activity logs.
+              </p>
+            </div>
+
+            <button
+              onClick={onResetDemoData}
+              className="px-5 py-2.5 bg-[#922D27] hover:bg-[#78231E] text-white font-bold rounded-full text-xs flex items-center gap-2 shadow-2xs transition-colors focus-visible:outline-2 focus-visible:outline-[#922D27]"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Reset Demo Data</span>
+            </button>
+          </div>
         </div>
       )}
 

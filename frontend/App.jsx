@@ -1018,6 +1018,7 @@ export default function App() {
 
             {activeTab === 'contacts' && (
               <ContactsView revision={revision}
+                branding={state.branding}
                 contacts={state.contacts}
                 companies={state.companies}
                 users={recordUsers}
@@ -1039,6 +1040,7 @@ export default function App() {
 
             {activeTab === 'companies' && (
               <CompaniesView revision={revision}
+                branding={state.branding}
                 companies={state.companies}
                 contacts={state.contacts}
                 deals={state.deals}

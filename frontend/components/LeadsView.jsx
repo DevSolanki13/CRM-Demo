@@ -21,7 +21,7 @@ import {
   Repeat,
   Upload
 } from 'lucide-react';
-import { formatDate, getStageBadgeStyle, getLocalDateInputValue, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
+import { formatDate, getStageBadgeStyle, getLocalDateInputValue, getLocalDateInputValueAfterDays, isMockLead } from '../utils/crmHelpers.js';
 import { AddActivityModal } from './AddActivityModal.jsx';
 import { LeadScheduleFields } from './LeadScheduleFields.jsx';
 import { RecurringLeadsPanel } from './RecurringLeadsPanel.jsx';
@@ -133,7 +133,10 @@ export const LeadsView = ({
     sort: recurringSort,
     recurrenceView,
   }, revision);
-  const leads = page.items;
+  const showMockData = Boolean(branding?.customFields?.showMockData ?? (typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true'));
+  const leads = useMemo(() => {
+    return showMockData ? page.items : page.items.filter(lead => !isMockLead(lead));
+  }, [page.items, showMockData]);
   const deals = [...leads.map(lead => lead.primaryDeal).filter(Boolean), ...contextualDeals];
   const filteredLeads = leads;
   const { MyLeads: myLeadsCount = 0, Outbound: outboundCount = 0,

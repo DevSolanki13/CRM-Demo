@@ -640,3 +640,24 @@ export function isProposalExpiringSoon(expiryDateString) {
 }
 import { semanticStageCode as stageCode } from '../../backend/constants/stageConstants.js';
 
+
+// Mock Data Identification Helpers
+export const MOCK_LEAD_IDS = new Set(['ld-1', 'ld-2', 'ld-3', 'ld-4', 'ld-5', 'ld-6', 'ld-7', 'ld-8', 'ld-9']);
+export const MOCK_COMPANY_IDS = new Set(['c-1', 'c-2', 'c-3', 'c-4', 'c-5', 'c-6', 'c-7', 'c-8', 'c-9']);
+export const MOCK_CONTACT_IDS = new Set(['cnt-1', 'cnt-2', 'cnt-3', 'cnt-4', 'cnt-5', 'cnt-6', 'cnt-7', 'cnt-8', 'cnt-9']);
+
+export function isMockLead(lead) {
+  if (!lead) return false;
+  if (lead.isRecurring) return false; // Recurring leads are ALWAYS actual data
+  return MOCK_LEAD_IDS.has(lead.id) || (!lead.isRecurring && /^ld-[1-9]$/.test(lead.id));
+}
+
+export function isMockCompany(company) {
+  if (!company) return false;
+  return MOCK_COMPANY_IDS.has(company.id) || /^c-[1-9]$/.test(company.id);
+}
+
+export function isMockContact(contact) {
+  if (!contact) return false;
+  return MOCK_CONTACT_IDS.has(contact.id) || /^cnt-[1-9]$/.test(contact.id);
+}
