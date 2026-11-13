@@ -438,7 +438,7 @@ export const LeadsView = ({
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">
+    <div className="p-6 md:p-8 space-y-6 bg-[#F6F7F8] min-h-full text-[#12161C]">
 
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl shadow-2xs">

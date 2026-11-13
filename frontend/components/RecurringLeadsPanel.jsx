@@ -41,8 +41,8 @@ export function RecurringLeadsPanel({ page, search, onSearch, owner, onOwner, so
     <RecordPagination page={page} label="recurring leads" />
     {deleteError && <p role="alert" className="rounded-lg border border-[#F4C4C1] bg-[#FDF2F1] p-3 text-sm text-[#922D27]">{deleteError}</p>}
     {!page.loading && !page.error && !page.items.length && <div className="rounded-xl border border-[#E3E6EA] bg-white p-8 text-center"><Repeat className="mx-auto mb-2 text-[#1D4E63]" /><p className="text-sm font-semibold">No recurring leads match these filters.</p><p className="mt-1 text-sm text-[#5B6472]">Reset filters or add a recurring lead.</p></div>}
-    {!!page.items.length && <div className="overflow-x-auto rounded-xl border border-[#E3E6EA] bg-white">
-      <table className="hidden w-full min-w-[1280px] text-left text-xs md:table"><thead className="border-b border-[#E3E6EA] bg-[#F6F7F8] text-[10px] uppercase text-[#5B6472]"><tr>
+    {!!page.items.length && <div className="overflow-x-auto max-h-[580px] overflow-y-auto no-scrollbar rounded-xl border border-[#E3E6EA] bg-white shadow-sm">
+      <table className="hidden w-full text-left text-xs md:table"><thead className="sticky top-0 z-10 border-b border-[#E3E6EA] bg-[#F6F7F8] text-[10px] uppercase text-[#5B6472] shadow-xs"><tr>
         {['Lead name', 'Company', 'Email / phone', 'Status', 'Assigned employee', 'Recurrence date', 'Next recurrence', 'Next follow-up', 'Last contacted', 'Actions'].map(label => <th scope="col" className={`px-4 py-4 font-semibold ${label === 'Actions' ? 'text-right' : ''}`} key={label}>{label}</th>)}
       </tr></thead><tbody className="divide-y divide-[#E3E6EA]">{page.items.map(lead => {
         const overdue = !lead.recurrencePaused && (lead.nextRecurrenceDate < today || (lead.nextFollowUpDate && lead.nextFollowUpDate < today));
