@@ -101,6 +101,9 @@ export const updateTask = async (id, task) => {
   task = validatedInput(updateTaskSchema, task);
   const existing = await prisma.task.findUnique({ where: { id } });
   if (!existing) return null;
+  if (/^recurrence(?:-review|-action)?:/.test(id)) {
+    throw Object.assign(new Error('Update this lead through Leads → Recurring Leads → Update cycle. A recorded outcome is required.'), { statusCode: 409 });
+  }
   if (existing.type === 'Approval' || existing.stageGateCheckId) {
     throw Object.assign(new Error('Approval tasks are resolved through the approval decision.'), { statusCode: 409 });
   }
@@ -126,6 +129,9 @@ export const updateTask = async (id, task) => {
 export const deleteTask = async (id) => {
   const existing = await prisma.task.findUnique({ where: { id } });
   if (!existing) return false;
+  if (/^recurrence(?:-review|-action)?:/.test(id)) {
+    throw Object.assign(new Error('Recurring lead tasks are retained as history. Update the cycle instead.'), { statusCode: 409 });
+  }
   if (existing.type === 'Approval' || existing.stageGateCheckId) {
     throw Object.assign(new Error('Approval tasks cannot be deleted directly.'), { statusCode: 409 });
   }

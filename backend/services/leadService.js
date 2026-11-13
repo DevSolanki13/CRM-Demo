@@ -1,5 +1,6 @@
 
 import { randomUUID } from 'node:crypto';
+import { actorContext } from '../auth/identity.js';
 import { Prisma } from '@prisma/client';
 import { validatedInput, leadSchema, updateLeadSchema } from '../middleware/validation.js';
 import { prisma } from '../prisma.js';
@@ -7,12 +8,15 @@ import { getLocalDateString } from '../utils/dateUtils.js';
 import { logAudit } from './activityNoteService.js';
 import { triggerFollowUp } from './followUpEngine.js';
 import { deleteUnlinkedCustomerRecord } from './deletionPolicy.js';
+import { syncRecurringLead } from './leadRecurrenceService.js';
 
 import {
   DEFAULT_LEAD_RECURRENCE_FREQUENCY,
   DEFAULT_LEAD_RECURRENCE_INTERVAL,
   getDefaultLeadRecurrenceDate,
   getNextLeadRecurrenceDate,
+  shiftDate,
+  reminderOffsets,
 } from '../../shared/leadRecurrence.js';
 
 const LEAD_FIELDS = new Set([
@@ -33,6 +37,7 @@ const LEAD_FIELDS = new Set([
   'recurrenceFrequency',
   'recurrenceDate',
   'recurrenceInterval',
+  'recurrenceDays',
   'lastContactedDate',
   'nextFollowUpDate',
   'ownerId',
@@ -61,9 +66,6 @@ const optionalValue = value =>
     ? value.trim()
     : null;
 
-const recurringImportStartDate = '2026-12-01';
-const recurringImportFrequency = 'monthly';
-const recurringImportInterval = 1;
 const maxRecurringLeadImportRows = 10000;
 export const getRecurringLeadTitle = row => row.contactName || row.companyName;
 
@@ -156,7 +158,7 @@ async function getRecurringLeadImportPreview(rows, database = prisma) {
 export const previewRecurringLeadImport = async rows =>
   getRecurringLeadImportPreview(rows);
 
-export const importRecurringLeads = async (rows, actor) => {
+export const importRecurringLeads = async (rows, actor, schedule) => {
   if (actor?.role !== 'Admin') {
     throw Object.assign(new Error('Administrator permission required.'), { statusCode: 403 });
   }
@@ -164,6 +166,13 @@ export const importRecurringLeads = async (rows, actor) => {
     throw Object.assign(new Error(`Provide at most ${maxRecurringLeadImportRows} company rows.`), { statusCode: 400 });
   }
   const initialPreview = classifyRecurringLeadImport(rows);
+  const recurringImportStartDate = schedule?.startDate || getDefaultLeadRecurrenceDate();
+  const recurringImportFrequency = schedule?.frequency || 'monthly';
+  const recurringImportInterval = schedule?.interval || 1;
+  const recurrenceDays = schedule?.days || [];
+  validateRecurrence(recurringImportFrequency, recurringImportInterval, recurrenceDays);
+  const owner = schedule?.ownerId ? await prisma.user.findFirst({ where: { id: schedule.ownerId, active: true }, select: { id: true, name: true } }) : null;
+  if (schedule?.ownerId && !owner) throw Object.assign(new Error('Choose an active owner.'), { statusCode: 400 });
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -174,12 +183,9 @@ export const importRecurringLeads = async (rows, actor) => {
 
         const now = getLocalDateString();
         const ids = currentRowsToImport.map(() => `ld-${randomUUID()}`);
-        const nextRecurrenceDate = getNextLeadRecurrenceDate(
-          recurringImportStartDate,
-          recurringImportFrequency,
-          recurringImportInterval,
-          recurringImportStartDate
-        );
+        const nextRecurrenceDate = recurringImportFrequency === 'monthly_dates'
+          ? getNextLeadRecurrenceDate(recurringImportStartDate, recurringImportFrequency, recurringImportInterval, shiftDate(recurringImportStartDate, -1), recurrenceDays)
+          : recurringImportStartDate;
         try {
           await tx.lead.createMany({
             data: currentRowsToImport.map((row, index) => ({
@@ -200,11 +206,12 @@ export const importRecurringLeads = async (rows, actor) => {
               recurrenceFrequency: recurringImportFrequency,
               recurrenceDate: recurringImportStartDate,
               recurrenceInterval: recurringImportInterval,
+              recurrenceDays,
               nextRecurrenceDate,
               lastContactedDate: null,
-              nextFollowUpDate: null,
-              ownerId: null,
-              ownerName: null,
+              nextFollowUpDate: shiftDate(nextRecurrenceDate, -reminderOffsets({ recurrenceFrequency: recurringImportFrequency, recurrenceInterval: recurringImportInterval, recurrenceDays })[0]),
+              ownerId: owner?.id || null,
+              ownerName: owner?.name || null,
               createdAt: now,
               lastActivityDate: null,
               pendingGateCheck: Prisma.DbNull,
@@ -288,7 +295,7 @@ export const clearRecurringLeads = async (actor, database = prisma) => {
     if (!leads.length) return { deletedCount: 0 };
 
     const leadIds = leads.map(lead => lead.id);
-    const [deals, tasks, notes, activities, attachments] = await Promise.all([
+    const [deals, tasks, notes, activities, attachments, cycles] = await Promise.all([
       tx.deal.count({ where: { leadId: { in: leadIds } } }),
       tx.task.count({ where: { linkedType: 'Lead', linkedId: { in: leadIds } } }),
       tx.note.count({ where: { linkedType: 'Lead', linkedId: { in: leadIds } } }),
@@ -296,8 +303,9 @@ export const clearRecurringLeads = async (actor, database = prisma) => {
       tx.attachment.count({
         where: { recordType: 'Lead', recordId: { in: leadIds }, deletedAt: null },
       }),
+      tx.leadRecurrenceCycle.count({ where: { leadId: { in: leadIds } } }),
     ]);
-    const linkedRecordCounts = { deals, tasks, notes, activities, attachments };
+    const linkedRecordCounts = { deals, tasks, notes, activities, attachments, cycles };
     const linkedRecords = Object.entries(linkedRecordCounts)
       .filter(([, count]) => count > 0)
       .map(([type, count]) => `${count} ${type}`)
@@ -337,20 +345,25 @@ export const clearRecurringLeads = async (actor, database = prisma) => {
   }, { isolationLevel: 'Serializable' });
 };
 
-// Only monthly recurrence is supported.
-const validateRecurrence = (frequency, interval) => {
-  if (frequency !== 'monthly') {
+const validateRecurrence = (frequency, interval, days = []) => {
+  if (!['monthly', 'weekly', 'custom', 'yearly', 'monthly_dates'].includes(frequency)) {
     throw Object.assign(
-      new Error('Only monthly recurrence is supported.'),
+      new Error('Choose a supported recurrence frequency.'),
       { statusCode: 400 }
     );
   }
 
   if (!Number.isInteger(interval) || interval < 1) {
     throw Object.assign(
-      new Error('Monthly recurrence interval must be at least 1.'),
+      new Error('Recurrence interval must be at least 1.'),
       { statusCode: 400 }
     );
+  }
+  if (['yearly', 'monthly_dates'].includes(frequency) && interval !== 1) {
+    throw Object.assign(new Error('Yearly and selected-date schedules use an interval of 1.'), { statusCode: 400 });
+  }
+  if (frequency === 'monthly_dates' && (!days.length || days.some(day => !Number.isInteger(day) || day < 1 || day > 31))) {
+    throw Object.assign(new Error('Choose at least one day of the month (1–31).'), { statusCode: 400 });
   }
 };
 
@@ -393,11 +406,14 @@ export const createLead = async (lead) => {
     : null;
 
   if (isRecurring) {
-    validateRecurrence(recurrenceFrequency, recurrenceInterval);
+    if (recurrenceFrequency === 'custom' && lead.recurrenceInterval == null) {
+      throw Object.assign(new Error('Enter the recurrence interval in days.'), { statusCode: 400 });
+    }
+    validateRecurrence(recurrenceFrequency, recurrenceInterval, lead.recurrenceDays);
   }
 
   const newLead = {
-    id: lead.id || `ld-${Date.now()}`,
+    id: lead.id || `ld-${randomUUID()}`,
     title,
 
     contactName: isRecurring
@@ -438,14 +454,12 @@ export const createLead = async (lead) => {
     recurrenceFrequency,
     recurrenceDate,
     recurrenceInterval,
+    recurrenceDays: isRecurring ? lead.recurrenceDays || [] : [],
 
     nextRecurrenceDate: isRecurring
-      ? getNextLeadRecurrenceDate(
-          recurrenceDate,
-          recurrenceFrequency,
-          recurrenceInterval,
-          recurrenceDate
-        )
+      ? recurrenceFrequency === 'monthly_dates'
+        ? getNextLeadRecurrenceDate(recurrenceDate, recurrenceFrequency, recurrenceInterval, shiftDate(recurrenceDate, -1), lead.recurrenceDays)
+        : recurrenceDate
       : null,
 
     lastContactedDate: optionalValue(lead.lastContactedDate),
@@ -468,6 +482,19 @@ export const createLead = async (lead) => {
       ? lead.lastActivityDate || null
       : lead.lastActivityDate || todayStr,
   };
+
+  if (isRecurring) return prisma.$transaction(async tx => {
+    const saved = await tx.lead.create({ data: newLead });
+    await syncRecurringLead(tx, saved);
+    await tx.auditLog.create({ data: {
+      id: `aud-${randomUUID()}`, timestamp: new Date().toISOString(),
+      actorId: actorContext.getStore()?.id || saved.ownerId || 'system',
+      actorName: actorContext.getStore()?.name || saved.ownerName || 'System',
+      action: 'LEAD_CREATED', entityType: 'Lead', entityId: saved.id, entityTitle: saved.title,
+      reason: 'Recurring lead created with a purchase schedule.',
+    } });
+    return tx.lead.findUnique({ where: { id: saved.id } });
+  }, { isolationLevel: 'Serializable', timeout: 15000 });
 
   const savedLead = await prisma.lead.upsert({
     where: {
@@ -502,11 +529,17 @@ export const updateLead = async (id, lead) => {
 
   lead = validatedInput(updateLeadSchema, lead);
 
-  const existing = await prisma.lead.findUnique({
+  return prisma.$transaction(async tx => {
+  await tx.$queryRaw`SELECT id FROM "Lead" WHERE id = ${id} FOR UPDATE`;
+  const existing = await tx.lead.findUnique({
     where: { id },
   });
 
   if (!existing) return null;
+
+  if (existing.isRecurring && 'nextFollowUpDate' in lead && optionalValue(lead.nextFollowUpDate) !== existing.nextFollowUpDate) {
+    throw Object.assign(new Error('Use Update cycle to change a recurring follow-up date and record the reason.'), { statusCode: 409 });
+  }
 
   let title = lead.title
     ? lead.title.trim()
@@ -547,29 +580,26 @@ export const updateLead = async (id, lead) => {
 
     validateRecurrence(
       recurrenceFrequency,
-      recurrenceInterval
+      recurrenceInterval,
+      lead.recurrenceDays || existing.recurrenceDays || []
     );
-
-    const recurrenceChanged =
-      !existing.isRecurring ||
-      'recurrenceFrequency' in lead ||
-      'recurrenceDate' in lead ||
-      'recurrenceInterval' in lead;
 
     data.isRecurring = true;
     data.recurrenceFrequency = recurrenceFrequency;
     data.recurrenceDate = recurrenceDate;
     data.recurrenceInterval = recurrenceInterval;
+    data.recurrenceDays = lead.recurrenceDays || existing.recurrenceDays || [];
 
-    data.nextRecurrenceDate = recurrenceChanged
-      ? getNextLeadRecurrenceDate(
-          recurrenceDate,
-          recurrenceFrequency,
-          recurrenceInterval,
-          recurrenceDate
-        )
-      : existing.nextRecurrenceDate;
+    const currentCycle = await tx.leadRecurrenceCycle.findFirst({ where: { leadId: id, status: { notIn: ['purchased', 'not_buying'] } } });
+    data.nextRecurrenceDate = currentCycle ? currentCycle.expectedDate
+      : existing.isRecurring && existing.nextRecurrenceDate ? existing.nextRecurrenceDate
+      : recurrenceFrequency === 'monthly_dates'
+        ? getNextLeadRecurrenceDate(recurrenceDate, recurrenceFrequency, recurrenceInterval, shiftDate(recurrenceDate, -1), data.recurrenceDays)
+        : recurrenceDate;
   } else {
+    if (existing.isRecurring && await tx.leadRecurrenceCycle.count({ where: { leadId: id, status: { notIn: ['purchased', 'not_buying'] } } })) {
+      throw Object.assign(new Error('This lead has an unresolved purchase cycle. Pause the schedule or record its outcome first.'), { statusCode: 409 });
+    }
     data.isRecurring = false;
     data.recurrenceFrequency = null;
     data.recurrenceDate = null;
@@ -598,15 +628,16 @@ export const updateLead = async (id, lead) => {
     }
   }
 
-  const updated = await prisma.lead.update({
+  const updated = await tx.lead.update({
     where: { id },
     data,
   });
 
   if (existing.isRecurring || isRecurring) {
-    await logAudit({
-      actorId: updated.ownerId,
-      actorName: updated.ownerName,
+    await tx.auditLog.create({ data: {
+      id: `aud-${randomUUID()}`, timestamp: new Date().toISOString(),
+      actorId: actorContext.getStore()?.id || updated.ownerId || 'system',
+      actorName: actorContext.getStore()?.name || updated.ownerName || 'System',
 
       action:
         existing.isRecurring === isRecurring
@@ -629,89 +660,15 @@ export const updateLead = async (id, lead) => {
       metadata: {
         changedFields: Object.keys(lead),
       },
-    });
+    } });
   }
 
+  if (isRecurring) {
+    await syncRecurringLead(tx, updated);
+    return tx.lead.findUnique({ where: { id } });
+  }
   return updated;
-};
-
-export const refreshRecurringLeadDates = async (
-  actor,
-  today = getLocalDateString()
-) => {
-  const leads = await prisma.lead.findMany({
-    where: {
-      isRecurring: true,
-
-      ...(actor && !['Admin', 'Manager'].includes(actor.role)
-        ? { ownerId: actor.id }
-        : {}),
-
-      OR: [
-        { nextRecurrenceDate: null },
-        { nextRecurrenceDate: { lt: today } },
-      ],
-    },
-
-    select: {
-      id: true,
-      recurrenceDate: true,
-      recurrenceFrequency: true,
-      recurrenceInterval: true,
-      nextRecurrenceDate: true,
-    },
-  });
-
-  for (const lead of leads) {
-    const frequency =
-      lead.recurrenceFrequency ||
-      DEFAULT_LEAD_RECURRENCE_FREQUENCY;
-
-    const startDate =
-      lead.recurrenceDate ||
-      getDefaultLeadRecurrenceDate();
-
-    const interval =
-      lead.recurrenceInterval ??
-      DEFAULT_LEAD_RECURRENCE_INTERVAL;
-
-    let nextDate =
-      lead.nextRecurrenceDate ||
-      getNextLeadRecurrenceDate(
-        startDate,
-        frequency,
-        interval,
-        startDate
-      );
-
-    if (!nextDate) continue;
-
-    while (nextDate < today) {
-      const next = getNextLeadRecurrenceDate(
-        startDate,
-        frequency,
-        interval,
-        nextDate
-      );
-
-      if (!next || next <= nextDate) break;
-
-      nextDate = next;
-    }
-
-    if (nextDate !== lead.nextRecurrenceDate) {
-      await prisma.lead.updateMany({
-        where: {
-          id: lead.id,
-          nextRecurrenceDate: lead.nextRecurrenceDate,
-        },
-
-        data: {
-          nextRecurrenceDate: nextDate,
-        },
-      });
-    }
-  }
+  }, { isolationLevel: 'Serializable', timeout: 15000 });
 };
 
 export const deleteLead = async (id) => {

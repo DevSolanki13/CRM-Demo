@@ -3,6 +3,7 @@ import { crmRouter } from './routes/crmRoutes.js';
 import { authRouter } from './auth/sessions.js';
 import { automationCronRouter } from './routes/automationCronRoutes.js';
 import { integrationRouter } from './routes/integrationRoutes.js';
+import { isTransactionConflict } from './services/transactionRetry.js';
 
 export function createApp() {
   const app = express();
@@ -31,7 +32,7 @@ export function createApp() {
       P2011: [400, 'A required field is missing.'],
       P2034: [409, 'A competing update changed this record. Refresh and try again.'],
     };
-    const mapped = prismaErrors[err.code];
+    const mapped = isTransactionConflict(err) ? prismaErrors.P2034 : prismaErrors[err.code];
     const status = err.statusCode || err.status || mapped?.[0] || 500;
     if (status >= 500) console.error('[API Error]', err.message);
     res.status(status).json({ error: status >= 500 ? 'Internal server error' : mapped?.[1] || err.message, statusCode: status });

@@ -160,6 +160,19 @@ export const getLeads = asyncHandler(async (req, res) => {
   res.json(req.crmState.leads);
 });
 
+export const getLeadRecurrence = asyncHandler(async (req, res) => {
+  const service = await import('../services/leadRecurrenceService.js');
+  res.json(await service.getRecurringLeadHistory(req.params.id, req.user));
+});
+export const updateLeadRecurrence = asyncHandler(async (req, res) => {
+  const service = await import('../services/leadRecurrenceService.js');
+  res.json(await service.updateRecurringCycle(req.params.id, req.body, req.user));
+});
+export const controlLeadRecurrence = asyncHandler(async (req, res) => {
+  const service = await import('../services/leadRecurrenceService.js');
+  res.json(await service.controlRecurringLead(req.params.id, req.body, req.user));
+});
+
 export const createLead = asyncHandler(async (req, res) => {
   const newLead = await leadService.createLead(req.body);
   res.status(201).json(newLead);
@@ -171,7 +184,7 @@ export const previewRecurringLeadImport = asyncHandler(async (req, res) => {
 
 export const importRecurringLeads = asyncHandler(async (req, res) => {
   try {
-    res.status(201).json(await leadService.importRecurringLeads(req.body.rows, req.user));
+    res.status(201).json(await leadService.importRecurringLeads(req.body.rows, req.user, req.body.schedule));
   } catch (error) {
     if (error.importStats) {
       return res.status(error.statusCode || 500).json({

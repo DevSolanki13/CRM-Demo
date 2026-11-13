@@ -21,6 +21,7 @@ import {
   Check
 } from 'lucide-react';
 import { formatDateTime, getLocalDateInputValue } from '../utils/crmHelpers.js';
+import { isRecurringTask } from '../../shared/leadRecurrence.js';
 
 export const TasksView = ({
   revision = 0,
@@ -31,6 +32,7 @@ export const TasksView = ({
   currentUser,
   onCreateTask,
   onUpdateTask,
+  onOpenRecurringTask,
   onDeleteTask,
   onApproveStageGateCheck,
   onRejectStageGateCheck
@@ -131,6 +133,7 @@ export const TasksView = ({
   };
 
   const handleToggleStatus = async (task) => {
+    if (isRecurringTask(task)) return onOpenRecurringTask?.(task);
     const nextStatus = task.status === 'pending' ? 'completed' : 'pending';
     await onUpdateTask(task.id, { status: nextStatus });
   };
@@ -169,7 +172,7 @@ export const TasksView = ({
         }`}
       >
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <button
+          {!isRecurringTask(task) && <button
             onClick={() => handleToggleStatus(task)}
             aria-label={isDone ? `Mark "${task.title}" as incomplete` : `Mark "${task.title}" as complete`}
             className={`mt-0.5 p-1 rounded-lg border transition-colors shrink-0 ${
@@ -179,7 +182,7 @@ export const TasksView = ({
             }`}
           >
             <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-          </button>
+          </button>}
 
           <div className="space-y-1 min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
@@ -217,14 +220,15 @@ export const TasksView = ({
             <div className="text-[11px] text-[#5B6472] font-medium">Assigned: {task.ownerName || 'Rep'}</div>
           </div>
 
-          <button
+          {isRecurringTask(task) ? <button type="button" onClick={() => onOpenRecurringTask?.(task)}
+            className="min-h-10 rounded-lg border border-[#D8E8EF] px-3 py-2 text-xs font-semibold text-[#1D4E63]">Update cycle</button> : <button
             onClick={() => onDeleteTask(task.id)}
             aria-label={`Delete task ${task.title}`}
             className="p-1.5 text-[#5B6472] hover:text-[#922D27] hover:bg-[#FDF2F1] rounded-lg transition-colors"
             title="Delete Task"
           >
             <Trash2 className="w-4 h-4" aria-hidden="true" />
-          </button>
+          </button>}
         </div>
       </div>
     );

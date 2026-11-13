@@ -35,7 +35,7 @@ function SidebarContent({ activeTab, userRole, currentUser, branding, pendingTas
       {onClose && <button type="button" className="dashboard-icon-button crm-sidebar-close" onClick={onClose} aria-label="Close navigation menu"><X size={18} aria-hidden="true" /></button>}
     </div>
     <div className="crm-workspace-label"><Building2 size={17} aria-hidden="true" /><span className="crm-nav-label">Sales workspace</span></div>
-    <nav aria-label="Sales Operations Modules" className="crm-sidebar-navigation">
+    <nav aria-label="Sales Operations Modules" className="crm-sidebar-navigation no-scrollbar">
       <p className="crm-nav-group-label">Workspace</p>{renderItems(modules)}
       <div className="crm-sidebar-tools"><p className="crm-nav-group-label">Tools</p>{renderItems(tools)}</div>
     </nav>

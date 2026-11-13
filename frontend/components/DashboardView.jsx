@@ -5,6 +5,7 @@ import { useRecordsPage } from '../hooks/useRecordsPage.js';
 import { RecordPagination } from './RecordPagination.jsx';
 import { Avatar, DashboardEmptyState, DashboardPanel, MetricCard, StatusBadge } from './DashboardPrimitives.jsx';
 import { formatCurrency, formatDate, getLocalDateInputValue, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
+import { isRecurringTask } from '../../shared/leadRecurrence.js';
 
 const queueFilters = [
   ['all', 'All', 'all'], ['overdue', 'Overdue', 'overdue'], ['approvals', 'Approvals', 'approval'],
@@ -24,6 +25,7 @@ function taskDueLabel(value) {
 export const DashboardView = ({
   revision = 0, state, currentUser, onNavigateTab, onTriggerRenewalCheck,
   onOpenLeadModal, onOpenDrawer, onUpdateTask, onApproveStageGateCheck,
+  onOpenRecurringTask,
 }) => {
   const { leads = [], deals = [], stages = [], pipelines = [], users = [], branding = {} } = state || {};
   const summary = state?.overview || {}, counts = summary.queueCounts || {};
@@ -79,6 +81,7 @@ export const DashboardView = ({
     }
   };
   const completeTask = async task => {
+    if (isRecurringTask(task.raw || task)) return onOpenRecurringTask?.(task.raw || task);
     setCompletingTasks(previous => new Set(previous).add(task.id));
     try {
       await runAction('task-' + task.id, () => onUpdateTask(task.id, { status: 'completed' }),
@@ -87,7 +90,7 @@ export const DashboardView = ({
       setCompletingTasks(previous => { const next = new Set(previous); next.delete(task.id); return next; });
     }
   };
-  const snoozeTask = task => runAction('task-' + task.id,
+  const snoozeTask = task => isRecurringTask(task.raw || task) ? onOpenRecurringTask?.(task.raw || task) : runAction('task-' + task.id,
     () => onUpdateTask(task.id, { dueDate: getLocalDateInputValueAfterDays(2) }),
     'Rescheduled for ' + formatDate(getLocalDateInputValueAfterDays(2)), 'Could not reschedule this task.');
   const approveTask = item => runAction('approval-' + item.raw.stageGateCheckId,
@@ -161,8 +164,8 @@ export const DashboardView = ({
                     <div className="dashboard-queue-owner"><Avatar name={ownerName} src={owner?.avatarUrl} size="small" /></div>
                     <div className="dashboard-queue-actions">
                       {item.type === 'overdue' && onUpdateTask ? <>
-                        <button type="button" className="dashboard-text-button" disabled={busy} onClick={() => completeTask(item)} aria-label={'Complete task: ' + item.title}>
-                          {busy ? 'Saving…' : 'Done'}<CheckCircle2 size={15} aria-hidden="true" />
+                        <button type="button" className="dashboard-text-button" disabled={busy} onClick={() => completeTask(item)} aria-label={(isRecurringTask(item.raw || item) ? 'Update cycle: ' : 'Complete task: ') + item.title}>
+                          {busy ? 'Saving…' : isRecurringTask(item.raw || item) ? 'Update cycle' : 'Done'}<CheckCircle2 size={15} aria-hidden="true" />
                         </button>
                         <button type="button" className="dashboard-icon-button" disabled={busy} onClick={() => snoozeTask(item)}
                           aria-label={'Reschedule ' + item.title + ' by two days'} title="Reschedule +2 days"><RotateCcw size={15} aria-hidden="true" /></button>
@@ -203,8 +206,8 @@ export const DashboardView = ({
         {taskPage.loading ? <div className="dashboard-loading" role="status">Loading your follow-ups…</div>
           : taskPage.error ? null : taskPage.items.length ? <ul className="dashboard-task-list">
             {taskPage.items.map(task => <li key={task.id}>
-              <input type="checkbox" checked={completingTasks.has(task.id)} disabled={!onUpdateTask || busyActions.has('task-' + task.id)}
-                aria-label={'Mark ' + task.title + ' complete'} onChange={() => completeTask(task)} />
+              {isRecurringTask(task) ? <button type="button" className="dashboard-text-button" onClick={() => onOpenRecurringTask?.(task)}>Update cycle</button> : <input type="checkbox" checked={completingTasks.has(task.id)} disabled={!onUpdateTask || busyActions.has('task-' + task.id)}
+                aria-label={'Mark ' + task.title + ' complete'} onChange={() => completeTask(task)} />}
               <button type="button" className="dashboard-task-detail" onClick={() => onNavigateTab('tasks')}><strong>{task.title}</strong><span>{task.linkedTitle || task.type || 'Follow-up'}</span></button>
               <span className={'dashboard-task-date' + (task.dueDate?.slice(0, 10) < getLocalDateInputValue() ? ' is-overdue' : '')}>{taskDueLabel(task.dueDate)}</span>
             </li>)}

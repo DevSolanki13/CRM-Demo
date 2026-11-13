@@ -80,6 +80,8 @@ import {
 
 import { normalizeStageColor, isRenewalStage } from '../backend/constants/stageConstants.js';
 import { canAccessPage, getRecordUsers } from '../shared/accessPolicy.js';
+import { isRecurringTask } from '../shared/leadRecurrence.js';
+const RecurringCycleDialog = lazy(() => import('./components/RecurringCycleDialog.jsx').then(module => ({ default: module.RecurringCycleDialog })));
 
 const KNOWN_TABS = ['dashboard', 'leads', 'pipeline', 'contacts', 'companies', 'tasks', 'employees', 'reports', 'settings', 'connections'];
 const INITIAL_COLLECTIONS = ['branding', 'users', 'stages', 'pipelines', 'leads',
@@ -103,6 +105,7 @@ const normalizeStateStages = (data) => {
 export default function App() {
   const [state, setState] = useState(null);
   const [revision, setRevision] = useState(0);
+  const [recurringTaskLead, setRecurringTaskLead] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
     const tab = window.location.hash.slice(1).split('?')[0];
     return KNOWN_TABS.includes(tab) ? tab : 'dashboard';
@@ -524,9 +527,9 @@ export default function App() {
     }
   };
 
-  const handleImportRecurringLeadCompanies = async (rows) => {
+  const handleImportRecurringLeadCompanies = async (rows, schedule) => {
     try {
-      const result = await importRecurringLeadCompanies(rows);
+      const result = await importRecurringLeadCompanies(rows, schedule);
       await reloadState('leads', 'auditLogs');
       const imported = result.stats.successfullyImported;
       if (imported > 0) toast.success(`Imported ${imported} recurring leads`);
@@ -622,12 +625,24 @@ export default function App() {
 
   const handleUpdateTask = async (id, task) => {
     try {
+      if (isRecurringTask(id)) {
+        await handleOpenRecurringTask({ id });
+        return;
+      }
       await updateTask(id, task);
       await reloadState('tasks');
     } catch (err) {
       toast.error(err.message || "Unable to save changes");
       throw err;
     }
+  };
+
+  const handleOpenRecurringTask = async task => {
+    try {
+      const record = task.linkedId ? task : await fetchRecord('tasks', task.id);
+      const lead = await fetchRecord('leads', record.linkedId);
+      setRecurringTaskLead(lead);
+    } catch (err) { toast.error(err.message || 'Could not open the recurring lead.'); }
   };
 
   const handleDeleteTask = async (id) => {
@@ -905,7 +920,7 @@ export default function App() {
                 </div>
               : <>
             {activeTab === 'dashboard' && (
-              <DashboardView revision={revision}
+              <DashboardView revision={revision} onOpenRecurringTask={handleOpenRecurringTask}
                 state={state}
                 currentUser={currentUser}
                 onNavigateTab={handleNavigateTab}
@@ -947,6 +962,7 @@ export default function App() {
                   branding={state.branding}
                   onCreateLead={handleCreateLead}
                   onImportRecurringLeads={handleImportRecurringLeadCompanies}
+                  onRecurringChanged={() => reloadState('leads', 'tasks', 'activities', 'auditLogs')}
                   onClearRecurringLeads={handleClearRecurringLeadRecords}
                   onUpdateLead={handleUpdateLead}
                   onDeleteLead={handleDeleteLead}
@@ -1036,7 +1052,7 @@ export default function App() {
             )}
 
             {activeTab === 'tasks' && (
-              <TasksView revision={revision}
+              <TasksView revision={revision} onOpenRecurringTask={handleOpenRecurringTask}
                 tasks={state.tasks}
                 users={recordUsers}
                 leads={state.leads}
@@ -1135,6 +1151,10 @@ export default function App() {
         />
 
         {/* Global Modals */}
+        {recurringTaskLead && <Suspense fallback={<p role="status">Loading recurring lead…</p>}>
+          <RecurringCycleDialog lead={recurringTaskLead} currentUser={currentUser} onClose={() => setRecurringTaskLead(null)}
+            onChanged={async () => { await reloadState('leads', 'tasks', 'activities'); toast.success('Cycle update recorded'); }} />
+        </Suspense>}
         <ImportExportModal
           isOpen={isImportExportOpen}
           onClose={() => setIsImportExportOpen(false)}

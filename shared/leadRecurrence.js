@@ -41,7 +41,7 @@ const addMonths = (date, months) => {
 };
 
 export function getDefaultLeadRecurrenceDate(now = new Date()) {
-  const today = dateString(
+  return dateString(
     new Date(Date.UTC(
       now.getFullYear(),
       now.getMonth(),
@@ -49,31 +49,20 @@ export function getDefaultLeadRecurrenceDate(now = new Date()) {
     ))
   );
 
-  let year = now.getFullYear();
-
-  let candidate =
-    `${year}-${String(DEFAULT_LEAD_RECURRENCE_MONTH).padStart(2, '0')}-${String(DEFAULT_LEAD_RECURRENCE_DAY).padStart(2, '0')}`;
-
-  if (candidate < today) {
-    year++;
-    candidate =
-      `${year}-${String(DEFAULT_LEAD_RECURRENCE_MONTH).padStart(2, '0')}-${String(DEFAULT_LEAD_RECURRENCE_DAY).padStart(2, '0')}`;
-  }
-
-  return candidate;
 }
 
 export function getNextLeadRecurrenceDate(
   startDate,
   frequency = DEFAULT_LEAD_RECURRENCE_FREQUENCY,
   interval = DEFAULT_LEAD_RECURRENCE_INTERVAL,
-  afterDate = startDate
+  afterDate = startDate,
+  selectedDays = []
 ) {
   const start = parseDate(startDate);
   const after = parseDate(afterDate);
 
   if (!start || !after) return null;
-  if (after < start) {
+  if (after < start && frequency !== 'monthly_dates') {
     return dateString(start);
   }
 
@@ -97,11 +86,25 @@ export function getNextLeadRecurrenceDate(
     return dateString(candidate);
   }
 
-  if (frequency === 'custom') {
+  if (frequency === 'monthly_dates') {
+    if (!selectedDays.length || selectedDays.some(day => !Number.isInteger(day) || day < 1 || day > 31)) return null;
+    for (let offset = 0; offset < 2; offset++) {
+      const base = new Date(Date.UTC(after.getUTCFullYear(), after.getUTCMonth() + offset, 1));
+      const days = [...new Set(selectedDays.map(day => Math.min(day, daysInMonth(base.getUTCFullYear(), base.getUTCMonth()))))].sort((a, b) => a - b);
+      for (const day of days) {
+        const candidate = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), day));
+        if (candidate > after && candidate >= start) return dateString(candidate);
+      }
+    }
+    return null;
+  }
+
+  if (frequency === 'custom' || frequency === 'weekly') {
     if (!Number.isInteger(interval) || interval < 1) return null;
+    const stepDays = frequency === 'weekly' ? interval * 7 : interval;
     const elapsedDays = dayNumber(after) - dayNumber(start);
-    const steps = Math.floor(elapsedDays / interval) + 1;
-    return dateString(new Date(start.getTime() + steps * interval * 86_400_000));
+    const steps = Math.floor(elapsedDays / stepDays) + 1;
+    return dateString(new Date(start.getTime() + steps * stepDays * 86_400_000));
   }
 
   if (frequency !== 'monthly') return null;
@@ -122,4 +125,35 @@ export function getNextLeadRecurrenceDate(
   }
 
   return dateString(candidate);
+}
+
+export const CYCLE_OUTCOMES = {
+  attempted: 'Contact attempted', awaiting: 'Awaiting response', confirmed: 'Purchase confirmed',
+  postponed: 'Rescheduled / postponed', not_buying: 'Not buying this cycle', purchased: 'Purchase received',
+};
+export const CLOSED_CYCLE_STATUSES = ['not_buying', 'purchased'];
+export const isRecurringTask = task => /^recurrence(?:-review|-action)?:/.test(typeof task === 'string' ? task : task.id);
+
+export function shiftDate(value, days) {
+  const date = parseDate(value);
+  return date ? dateString(new Date(date.getTime() + days * 86_400_000)) : null;
+}
+
+export function recurrenceLabel(lead) {
+  const interval = lead.recurrenceInterval || 1;
+  if (lead.recurrenceFrequency === 'monthly_dates') return `Monthly on ${[...(lead.recurrenceDays || [])].sort((a, b) => a - b).join(', ')}`;
+  if (lead.recurrenceFrequency === 'yearly') return 'Every year';
+  const unit = lead.recurrenceFrequency === 'weekly' ? 'week' : lead.recurrenceFrequency === 'custom' ? 'day' : 'month';
+  return `Every ${interval} ${unit}${interval === 1 ? '' : 's'}`;
+}
+
+export function reminderOffsets(lead) {
+  const frequency = lead.recurrenceFrequency;
+  let gap = frequency === 'weekly' ? 7 * (lead.recurrenceInterval || 1)
+    : frequency === 'custom' ? (lead.recurrenceInterval || 1) : 30;
+  if (frequency === 'monthly_dates' && lead.recurrenceDays?.length > 1) {
+    const days = [...new Set(lead.recurrenceDays)].sort((a, b) => a - b);
+    gap = Math.min(...days.slice(1).map((day, index) => day - days[index]), 28 - days.at(-1) + days[0]);
+  }
+  return gap >= 20 ? [10, 5] : [...new Set([Math.max(1, Math.min(3, Math.floor(gap / 2))), 1])];
 }

@@ -13,6 +13,8 @@ import {
   updateLeadSchema,
   recurringLeadImportSchema,
   clearRecurringLeadsSchema,
+  recurrenceUpdateSchema,
+  recurrenceControlSchema,
   dealSchema,
   updateDealSchema,
   dealTransitionSchema,
@@ -57,6 +59,7 @@ crmRouter.get('/reports/summary', attachWorkspaceActor, crmController.getReportS
 crmRouter.get('/reports/audit', attachWorkspaceActor, crmController.getReportAuditPage);
 crmRouter.get('/me', attachWorkspaceActor, getWorkspaceIdentity);
 crmRouter.get('/state', attachWorkspaceActor, crmController.getState);
+crmRouter.get('/leads/:id/recurrence', attachWorkspaceActor, crmController.getLeadRecurrence);
 crmRouter.use(protectWrites, attachWorkspaceActor, authorizeCRM);
 crmRouter.post('/state/reset', crmController.resetState);
 
@@ -82,6 +85,8 @@ crmRouter.post('/leads/recurring-import/preview', validateBody(recurringLeadImpo
 crmRouter.post('/leads/recurring-import/import', validateBody(recurringLeadImportSchema), crmController.importRecurringLeads);
 crmRouter.post('/leads/recurring-import/clear', validateBody(clearRecurringLeadsSchema), crmController.clearRecurringLeads);
 crmRouter.put('/leads/:id', validateBody(updateLeadSchema), crmController.updateLead);
+crmRouter.post('/leads/:id/recurrence-update', validateBody(recurrenceUpdateSchema), crmController.updateLeadRecurrence);
+crmRouter.post('/leads/:id/recurrence-control', validateBody(recurrenceControlSchema), crmController.controlLeadRecurrence);
 crmRouter.delete('/leads/:id', crmController.deleteLead);
 
 // Pipeline Stages

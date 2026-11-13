@@ -25,7 +25,8 @@
 .crm-sidebar-brand p, .crm-sidebar-account p { color: var(--ink-muted); font-size: 11px; margin-top: 3px; }
 .crm-workspace-label { display: flex; align-items: center; gap: 8px; min-height: 42px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-tint); padding: 10px 12px; font-size: 12px; font-weight: 600; margin-bottom: 24px; }
 .crm-workspace-label svg { color: var(--primary); flex-shrink: 0; }
-.crm-sidebar-navigation { flex: 1; min-height: 0; overflow-y: auto; }
+.crm-sidebar-navigation { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.crm-sidebar-navigation::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .crm-nav-group-label { font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: uppercase; margin: 5px 0 16px; }
 .crm-nav-item { width: 100%; display: flex; gap: 12px; align-items: center; min-height: 44px; padding: 10px 12px; text-align: left; border-radius: 8px; color: var(--ink-muted); font-size: 13px; font-weight: 500; margin-bottom: 5px; cursor: pointer; }
 .crm-nav-item svg { flex-shrink: 0; color: var(--primary); }

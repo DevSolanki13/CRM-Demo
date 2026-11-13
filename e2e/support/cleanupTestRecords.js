@@ -38,6 +38,7 @@ export async function cleanupTestRecords({ leadIds = [], dealIds = [], activityI
     await tx.note.deleteMany({ where: { OR: linked } });
     await tx.activity.deleteMany({ where: { OR: [...linked, { id: { in: activities } }] } });
     await tx.stageGateCheck.deleteMany({ where: { id: { in: checks.map(check => check.id) } } });
+    await tx.leadRecurrenceCycle.deleteMany({ where: { OR: [{ leadId: { in: leads } }, { confirmedDealId: { in: dealList } }] } });
     await tx.auditLog.deleteMany({ where: { OR: [
       { entityType: 'Lead', entityId: { in: leads } }, { entityType: 'Deal', entityId: { in: dealList } },
       { entityType: 'Task', entityId: { in: taskIds } }, { entityType: 'Activity', entityId: { in: activities } },

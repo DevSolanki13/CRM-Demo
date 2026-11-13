@@ -41,7 +41,7 @@ export function recordFilters(resource, actor, query = {}) {
   const filters = [recordVisibility(resource, actor)];
   const supported = ['cursor', 'limit', 'q', 'owner', 'status', 'stage', 'pipeline', 'source', 'quick',
     'recurring', 'recurrenceDate', 'type', 'queue', 'showCompleted', 'linkedType', 'linkedId', 'leadId',
-    'companyId', 'contactId', 'id', 'sort'];
+    'companyId', 'contactId', 'id', 'sort', 'recurrenceView'];
   if (Object.keys(query).some(key => !supported.includes(key)) || Object.entries(query)
     .some(([key, value]) => key !== 'limit' && (typeof value !== 'string' || value.length > (key === 'cursor' ? 2048 : 256)))) {
     throw invalid('Use supported text filters of up to 256 characters.');
@@ -85,6 +85,21 @@ export function recordFilters(resource, actor, query = {}) {
   if (recurrenceDate && recurrenceDate !== 'All') {
     requireResource(['leads'], 'Recurrence date');
     filters.push(Prisma.sql`r."recurrenceDate" = ${recurrenceDate}`);
+  }
+  if (query.recurrenceView && query.recurrenceView !== 'All') {
+    requireResource(['leads'], 'Recurring view');
+    const today = getLocalDateString();
+    const views = {
+      overdue: Prisma.sql`NOT r."recurrencePaused" AND (r."nextRecurrenceDate" < ${today} OR r."nextFollowUpDate" < ${today})`,
+      today: Prisma.sql`NOT r."recurrencePaused" AND (r."nextRecurrenceDate" = ${today} OR r."nextFollowUpDate" = ${today})`,
+      upcoming: Prisma.sql`NOT r."recurrencePaused" AND r."nextRecurrenceDate" >= ${today} AND r."nextRecurrenceDate" <= ${getLocalDateStringAfterDays(10)}`,
+      awaiting: Prisma.sql`NOT r."recurrencePaused" AND r."recurrenceState" <> 'confirmed'`,
+      missing: Prisma.sql`NOT r."recurrencePaused" AND (r."lastRecurringReviewDate" IS NULL OR r."lastRecurringReviewDate" < ${today.slice(0, 7) + '-01'})`,
+      paused: Prisma.sql`r."recurrencePaused"`,
+      unassigned: Prisma.sql`r."ownerId" IS NULL`,
+    };
+    if (!views[query.recurrenceView]) throw invalid('Choose a valid recurring view.');
+    filters.push(Prisma.sql`r."isRecurring" = TRUE`, views[query.recurrenceView]);
   }
   if (quick && quick !== 'All') {
     if ((resource === 'leads' && quick === 'MyLeads') || (resource === 'deals' && quick === 'MyDeals')) filters.push(Prisma.sql`r."ownerId" = ${actor.id}`);

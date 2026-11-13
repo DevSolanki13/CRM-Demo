@@ -11,3 +11,6 @@ coverage/
 test-results/
 playwright-report/
 .local-backups/
+
+# Local agent/MCP credentials must never be committed.
+.agents/mcp_config.json

@@ -2,7 +2,6 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma.js';
 import { COLLECTIONS, invalid, recordFilters } from './recordQuery.js';
 import { getLocalDateString, getLocalDateStringAfterDays } from '../utils/dateUtils.js';
-import { refreshRecurringLeadDates } from './leadService.js';
 
 export function recordFacets(resource, actor) {
   const today = getLocalDateString();
@@ -11,7 +10,10 @@ export function recordFacets(resource, actor) {
     count(*)::int AS "All", count(*) FILTER (WHERE r."ownerId" = ${actor.id})::int AS "MyLeads",
     count(*) FILTER (WHERE r."isOutbound" IS TRUE)::int AS "Outbound",
     count(*) FILTER (WHERE r."isOutbound" IS FALSE)::int AS "Inbound",
-    count(*) FILTER (WHERE r.status = 'New')::int AS "New"`;
+    count(*) FILTER (WHERE r.status = 'New')::int AS "New",
+    count(*) FILTER (WHERE r."isRecurring" AND NOT r."recurrencePaused" AND (r."nextRecurrenceDate" < ${today} OR r."nextFollowUpDate" < ${today}))::int AS overdue,
+    count(*) FILTER (WHERE r."isRecurring" AND NOT r."recurrencePaused" AND (r."lastRecurringReviewDate" IS NULL OR r."lastRecurringReviewDate" < ${today.slice(0, 7) + '-01'}))::int AS missing,
+    count(*) FILTER (WHERE r."isRecurring" AND r."ownerId" IS NULL)::int AS unassigned`;
   if (resource === 'deals') return Prisma.sql`
     count(*)::int AS "All", count(*) FILTER (WHERE r."ownerId" = ${actor.id})::int AS "MyDeals",
     count(*) FILTER (WHERE r."lastActivityDate" <= ${stale})::int AS "Stale",
@@ -30,7 +32,6 @@ export function recordFacets(resource, actor) {
 
 export async function listRecordsPage(resource, actor, query = {}) {
   const { cursor = '', limit = 50, sort = 'id' } = query;
-  if (resource === 'leads' && query.recurring === 'true') await refreshRecurringLeadDates(actor);
   const pageSize = Number(limit);
   if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw invalid('Use a page size from 1 to 100.');
   const filters = recordFilters(resource, actor, query);
@@ -68,7 +69,7 @@ export async function listRecordsPage(resource, actor, query = {}) {
     }
   }
   const table = Prisma.raw('"' + COLLECTIONS[resource][0] + '"');
-  const { quick: _quick, queue: _queue, showCompleted: _completed, ...facetQuery } = query;
+  const { quick: _quick, queue: _queue, showCompleted: _completed, recurrenceView: _recurrenceView, ...facetQuery } = query;
   const facetFilters = recordFilters(resource, actor, facetQuery);
   const managed = ['Admin', 'Manager'].includes(actor.role);
   const related = ['leads', 'contacts'].includes(resource) ? Prisma.sql`, (SELECT to_jsonb(d) FROM "Deal" d WHERE ${resource === 'leads' ? Prisma.sql`d."leadId"` : Prisma.sql`d."contactId"`} = r.id

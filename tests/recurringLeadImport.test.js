@@ -11,6 +11,7 @@ import {
 } from '../backend/services/leadService.js';
 import { clearRecurringLeadsSchema, validatedInput } from '../backend/middleware/validation.js';
 import { prisma } from '../backend/prisma.js';
+import { getDefaultLeadRecurrenceDate, shiftDate } from '../shared/leadRecurrence.js';
 import { parseRecurringLeadWorkbook } from '../frontend/utils/recurringLeadWorkbook.js';
 
 function workbookFile(extension, rows, sheetName = 'Sheet1', extraSheets = []) {
@@ -36,6 +37,7 @@ function clearRecurringLeadsDatabase(leads, linkedRecordCounts = {}) {
     note: { count: async () => linkedRecordCounts.notes || 0 },
     activity: { count: async () => linkedRecordCounts.activities || 0 },
     attachment: { count: async () => linkedRecordCounts.attachments || 0 },
+    leadRecurrenceCycle: { count: async () => linkedRecordCounts.cycles || 0 },
     auditLog: { createMany: async ({ data }) => auditEntries.push(...data) },
     lead: {
       deleteMany: async ({ where }) => {
@@ -315,9 +317,9 @@ describe('recurring lead workbook import', () => {
         companyName: importName,
         isRecurring: true,
         recurrenceFrequency: 'monthly',
-        recurrenceDate: '2026-12-01',
+        recurrenceDate: getDefaultLeadRecurrenceDate(),
         recurrenceInterval: 1,
-        nextRecurrenceDate: '2027-01-01',
+        nextRecurrenceDate: getDefaultLeadRecurrenceDate(),
         contactName: 'Ada Lovelace',
         contactEmail: 'ada@example.com',
         contactPhone: '555-0101',
@@ -326,7 +328,7 @@ describe('recurring lead workbook import', () => {
         location: null,
         notes: null,
         lastContactedDate: null,
-        nextFollowUpDate: null,
+        nextFollowUpDate: shiftDate(getDefaultLeadRecurrenceDate(), -10),
         ownerId: null,
       });
 

@@ -6,12 +6,14 @@ import { createLead, updateLead } from '../backend/services/leadService.js';
 const leadIds = [];
 
 afterAll(async () => {
+  await prisma.leadRecurrenceCycle.deleteMany({ where: { leadId: { in: leadIds } } });
+  await prisma.task.deleteMany({ where: { linkedType: 'Lead', linkedId: { in: leadIds } } });
   await prisma.auditLog.deleteMany({ where: { entityId: { in: leadIds } } });
   await prisma.lead.deleteMany({ where: { id: { in: leadIds } } });
 });
 
 describe('recurring lead persistence', () => {
-  it('creates a name-only lead, edits its details, and moves it without losing data', async () => {
+  it('creates a name-only lead and preserves its open cycle and details during editing', async () => {
     const id = `ld-recurrence-${randomUUID()}`;
     leadIds.push(id);
 
@@ -30,29 +32,23 @@ describe('recurring lead persistence', () => {
     expect(created.isOutbound).toBeNull();
     expect(created.status).toBeNull();
     expect(created.ownerId).toBeNull();
-    expect(created.nextRecurrenceDate).toBe('2027-01-01');
+    expect(created.nextRecurrenceDate).toBe('2026-12-01');
 
     const edited = await updateLead(id, {
       companyName: 'A one Associates',
       contactEmail: 'info@example.com',
-      recurrenceDate: '2027-01-31',
       recurrenceFrequency: 'monthly',
       status: '',
       source: '',
       notes: 'Contact details confirmed',
-      nextFollowUpDate: '2027-02-10',
     });
     expect(edited.companyName).toBe('A one Associates');
-    expect(edited.nextRecurrenceDate).toBe('2027-02-28');
+    expect(edited.nextRecurrenceDate).toBe('2026-12-01');
     expect(edited.notes).toBe('Contact details confirmed');
     expect(edited.status).toBeNull();
     expect(edited.source).toBeNull();
 
-    const regular = await updateLead(id, { isRecurring: false });
-    expect(regular.isRecurring).toBe(false);
-    expect(regular.recurrenceDate).toBeNull();
-    expect(regular.companyName).toBe('A one Associates');
-    expect(regular.nextFollowUpDate).toBe('2027-02-10');
+    await expect(updateLead(id, { isRecurring: false })).rejects.toMatchObject({ statusCode: 409 });
   });
 
   it('requires an interval for custom recurrence without writing a record', async () => {

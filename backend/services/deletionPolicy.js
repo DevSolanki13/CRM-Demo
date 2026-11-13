@@ -25,10 +25,11 @@ export async function deleteUnlinkedCustomerRecord(tx, type, id) {
       tx.deal.count({ where: { companyId: id } }),
     ] : []),
     ...(type === 'Contact' ? [tx.deal.count({ where: { contactId: id } })] : []),
-    ...(type === 'Lead' ? [tx.deal.count({ where: { leadId: id } })] : []),
+    ...(type === 'Lead' ? [tx.deal.count({ where: { leadId: id } }), tx.leadRecurrenceCycle.count({ where: { leadId: id } })] : []),
     ...(type === 'Deal' ? [
       tx.deal.count({ where: { parentDealId: id } }),
       tx.stageGateCheck.count({ where: { dealId: id } }),
+      tx.leadRecurrenceCycle.count({ where: { confirmedDealId: id } }),
     ] : []),
   ]);
   if (linked.some(Boolean)) {

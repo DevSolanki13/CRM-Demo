@@ -114,7 +114,7 @@ export const authorizeCRM = asyncHandler(async (req, _res, next) => {
     const recurringRequest = req.body?.isRecurring === true ||
       ['recurrenceDate', 'recurrenceFrequency', 'recurrenceInterval'].some(key =>
         req.body?.[key] != null && req.body[key] !== '');
-    if (recurringRecord || recurringRequest) fail(403, 'Administrator permission required for recurring leads');
+    if ((recurringRecord || recurringRequest) && !['recurrence-update', 'recurrence-control'].includes(action)) fail(403, 'Administrator permission required for recurring lead settings; use Update cycle to record an outcome');
   }
   if (action === 'merge' && ['companies', 'contacts'].includes(resource)) {
     if (!managed(req.user)) fail(403, 'Manager permission required to merge customer records');

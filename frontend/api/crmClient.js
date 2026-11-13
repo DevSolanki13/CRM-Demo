@@ -97,10 +97,24 @@ export async function previewRecurringLeadImport(rows) {
   })).json();
 }
 
-export async function importRecurringLeads(rows) {
+export async function importRecurringLeads(rows, schedule) {
   return (await apiFetch(`${BASE_URL}/leads/recurring-import/import`, {
     method: 'POST',
-    body: JSON.stringify({ rows }),
+    body: JSON.stringify({ rows, schedule }),
+  })).json();
+}
+
+export async function fetchLeadRecurrence(id) {
+  return (await apiFetch(`${BASE_URL}/leads/${encodeURIComponent(id)}/recurrence`)).json();
+}
+export async function updateLeadRecurrence(id, data) {
+  return (await apiFetch(`${BASE_URL}/leads/${encodeURIComponent(id)}/recurrence-update`, {
+    method: 'POST', body: JSON.stringify(data),
+  })).json();
+}
+export async function controlLeadRecurrence(id, data) {
+  return (await apiFetch(`${BASE_URL}/leads/${encodeURIComponent(id)}/recurrence-control`, {
+    method: 'POST', body: JSON.stringify(data),
   })).json();
 }
 

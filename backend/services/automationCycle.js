@@ -2,6 +2,7 @@ import { runScheduledAutomation } from './automationScheduler.js';
 import { processPendingFollowUps } from './followUpEngine.js';
 import { purgeDeletedAttachments } from './attachmentService.js';
 import { processCommunicationSyncs } from '../integrations/communicationSync.js';
+import { processRecurringLeads } from './leadRecurrenceService.js';
 
 export async function runAutomationCycle() {
   return runScheduledAutomation(new Date(), { id: 'automation-cycle', intervalMs: 60_000,
@@ -9,7 +10,7 @@ export async function runAutomationCycle() {
       const details = {};
       const failures = [];
       const jobs = { renewals: runScheduledAutomation, followUps: processPendingFollowUps,
-        attachments: purgeDeletedAttachments, communications: processCommunicationSyncs };
+        recurringLeads: processRecurringLeads, attachments: purgeDeletedAttachments, communications: processCommunicationSyncs };
       // A failed job must not prevent the remaining queues from being serviced.
       for (const [name, execute] of Object.entries(jobs)) {
         try {

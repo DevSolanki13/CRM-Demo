@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, FileSpreadsheet, LoaderCircle, Upload, X } from 'lucide-react';
 import { previewRecurringLeadImport } from '../api/crmClient.js';
 import { parseRecurringLeadWorkbook } from '../utils/recurringLeadWorkbook.js';
+import { LeadScheduleFields } from './LeadScheduleFields.jsx';
+import { getDefaultLeadRecurrenceDate } from '../../shared/leadRecurrence.js';
 
 const previewLimit = 250;
 
@@ -46,7 +48,7 @@ function Summary({ stats, completed }) {
   );
 }
 
-export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported }) {
+export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported, users = [] }) {
   const inputRef = useRef(null);
   const dialogRef = useRef(null);
   const busyRef = useRef(false);
@@ -57,6 +59,8 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
   const [error, setError] = useState('');
   const [isReading, setIsReading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [schedule, setSchedule] = useState({ recurrenceDate: getDefaultLeadRecurrenceDate(), recurrenceFrequency: 'monthly', recurrenceInterval: 1, recurrenceDays: [] });
+  const [ownerId, setOwnerId] = useState('');
 
   const busy = isReading || isImporting;
   busyRef.current = busy;
@@ -65,7 +69,7 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
     if (!isOpen) return undefined;
     const previousFocus = document.activeElement;
     const focusable = () => [...(dialogRef.current?.querySelectorAll(
-      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
     ) || [])];
     focusable()[0]?.focus();
     const handleKeyDown = event => {
@@ -132,7 +136,10 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
     setError('');
     setIsImporting(true);
     try {
-      const imported = await onImport(rows);
+      if (!schedule.recurrenceDate || !Number.isInteger(Number(schedule.recurrenceInterval)) || Number(schedule.recurrenceInterval) < 1) throw new Error('Choose a start date and a positive repeat interval.');
+      if (schedule.recurrenceFrequency === 'monthly_dates' && !schedule.recurrenceDays.length) throw new Error('Choose at least one day of the month.');
+      const imported = await onImport(rows, { startDate: schedule.recurrenceDate, frequency: schedule.recurrenceFrequency,
+        interval: Number(schedule.recurrenceInterval), days: schedule.recurrenceDays, ...(ownerId ? { ownerId } : {}) });
       setResult(imported);
       onImported?.(imported);
     } catch (importError) {
@@ -186,6 +193,14 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
         </header>
 
         <div className="space-y-4 overflow-y-auto p-5">
+          {!result && <fieldset disabled={busy} className="space-y-3">
+            <LeadScheduleFields value={schedule} onChange={setSchedule} />
+            <label className="block text-sm font-semibold">Responsible rep
+              <select className="mt-1 block w-full rounded-lg border border-[#E3E6EA] p-2.5" value={ownerId} onChange={event => setOwnerId(event.target.value)}>
+                <option value="">Unassigned — assign before reps can act</option>{users.filter(user => user.active !== false).map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </select>
+            </label>
+          </fieldset>}
           <div className="flex flex-col gap-3 rounded-xl border border-[#E3E6EA] p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold">Choose an Excel workbook</p>

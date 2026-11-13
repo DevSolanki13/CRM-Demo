@@ -6,9 +6,9 @@ import {
 } from '../shared/leadRecurrence.js';
 
 describe('recurring lead configuration', () => {
-  it('uses the upcoming December 1 as the configurable start-date default', () => {
-    expect(getDefaultLeadRecurrenceDate(new Date(2026, 10, 8))).toBe('2026-12-01');
-    expect(getDefaultLeadRecurrenceDate(new Date(2026, 11, 2))).toBe('2027-12-01');
+  it('uses today as the configurable first-purchase default', () => {
+    expect(getDefaultLeadRecurrenceDate(new Date(2026, 10, 8))).toBe('2026-11-08');
+    expect(getDefaultLeadRecurrenceDate(new Date(2026, 11, 2))).toBe('2026-12-02');
   });
 
   it('handles monthly and annual year boundaries', () => {

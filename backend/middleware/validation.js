@@ -103,7 +103,8 @@ export const leadSchema = z.object({
     z.null(),
   ]).optional().default('New'),
   isRecurring: z.boolean().optional().default(false),
-  recurrenceFrequency: z.enum(['yearly', 'monthly', 'custom']).nullable().optional().default('monthly'),
+  recurrenceFrequency: z.enum(['yearly', 'monthly', 'weekly', 'custom', 'monthly_dates']).nullable().optional().default('monthly'),
+  recurrenceDays: z.array(z.number().int().min(1).max(31)).max(31).optional().default([]),
   recurrenceDate: optionalDate,
   recurrenceInterval: z.number().int().positive().max(3650).nullable().optional(),
   lastContactedDate: optionalDate,
@@ -118,6 +119,20 @@ export const leadSchema = z.object({
 
 export const updateLeadSchema = updateSchema(leadSchema);
 
+export const recurrenceUpdateSchema = z.object({
+  cycleId: z.string().min(1).max(256),
+  expectedReviewedAt: z.string().nullable(),
+  outcome: z.enum(['attempted', 'awaiting', 'confirmed', 'postponed', 'not_buying', 'purchased']),
+  note: z.string().trim().min(5, 'Add a meaningful note (at least 5 characters).').max(5000),
+  nextActionDate: optionalDate,
+  expectedDate: optionalDate,
+  dealId: optionalId,
+}).strict();
+
+export const recurrenceControlSchema = z.object({
+  paused: z.boolean(), reason: z.string().trim().min(5).max(1000),
+}).strict();
+
 const recurringLeadImportRowSchema = z.object({
   companyName: z.string().max(300).nullable(),
   contactName: z.string().max(400).nullable().optional().default(null),
@@ -128,6 +143,12 @@ const recurringLeadImportRowSchema = z.object({
 
 export const recurringLeadImportSchema = z.object({
   rows: z.array(recurringLeadImportRowSchema).max(10000, 'A workbook can contain at most 10,000 rows.'),
+  schedule: z.object({
+    startDate: z.iso.date(), frequency: z.enum(['monthly', 'weekly', 'custom', 'yearly', 'monthly_dates']),
+    interval: z.number().int().positive().max(3650),
+    days: z.array(z.number().int().min(1).max(31)).max(31).optional().default([]),
+    ownerId: z.string().min(1).optional(),
+  }).optional(),
 }).strict();
 
 export const clearRecurringLeadsSchema = z.object({

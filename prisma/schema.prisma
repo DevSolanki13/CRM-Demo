@@ -136,6 +136,11 @@ model Lead {
   recurrenceDate      String?
   recurrenceInterval  Int?
   nextRecurrenceDate  String?
+  recurrenceDays      Int[] @default([])
+  recurrencePaused    Boolean @default(false)
+  recurrencePauseReason String?
+  lastRecurringReviewDate String?
+  recurrenceState     String @default("awaiting")
   lastContactedDate   String?
   nextFollowUpDate    String?
   ownerId             String?
@@ -147,10 +152,33 @@ model Lead {
 
   owner User? @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   deals Deal[]
+  recurrenceCycles LeadRecurrenceCycle[]
 
   @@index([ownerId])
   @@index([ownerId, id])
   @@index([isRecurring, nextRecurrenceDate])
+}
+
+model LeadRecurrenceCycle {
+  id String @id
+  leadId String
+  originalDate String
+  expectedDate String
+  status String @default("awaiting")
+  nextActionDate String?
+  note String?
+  reviewedAt String?
+  reviewedById String?
+  reviewedByName String?
+  confirmedDealId String?
+  createdAt String
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  confirmedDeal Deal? @relation(fields: [confirmedDealId], references: [id], onDelete: Restrict)
+
+  @@unique([leadId, originalDate])
+  @@index([leadId, status, expectedDate])
+  @@index([status, expectedDate])
+  @@index([confirmedDealId])
 }
 
 
@@ -200,6 +228,7 @@ model Deal {
   parentDeal Deal? @relation("DealLineage", fields: [parentDealId], references: [id], onDelete: Restrict)
   rebuyDeals Deal[] @relation("DealLineage")
   approvalChecks StageGateCheck[]
+  recurrenceCycles LeadRecurrenceCycle[]
 
   @@index([ownerId, status])
   @@index([pipelineId, stageId])
