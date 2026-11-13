@@ -622,7 +622,7 @@ export const DetailDrawer = ({
                         disabled={isSaving}
                         className="px-4 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold rounded-xl text-xs transition-colors shadow-2xs flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4E63]"
                       >
-                        {isSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                        {isSaving && <RefreshCw className="w-3.5 h-3.5" />}
                         <span>Save Changes</span>
                       </button>
                     </div>

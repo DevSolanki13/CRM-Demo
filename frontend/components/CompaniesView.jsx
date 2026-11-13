@@ -1,3 +1,4 @@
+import { CompaniesSkeleton } from './skeletons/CompaniesSkeleton.jsx';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
 import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState, useMemo } from 'react';
@@ -49,7 +50,7 @@ export const CompaniesView = ({
   });
 
   const page = useRecordsPage('companies', { q: searchQuery }, revision);
-  const showMockData = Boolean(branding?.customFields?.showMockData ?? (typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true'));
+  const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
   const companies = useMemo(() => {
     return showMockData ? page.items : page.items.filter(comp => !isMockCompany(comp));
   }, [page.items, showMockData]);
@@ -91,6 +92,8 @@ export const CompaniesView = ({
   const linkedDeals = useMemo(() => {
     return selectedCompany ? deals.filter(d => d.companyId === selectedCompany.id) : [];
   }, [selectedCompany, deals]);
+
+  if (page.loading) return <CompaniesSkeleton detail={Boolean(selectedCompany)} />;
 
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">

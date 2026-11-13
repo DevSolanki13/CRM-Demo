@@ -51,20 +51,23 @@ import {
   approveStageGateCheck,
   rejectStageGateCheck
 } from './api/crmClient.js';
+import { clearRecordsCache } from './api/recordsCache.js';
+import { viewImports, prefetchView, whenIdle, warmDefaultPages } from './viewPrefetch.js';
+import { PageSkeleton } from './components/skeletons/PageSkeleton.jsx';
 import { Header } from './components/Header.jsx';
 import { LoginView, AcceptInvitationView } from './components/LoginView.jsx';
 import { Sidebar } from './components/Sidebar.jsx';
 import { DashboardView } from './components/DashboardView.jsx';
-const LeadsView = lazy(() => import('./components/LeadsView.jsx').then(module => ({ default: module.LeadsView })));
-const LeadJourneyView = lazy(() => import('./components/LeadJourneyView.jsx').then(module => ({ default: module.LeadJourneyView })));
-const PipelineView = lazy(() => import('./components/PipelineView.jsx').then(module => ({ default: module.PipelineView })));
-const ContactsView = lazy(() => import('./components/ContactsView.jsx').then(module => ({ default: module.ContactsView })));
-const CompaniesView = lazy(() => import('./components/CompaniesView.jsx').then(module => ({ default: module.CompaniesView })));
-const TasksView = lazy(() => import('./components/TasksView.jsx').then(module => ({ default: module.TasksView })));
-const EmployeesView = lazy(() => import('./components/EmployeesView.jsx').then(module => ({ default: module.EmployeesView })));
-const ReportsView = lazy(() => import('./components/ReportsView.jsx').then(module => ({ default: module.ReportsView })));
-const SettingsView = lazy(() => import('./components/SettingsView.jsx').then(module => ({ default: module.SettingsView })));
-const ConnectionsView = lazy(() => import('./components/ConnectionsView.jsx').then(module => ({ default: module.ConnectionsView })));
+const LeadsView = lazy(() => viewImports.leads().then(module => ({ default: module.LeadsView })));
+const LeadJourneyView = lazy(() => viewImports.journey().then(module => ({ default: module.LeadJourneyView })));
+const PipelineView = lazy(() => viewImports.pipeline().then(module => ({ default: module.PipelineView })));
+const ContactsView = lazy(() => viewImports.contacts().then(module => ({ default: module.ContactsView })));
+const CompaniesView = lazy(() => viewImports.companies().then(module => ({ default: module.CompaniesView })));
+const TasksView = lazy(() => viewImports.tasks().then(module => ({ default: module.TasksView })));
+const EmployeesView = lazy(() => viewImports.employees().then(module => ({ default: module.EmployeesView })));
+const ReportsView = lazy(() => viewImports.reports().then(module => ({ default: module.ReportsView })));
+const SettingsView = lazy(() => viewImports.settings().then(module => ({ default: module.SettingsView })));
+const ConnectionsView = lazy(() => viewImports.connections().then(module => ({ default: module.ConnectionsView })));
 import { ImportExportModal } from './components/ImportExportModal.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import { NotFoundView } from './components/NotFoundView.jsx';
@@ -73,7 +76,6 @@ import { Toaster, toast } from 'sonner';
 import { 
   LayoutDashboard, 
   Users, 
-  Kanban, 
   CheckSquare, 
   Menu 
 } from 'lucide-react';
@@ -252,6 +254,48 @@ export default function App() {
     return () => { cancelled = true; };
   }, [activeTab, state, tabRetry, currentUser]);
 
+  // Warm permitted chunks and default pages without delaying the initial render.
+  useEffect(() => {
+    if (loading || !currentUser || !state) return;
+    const controller = new AbortController();
+    const cancel = whenIdle(() => {
+      Object.keys(viewImports).forEach(tab => prefetchView(tab, currentUser));
+      warmDefaultPages(currentUser, state, controller.signal);
+    });
+    return () => { cancel(); controller.abort(); };
+  }, [loading, currentUser?.id, revision, state?.branding?.customFields?.showMockData, state?.stages?.[0]?.pipelineId]);
+
+  useEffect(() => {
+    if (loading || !currentUser || !state) return;
+    let cancelled = false;
+    const cancel = whenIdle(() => {
+      const missing = [...new Set(Object.entries(TAB_COLLECTIONS)
+        .filter(([tab]) => canAccessPage(currentUser, tab)).flatMap(([, keys]) => keys))]
+        .filter(key => state[key] === undefined);
+      if (missing.length) fetchCRMState(missing).then(data => {
+        if (!cancelled) setState(previous => normalizeStateStages({ ...previous, ...data }));
+      }).catch(() => {}); // Navigation retains its existing retry/error path.
+    });
+    return () => { cancelled = true; cancel(); };
+  }, [loading, currentUser?.id]);
+
+  // Auto-refresh dashboard summary and records on tab switch or window focus
+  useEffect(() => {
+    if (!loading && currentUser && activeTab === 'dashboard') {
+      reloadState();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      if (activeTab === 'dashboard' && !loading && currentUser) {
+        reloadState();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [activeTab, loading, currentUser]);
+
   // Memoized Pending Tasks and Renewals Count for badges (placed before any early return)
   const pendingTasksCount = state?.overview?.pendingTasksCount || 0;
 
@@ -315,9 +359,9 @@ export default function App() {
   </main>;
   if (loading || !state || !currentUser) {
     return (
-      <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)] flex flex-col font-sans select-none" aria-busy="true" aria-label="Loading CRM Workspace">
+      <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)] flex flex-col font-sans select-none" aria-busy="true" role="status" aria-label="Loading CRM Workspace">
         {/* Skeleton Topbar */}
-        <div className="bg-[var(--surface)] border-b border-[var(--border)] px-6 py-3.5 flex items-center justify-between">
+        <div aria-hidden="true" className="bg-[var(--surface)] border-b border-[var(--border)] px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-[var(--primary-subtle)] animate-pulse" />
             <div className="h-4 w-28 bg-[var(--border)] rounded-md animate-pulse" />
@@ -331,24 +375,13 @@ export default function App() {
 
         {/* Skeleton Main Workspace */}
         <div className="flex flex-1 overflow-hidden">
-          <div className="w-64 bg-[var(--surface)] border-r border-[var(--border)] p-4 space-y-3 hidden lg:block">
+          <div aria-hidden="true" className="crm-sidebar-rail p-4 space-y-3" style={{ height: 'auto' }}>
             {[1, 2, 3, 4, 5, 6].map(i => (
               <div key={i} className="h-8 bg-[var(--surface-muted)] rounded-xl animate-pulse" />
             ))}
           </div>
-          <div className="flex-1 p-6 space-y-6 overflow-y-auto bg-[var(--canvas)]">
-            <div className="h-28 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 flex items-center justify-between animate-pulse">
-              <div className="space-y-2">
-                <div className="h-5 w-48 bg-[var(--border)] rounded-md" />
-                <div className="h-3 w-80 bg-[var(--surface-muted)] rounded-md" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-24 bg-[var(--surface)] border border-[var(--border)] rounded-2xl animate-pulse" />
-              ))}
-            </div>
-          </div>
+          <div className="flex-1 min-w-0 overflow-y-auto bg-[var(--canvas)]"><PageSkeleton tab={activeTab} /></div>
+
         </div>
       </div>
     );
@@ -361,6 +394,7 @@ export default function App() {
   const reloadState = async (...collections) => {
     const requested = collections.filter(key => key !== 'auditLogs');
     if (collections.length && !requested.length) return;
+    clearRecordsCache();
     const [data, overview] = await Promise.all([fetchCRMState(requested), fetchWorkspaceSummary()]);
     const updated = normalizeStateStages({ ...data, overview });
     setState(prev => requested.length && prev ? { ...prev, ...updated } : updated);
@@ -389,13 +423,17 @@ export default function App() {
   };
 
   const handleResetDemoData = async () => {
-    const res = await resetCRMState();
-    setState(normalizeStateStages(res));
+    await resetCRMState();
+    await reloadState(...INITIAL_COLLECTIONS);
   };
 
   const handleUpdateBranding = async (branding) => {
     const updated = await updateBranding(branding);
-    setState(prev => prev ? { ...prev, branding: updated } : prev);
+    if (Object.hasOwn(branding?.customFields || {}, 'showMockData')) {
+      await reloadState(...INITIAL_COLLECTIONS);
+    } else {
+      await reloadState('branding');
+    }
     return updated;
   };
 
@@ -878,7 +916,7 @@ export default function App() {
 
   return (
     <ErrorBoundary onResetState={handleResetDemoData}>
-      <div className="h-screen w-screen bg-[var(--canvas)] text-[var(--ink)] flex flex-col font-sans antialiased selection:bg-[var(--primary)] selection:text-white overflow-hidden">
+      <div className="h-full w-full bg-[var(--canvas)] text-[var(--ink)] flex flex-col font-sans antialiased selection:bg-[var(--primary)] selection:text-white overflow-hidden">
         
         {/* Toast Notification Container */}
         <Toaster position="top-right" richColors closeButton />
@@ -888,6 +926,7 @@ export default function App() {
 
           {/* Navigation Sidebar */}
           <Sidebar
+            onPrefetch={tab => prefetchView(tab, currentUser)}
             activeTab={activeTab}
             setActiveTab={handleNavigateTab}
             userRole={currentUser.role}
@@ -911,13 +950,11 @@ export default function App() {
             isMobileMenuOpen={isMobileMenuOpen}
             onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)} />
           {/* Dynamic Tab Content View */}
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--canvas)] pb-16 md:pb-0">
-            <Suspense fallback={<div className="p-8 text-sm text-[#5B6472]" role="status">Loading view…</div>}>
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--canvas)] overscroll-contain pb-16 md:pb-0">
+            <Suspense fallback={<PageSkeleton tab={activeTab} journey={Boolean(selectedLeadForJourney)} stages={state.stages?.filter(stage => stage.pipelineId === selectedPipelineId)} />}>
             {(TAB_COLLECTIONS[activeTab] || []).some(key => state[key] === undefined)
-              ? <div className="p-8 text-sm text-[#5B6472]" role={tabLoadError ? 'alert' : 'status'}>
-                  {tabLoadError || 'Loading view…'}
-                  {tabLoadError && <button className="ml-3 underline" onClick={() => setTabRetry(value => value + 1)}>Retry</button>}
-                </div>
+              ? tabLoadError ? <div className="p-8 text-sm text-[#5B6472]" role="alert">{tabLoadError}<button className="ml-3 underline" onClick={() => setTabRetry(value => value + 1)}>Retry</button></div>
+                : <PageSkeleton tab={activeTab} stages={state.stages?.filter(stage => stage.pipelineId === selectedPipelineId)} />
               : <>
             {activeTab === 'dashboard' && (
               <DashboardView revision={revision} onOpenRecurringTask={handleOpenRecurringTask}
@@ -990,7 +1027,7 @@ export default function App() {
                     <option key={pipeline.id} value={pipeline.id}>{pipeline.name}</option>)}
                 </select>
               </div>
-              <PipelineView revision={revision} key={selectedPipelineId}
+              <PipelineView revision={revision} allStages={state.stages}
                 deals={state.deals.filter(deal => deal.pipelineId === selectedPipelineId)}
                 stages={state.stages.filter(stage => stage.pipelineId === selectedPipelineId)}
                 users={recordUsers}
@@ -1153,7 +1190,7 @@ export default function App() {
         />
 
         {/* Global Modals */}
-        {recurringTaskLead && <Suspense fallback={<p role="status">Loading recurring lead…</p>}>
+        {recurringTaskLead && <Suspense fallback={<PageSkeleton tab="leads" journey />}>
           <RecurringCycleDialog lead={recurringTaskLead} currentUser={currentUser} onClose={() => setRecurringTaskLead(null)}
             onChanged={async () => { await reloadState('leads', 'tasks', 'activities'); toast.success('Cycle update recorded'); }} />
         </Suspense>}
@@ -1171,7 +1208,6 @@ export default function App() {
           {[
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'leads', label: 'Leads', icon: Users },
-            { id: 'pipeline', label: 'Pipeline', icon: Kanban, badge: renewalsDueCount > 0 },
             { id: 'tasks', label: 'Tasks', icon: CheckSquare, badge: pendingTasksCount > 0 },
             { id: 'menu', label: 'More', icon: Menu, isAction: true }
           ].map(item => {
@@ -1180,6 +1216,9 @@ export default function App() {
             return (
               <button
                 key={item.id}
+                onMouseEnter={() => prefetchView(item.id, currentUser)}
+                onFocus={() => prefetchView(item.id, currentUser)}
+                onTouchStart={() => prefetchView(item.id, currentUser)}
                 onClick={() => {
                   if (item.isAction) {
                     setIsMobileMenuOpen(prev => !prev);

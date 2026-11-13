@@ -6,6 +6,7 @@ export const initialBranding = {
   accentColor: '#10b981', // Emerald
   defaultRecurrenceDays: 60, // 60 days cycle for repeat orders
   customFields: {
+    showMockData: false,
     fields: [
       { id: 'cf1', entity: 'Lead', label: 'Sample Budget (₹)', type: 'number' },
       { id: 'cf2', entity: 'Contact', label: 'Preferred Channel', type: 'select', options: ['Phone', 'Email', 'WhatsApp', 'In-Person'] },

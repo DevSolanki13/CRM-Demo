@@ -41,10 +41,34 @@ export function recordFilters(resource, actor, query = {}) {
   const filters = [recordVisibility(resource, actor)];
   const supported = ['cursor', 'limit', 'q', 'owner', 'status', 'stage', 'pipeline', 'source', 'quick',
     'recurring', 'recurrenceDate', 'type', 'queue', 'showCompleted', 'linkedType', 'linkedId', 'leadId',
-    'companyId', 'contactId', 'id', 'sort', 'recurrenceView'];
+    'companyId', 'contactId', 'id', 'sort', 'recurrenceView', 'showMockData'];
   if (Object.keys(query).some(key => !supported.includes(key)) || Object.entries(query)
     .some(([key, value]) => key !== 'limit' && (typeof value !== 'string' || value.length > (key === 'cursor' ? 2048 : 256)))) {
     throw invalid('Use supported text filters of up to 256 characters.');
+  }
+
+  // Demo records stay hidden unless a caller explicitly opts in. Recurring
+  // leads are always actual data and remain visible.
+  if (query.showMockData !== 'true') {
+    const mockDealIds = Prisma.sql`('dl-1', 'dl-2', 'dl-3', 'dl-4', 'dl-5', 'dl-6', 'dl-7', 'dl-8', 'dl-8-parent', 'dl-9')`;
+    const mockLeadIds = Prisma.sql`('ld-1', 'ld-2', 'ld-3', 'ld-4', 'ld-5', 'ld-6', 'ld-7', 'ld-8', 'ld-9')`;
+    const mockTaskIds = Prisma.sql`('tsk-1', 'tsk-2', 'tsk-3', 'tsk-4', 'tsk-5', 'tsk-appr-1', 'tsk-appr-2', 'tsk-ld6-1', 'tsk-ld6-2', 'tsk-ld7-1', 'tsk-ld7-2', 'tsk-ld9-1', 'tsk-ld5-1', 'tsk-ld4-1')`;
+    const mockCompanyIds = Prisma.sql`('c-1', 'c-2', 'c-3', 'c-4', 'c-5', 'c-6', 'c-7', 'c-8', 'c-9')`;
+    const mockContactIds = Prisma.sql`('cnt-1', 'cnt-2', 'cnt-3', 'cnt-4', 'cnt-5', 'cnt-6', 'cnt-7', 'cnt-8', 'cnt-9')`;
+
+    if (resource === 'leads') {
+      filters.push(Prisma.sql`(r."isRecurring" = true OR r.id NOT IN ${mockLeadIds})`);
+    } else if (resource === 'deals') {
+      filters.push(Prisma.sql`r.id NOT IN ${mockDealIds} AND (r."leadId" IS NULL OR r."leadId" NOT IN ${mockLeadIds}) AND (r."companyId" IS NULL OR r."companyId" NOT IN ${mockCompanyIds})`);
+    } else if (resource === 'tasks') {
+      filters.push(Prisma.sql`(r.id LIKE 'recurrence%' OR (r.id NOT IN ${mockTaskIds} AND (r."linkedId" IS NULL OR (r."linkedId" NOT IN ${mockDealIds} AND r."linkedId" NOT IN ${mockLeadIds} AND r."linkedId" NOT IN ${mockCompanyIds}))))`);
+    } else if (resource === 'companies') {
+      filters.push(Prisma.sql`r.id NOT IN ${mockCompanyIds}`);
+    } else if (resource === 'contacts') {
+      filters.push(Prisma.sql`r.id NOT IN ${mockContactIds}`);
+    } else if (resource === 'activities') {
+      filters.push(Prisma.sql`(r."linkedId" IS NULL OR (r."linkedId" NOT IN ${mockDealIds} AND r."linkedId" NOT IN ${mockLeadIds} AND r."linkedId" NOT IN ${mockCompanyIds}))`);
+    }
   }
   const { q = '', owner, status, stage, pipeline, source, quick, recurring, recurrenceDate, type, queue, showCompleted } = query;
   const requireResource = (choices, label) => {

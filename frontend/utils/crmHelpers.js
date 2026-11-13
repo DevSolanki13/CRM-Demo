@@ -224,6 +224,107 @@ export function getStageBadgeStyle(stage = {}, stageColor = '') {
 
 export const stageTransitionKey = (source, target) => `${stageCode(source || {})}->${stageCode(target || {})}`;
 
+export function getRecurringLeadRenewalStatus(lead, today = getLocalDateInputValue(), stages = []) {
+  if (!lead) {
+    return {
+      label: 'Buy Again (Renewal)',
+      badgeClass: 'bg-[#FEFCE8] text-[#A16207] border-[#FEF08A]',
+      color: '#EAB308'
+    };
+  }
+
+  // 1. Paused status
+  if (lead.recurrencePaused) {
+    return {
+      label: 'Paused',
+      badgeClass: 'bg-[#F6F7F8] text-[#5B6472] border-[#E3E6EA]',
+      color: '#64748B'
+    };
+  }
+
+  // 2. Linked Deal stage (if present)
+  if (lead.primaryDeal?.stageName) {
+    const stageObj = stages.find(s => s.id === lead.primaryDeal.stageId || s.name === lead.primaryDeal.stageName);
+    const style = getStageBadgeStyle(stageObj || {}, stageObj?.color || '#EAB308');
+    return {
+      label: lead.primaryDeal.stageName,
+      badgeClass: style.badgeClass,
+      color: stageObj?.color || '#EAB308'
+    };
+  }
+
+  // 3. Recurrence lifecycle states
+  const state = lead.recurrenceState;
+  if (state === 'confirmed') {
+    return {
+      label: 'Purchase Confirmed',
+      badgeClass: 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]',
+      color: '#10B981'
+    };
+  }
+  if (state === 'attempted') {
+    return {
+      label: 'Contact Attempted',
+      badgeClass: 'bg-[#EFF6F9] text-[#1D4E63] border-[#CBD2D8]',
+      color: '#A7F3D0'
+    };
+  }
+  if (state === 'postponed') {
+    return {
+      label: 'Renewal Postponed',
+      badgeClass: 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]',
+      color: '#F59E0B'
+    };
+  }
+  if (state === 'purchased') {
+    return {
+      label: 'Closed Won (Renewed)',
+      badgeClass: 'bg-[#16A34A] text-white border-transparent',
+      color: '#16A34A'
+    };
+  }
+  if (state === 'not_buying') {
+    return {
+      label: 'Closed Lost (Cycle)',
+      badgeClass: 'bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]',
+      color: '#DC2626'
+    };
+  }
+
+  // 4. Overdue check: past next recurrence date
+  const isOverdue = Boolean(
+    lead.nextRecurrenceDate && lead.nextRecurrenceDate < today
+  );
+  if (isOverdue) {
+    return {
+      label: 'Renewal Due',
+      badgeClass: 'bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]',
+      color: '#DC2626'
+    };
+  }
+
+  // 5. Custom status on lead record if valid and not a placeholder
+  if (lead.status && lead.status !== 'Unavailable' && lead.status !== 'New') {
+    const stageObj = stages.find(s => s.name === lead.status);
+    const style = getStageBadgeStyle(stageObj || {}, stageObj?.color || '#EAB308');
+    return {
+      label: lead.status,
+      badgeClass: style.badgeClass,
+      color: stageObj?.color || '#EAB308'
+    };
+  }
+
+  // 6. Default renewal pipeline stage
+  const renewalStage = stages.find(s => s.category === 'Buy Again' || s.name === 'Buy Again (Renewal)' || s.id === 'stg-7');
+  const renewalStyle = getStageBadgeStyle(renewalStage || {}, '#EAB308');
+
+  return {
+    label: renewalStage?.name || 'Buy Again (Renewal)',
+    badgeClass: renewalStyle.badgeClass || 'bg-[#FEFCE8] text-[#A16207] border-[#FEF08A]',
+    color: '#EAB308'
+  };
+}
+
 const DEFAULT_STAGE_CRITERIA = {
   'NEW_LEAD->CONTACTED': [
     'Reached decision-maker or identified who they are',
@@ -660,4 +761,40 @@ export function isMockCompany(company) {
 export function isMockContact(contact) {
   if (!contact) return false;
   return MOCK_CONTACT_IDS.has(contact.id) || /^cnt-[1-9]$/.test(contact.id);
+}
+
+export const MOCK_DEAL_IDS = new Set(['dl-1', 'dl-2', 'dl-3', 'dl-4', 'dl-5', 'dl-6', 'dl-7', 'dl-8', 'dl-8-parent', 'dl-9']);
+
+export function isMockDeal(deal) {
+  if (!deal) return false;
+  // If the deal is tied to a mock lead (ld-1..ld-9) or mock company (c-1..c-9), or has a mock deal ID, it is mock data
+  if (deal.leadId && (MOCK_LEAD_IDS.has(deal.leadId) || /^ld-[1-9]$/.test(deal.leadId))) return true;
+  if (deal.companyId && (MOCK_COMPANY_IDS.has(deal.companyId) || /^c-[1-9]$/.test(deal.companyId))) return true;
+  if (MOCK_DEAL_IDS.has(deal.id) || /^dl-[1-9](-parent)?$/.test(deal.id)) return true;
+  return false;
+}
+
+export const MOCK_TASK_IDS = new Set([
+  'tsk-1', 'tsk-2', 'tsk-3', 'tsk-4', 'tsk-5',
+  'tsk-appr-1', 'tsk-appr-2',
+  'tsk-ld6-1', 'tsk-ld6-2', 'tsk-ld7-1', 'tsk-ld7-2',
+  'tsk-ld9-1', 'tsk-ld5-1', 'tsk-ld4-1'
+]);
+
+export function isMockTask(task) {
+  if (!task) return false;
+  const taskId = typeof task === 'string' ? task : task.id;
+  // Recurring tasks are ALWAYS real actual data
+  if (/^recurrence(?:-review|-action)?:/.test(taskId)) return false;
+  if (MOCK_TASK_IDS.has(taskId) || /^tsk-(appr-[1-9]|ld[1-9]-[1-9]|[1-9])$/.test(taskId)) return true;
+  if (task.linkedId && (MOCK_DEAL_IDS.has(task.linkedId) || MOCK_LEAD_IDS.has(task.linkedId) || MOCK_COMPANY_IDS.has(task.linkedId) || /^dl-[1-9](-parent)?$/.test(task.linkedId) || /^ld-[1-9]$/.test(task.linkedId))) return true;
+  return false;
+}
+
+export function isMockActivity(activity) {
+  if (!activity) return false;
+  const actId = typeof activity === 'string' ? activity : activity.id;
+  if (/^act-(ld[1-9]-[1-9]|[1-9])$/.test(actId)) return true;
+  if (activity.linkedId && (MOCK_DEAL_IDS.has(activity.linkedId) || MOCK_LEAD_IDS.has(activity.linkedId) || MOCK_COMPANY_IDS.has(activity.linkedId) || /^dl-[1-9](-parent)?$/.test(activity.linkedId) || /^ld-[1-9]$/.test(activity.linkedId))) return true;
+  return false;
 }

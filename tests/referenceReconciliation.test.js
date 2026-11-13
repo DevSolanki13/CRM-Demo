@@ -4,15 +4,25 @@ import { prisma } from '../backend/prisma.js';
 import { listUnresolvedReferences, resolveReference } from '../backend/services/referenceReconciliationService.js';
 
 describe('historical reference repair', () => {
-  it('lists unresolved references currently in the ledger', async () => {
-    const unresolved = await listUnresolvedReferences();
-    expect(Array.isArray(unresolved)).toBe(true);
-    expect(unresolved.length).toBeGreaterThanOrEqual(7);
-    for (const ref of unresolved) {
-      expect(ref.resolvedAt).toBeNull();
-      expect(ref.resolvedTargetId).toBeNull();
-      expect(['Deal', 'Task', 'Activity']).toContain(ref.recordType);
-      expect(['Deal', 'Lead', 'Contact', 'Company']).toContain(ref.targetType);
+  it('lists unresolved references and excludes repaired links', async () => {
+    const id = `reference-list-${randomUUID()}`;
+    const repairedId = `${id}-repaired`;
+    try {
+      await prisma.orphanReference.createMany({ data: [
+        { id, recordType: 'Deal', recordId: id, field: 'parentDealId', targetType: 'Deal', targetId: 'missing-parent' },
+        { id: repairedId, recordType: 'Deal', recordId: repairedId, field: 'parentDealId', targetType: 'Deal', targetId: 'missing-parent', resolvedAt: new Date(), resolvedTargetId: 'replacement' },
+      ] });
+      const unresolved = await listUnresolvedReferences();
+      expect(unresolved.find(ref => ref.id === id)).toMatchObject({ resolvedAt: null, resolvedTargetId: null });
+      expect(unresolved.some(ref => ref.id === repairedId)).toBe(false);
+      for (const ref of unresolved) {
+        expect(ref.resolvedAt).toBeNull();
+        expect(ref.resolvedTargetId).toBeNull();
+        expect(['Deal', 'Task', 'Activity']).toContain(ref.recordType);
+        expect(['Deal', 'Lead', 'Contact', 'Company']).toContain(ref.targetType);
+      }
+    } finally {
+      await prisma.orphanReference.deleteMany({ where: { id: { in: [id, repairedId] } } });
     }
   });
 

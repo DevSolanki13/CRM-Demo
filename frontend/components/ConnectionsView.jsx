@@ -1,10 +1,12 @@
+import { getCachedRecordsPage } from '../api/recordsCache.js';
+import { ConnectionsSkeleton } from './skeletons/ConnectionsSkeleton.jsx';
 import { useEffect, useState } from 'react';
 import { Calendar, Mail, RefreshCw, Unplug } from 'lucide-react';
 import { fetchIntegrationStatus, connectGoogleWorkspace, queueCommunicationSync, disconnectCommunication } from '../api/crmClient.js';
 import { formatDateTime } from '../utils/crmHelpers.js';
 
 export function ConnectionsView() {
-  const [state, setState] = useState(null);
+  const [state, setState] = useState(() => getCachedRecordsPage('connections', {}) || null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(() => {
@@ -37,7 +39,7 @@ export function ConnectionsView() {
       {error} <button type="button" className="underline" onClick={refresh}>Try again</button>
     </div>}
     {notice && <p role="status" className="rounded-xl bg-[var(--primary-subtle)] p-4 text-sm text-[var(--primary)]">{notice}</p>}
-    {!state && !error && <p role="status">Loading connections…</p>}
+    {!state && !error && <ConnectionsSkeleton cardOnly />}
     {state && <div className="space-y-5 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>

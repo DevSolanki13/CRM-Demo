@@ -1,7 +1,8 @@
+import { PipelineSkeleton } from './skeletons/PipelineSkeleton.jsx';
 import { RecordSelect } from './RecordSelect.jsx';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
 import { RecordPagination } from './RecordPagination.jsx';
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Plus,
   Building2,
@@ -32,7 +33,8 @@ import {
   isCloseDateOverdue,
   isProposalExpiringSoon,
   getLocalDateInputValue,
-  getLocalDateInputValueAfterDays
+  getLocalDateInputValueAfterDays,
+  isMockDeal
 } from '../utils/crmHelpers.js';
 import { allowedStageTargets, isLostStage, isWonStage, isRenewalStage, stageCode } from '../../backend/constants/stageConstants.js';
 import { StageGateCheckModal } from './StageGateCheckModal.jsx';
@@ -51,6 +53,7 @@ const LOST_REASONS = [
 export const PipelineView = ({
   revision = 0,
   stages = [],
+  allStages = stages,
   users = [],
   companies = [],
   contacts = [],
@@ -124,10 +127,29 @@ export const PipelineView = ({
     recurrenceDays: branding?.defaultRecurrenceDays || 60
   });
 
-  const sortedStages = [...stages].sort((a, b) => a.order - b.order);
+  const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
   const page = useRecordsPage('deals', { pipeline: stages[0]?.pipelineId,
-    q: searchQuery, status: filterStatus, quick: quickFilter }, revision);
-  const deals = page.items;
+    q: searchQuery, status: filterStatus, quick: quickFilter, showMockData: String(showMockData) }, revision);
+  const dataPipeline = page.dataKey ? JSON.parse(page.dataKey).pipeline : stages[0]?.pipelineId;
+  const pendingPipeline = page.hasData && dataPipeline !== stages[0]?.pipelineId;
+  const sortedStages = [...(pendingPipeline ? allStages.filter(stage => stage.pipelineId === dataPipeline) : stages)]
+    .sort((a, b) => a.order - b.order);
+
+  useEffect(() => {
+    setSearchQuery('');
+    setFilterStatus('All');
+    setQuickFilter('All');
+    setIsModalOpen(false);
+    setEditingDeal(null);
+    setActivityModalDeal(null);
+    setOverrideModal(previous => ({ ...previous, isOpen: false }));
+    setCloseLostModal(previous => ({ ...previous, isOpen: false }));
+    setIsGateModalOpen(false);
+    setDraggedDealId(null);
+  }, [stages[0]?.pipelineId]);
+  const deals = useMemo(() => {
+    return showMockData ? page.items : page.items.filter(deal => !isMockDeal(deal));
+  }, [page.items, showMockData]);
   const userDeals = deals;
   const filteredDeals = deals;
   const { Stale: staleCount = 0, Aging: agingCount = 0, Overdue: overdueCount = 0,
@@ -438,6 +460,8 @@ export const PipelineView = ({
     setIsModalOpen(false);
   };
 
+  if (page.loading) return <PipelineSkeleton stages={stages} />;
+
   return (
     <div className="p-3.5 sm:p-6 md:p-8 bg-[#F6F7F8] text-[#12161C] h-full flex flex-col justify-between overflow-hidden gap-4 min-h-screen">
 
@@ -468,6 +492,7 @@ export const PipelineView = ({
             </div>
 
             <button
+              disabled={pendingPipeline}
               onClick={() => handleOpenAddModal()}
               className="px-4 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
             >
@@ -514,7 +539,7 @@ export const PipelineView = ({
       <RecordPagination page={page} label="deals" />
 
       {/* Kanban Board Layout */}
-      <div className="flex-1 flex gap-3 sm:gap-4 overflow-x-auto pb-4 pt-1 items-stretch min-h-0 custom-horizontal-scrollbar snap-x snap-mandatory scroll-smooth">
+      <div inert={pendingPipeline} aria-busy={page.refreshing} style={{ opacity: pendingPipeline ? 0.65 : 1 }} className="flex-1 flex gap-3 sm:gap-4 overflow-x-auto pb-4 pt-1 items-stretch min-h-0 custom-horizontal-scrollbar snap-x snap-mandatory scroll-smooth">
         {sortedStages.map(stage => {
           const stageDeals = filteredDeals.filter(d => d.stageId === stage.id);
           const stageTotal = page.stageTotals?.find(total => total.stageId === stage.id);

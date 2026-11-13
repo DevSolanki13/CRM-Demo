@@ -4,7 +4,17 @@ test.describe('Mobile Responsive Experience E2E Suite', () => {
   // Use mobile viewport (375x667 standard mobile phone)
   test.use({ viewport: { width: 375, height: 667 } });
 
+  test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: 'wait' }); });
+
   test.beforeEach(async ({ page }) => {
+    // These legacy journey scenarios exercise the seeded demonstration records.
+    await page.addInitScript(() => localStorage.setItem('crm.showMockData', 'true'));
+    await page.route('**/api/state*', async route => {
+      const response = await route.fetch();
+      const data = await response.json();
+      data.branding = { ...data.branding, customFields: { ...data.branding?.customFields, showMockData: true } };
+      await route.fulfill({ response, json: data });
+    });
     await page.goto('/');
     // Wait for header to be visible
     await expect(page.locator('header')).toBeVisible({ timeout: 15000 });
@@ -36,7 +46,7 @@ test.describe('Mobile Responsive Experience E2E Suite', () => {
 
     // 1. Tap Leads in mobile bottom navigation
     await mobileNav.getByRole('button', { name: /Leads/i }).click();
-    await expect(page.getByText('Lead Management Ledger')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Leads', exact: true })).toBeVisible({ timeout: 10000 });
 
     // 2. Tap Pipeline in mobile bottom navigation
     await mobileNav.getByRole('button', { name: /Pipeline/i }).click();
@@ -78,7 +88,7 @@ test.describe('Mobile Responsive Experience E2E Suite', () => {
 
     // 1. Go to Leads
     await mobileNav.getByRole('button', { name: /Leads/i }).click();
-    await expect(page.getByText('Lead Management Ledger')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Leads', exact: true })).toBeVisible();
 
     // 2. In mobile card view, tap on first lead card
     const firstLeadCard = page.locator('.block.md\\:hidden .cursor-pointer').first();
@@ -112,8 +122,9 @@ test.describe('Mobile Responsive Experience E2E Suite', () => {
     await expect(pipeline.getByRole('heading', { name: 'Pipeline overview' })).toBeVisible();
     await expect(pipeline.getByLabel('Dashboard pipeline')).toBeVisible();
     await expect(pipeline.getByRole('listitem').first()).toBeVisible();
+    const selectedPipeline = await pipeline.getByLabel('Dashboard pipeline').inputValue();
     await pipeline.getByRole('button', { name: 'View board' }).click();
     await expect(page.getByRole('heading', { name: 'Pipeline Kanban Console' })).toBeVisible();
-    await expect(page.locator('#active-pipeline')).toHaveValue('pipeline-sales');
+    await expect(page.locator('#active-pipeline')).toHaveValue(selectedPipeline);
   });
 });

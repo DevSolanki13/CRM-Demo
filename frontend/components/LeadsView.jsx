@@ -1,3 +1,4 @@
+import { LeadsSkeleton } from './skeletons/LeadsSkeleton.jsx';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
 import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState, useMemo } from 'react';
@@ -17,6 +18,8 @@ import {
   AlertTriangle,
   Clock,
   Layers,
+  List,
+  LayoutGrid,
   ExternalLink,
   Repeat,
   Upload
@@ -26,6 +29,7 @@ import { AddActivityModal } from './AddActivityModal.jsx';
 import { LeadScheduleFields } from './LeadScheduleFields.jsx';
 import { RecurringLeadsPanel } from './RecurringLeadsPanel.jsx';
 import { RecurringLeadImportModal } from './RecurringLeadImportModal.jsx';
+import { LeadsBoard } from './LeadsBoard.jsx';
 import {
   DEFAULT_LEAD_RECURRENCE_FREQUENCY,
   getDefaultLeadRecurrenceDate,
@@ -61,6 +65,10 @@ export const LeadsView = ({
   const [selectedSource, setSelectedSource] = useState('All');
   const [selectedOwner, setSelectedOwner] = useState('All');
   const [selectedStage, setSelectedStage] = useState('All');
+  const [leadsView, setLeadsView] = useState(() => {
+    try { return localStorage.getItem('crm.leadsView') === 'board' ? 'board' : 'detailed'; }
+    catch { return 'detailed'; }
+  });
   const [quickLeadFilter, setQuickLeadFilter] = useState('All'); // 'All' | 'MyLeads' | 'Outbound' | 'Inbound' | 'New'
   const [leadSection, setLeadSection] = useState('regular');
   const [recurringSearch, setRecurringSearch] = useState('');
@@ -115,15 +123,17 @@ export const LeadsView = ({
     recurrenceFrequency: null,
     recurrenceDate: '',
     recurrenceInterval: 1,
-      recurrenceDays: [],
+    recurrenceDays: [],
     category: '',
     location: '',
     lastContactedDate: '',
     nextFollowUpDate: ''
   });
 
-  const page = useRecordsPage('leads', { q: searchQuery, source: selectedSource,
-    owner: selectedOwner, stage: selectedStage, quick: quickLeadFilter, recurring: 'All' }, revision);
+  const page = useRecordsPage('leads', {
+    q: searchQuery, source: selectedSource,
+    owner: selectedOwner, stage: selectedStage, quick: quickLeadFilter, recurring: 'All'
+  }, revision);
   const recurringPage = useRecordsPage('leads', {
     q: recurringSearch,
     owner: recurringOwner,
@@ -133,12 +143,17 @@ export const LeadsView = ({
     sort: recurringSort,
     recurrenceView,
   }, revision);
-  const showMockData = Boolean(branding?.customFields?.showMockData ?? (typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true'));
+  const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
   const leads = useMemo(() => {
     return showMockData ? page.items : page.items.filter(lead => !isMockLead(lead));
   }, [page.items, showMockData]);
   const deals = [...leads.map(lead => lead.primaryDeal).filter(Boolean), ...contextualDeals];
   const filteredLeads = leads;
+
+  const changeLeadsView = view => {
+    setLeadsView(view);
+    try { localStorage.setItem('crm.leadsView', view); } catch { /* Keep the current session usable when storage is blocked. */ }
+  };
   const { MyLeads: myLeadsCount = 0, Outbound: outboundCount = 0,
     Inbound: inboundCount = 0, New: newCount = 0 } = page.facets || {};
 
@@ -389,7 +404,7 @@ export const LeadsView = ({
     try {
       customFields = JSON.parse(customFieldsText || '{}');
       if (!customFields || Array.isArray(customFields) || typeof customFields !== 'object' ||
-          Object.values(customFields).some(value => !['string', 'number', 'boolean'].includes(typeof value) && value !== null)) {
+        Object.values(customFields).some(value => !['string', 'number', 'boolean'].includes(typeof value) && value !== null)) {
         throw new Error();
       }
     } catch {
@@ -419,20 +434,20 @@ export const LeadsView = ({
     }
     setIsSavingLead(true);
     try {
-    const saved = editingLead
-      ? await onUpdateLead(editingLead.id, leadFields)
-      : await onCreateLead(leadFields);
-    if (!formData.isRecurring && notes?.trim() && saved?.id && onCreateNote) {
-      try {
-        await onCreateNote({
-          text: notes.trim(), linkedType: 'Lead', linkedId: saved.id,
-          authorId: currentUser.id, authorName: currentUser.name,
-        });
-      } catch {
-        // The lead was saved; the note endpoint already reports its own error.
+      const saved = editingLead
+        ? await onUpdateLead(editingLead.id, leadFields)
+        : await onCreateLead(leadFields);
+      if (!formData.isRecurring && notes?.trim() && saved?.id && onCreateNote) {
+        try {
+          await onCreateNote({
+            text: notes.trim(), linkedType: 'Lead', linkedId: saved.id,
+            authorId: currentUser.id, authorName: currentUser.name,
+          });
+        } catch {
+          // The lead was saved; the note endpoint already reports its own error.
+        }
       }
-    }
-    setIsModalOpen(false);
+      setIsModalOpen(false);
     } catch (error) {
       setFormValidationError(error.message || 'Could not save this lead. Try again.');
     } finally {
@@ -440,11 +455,13 @@ export const LeadsView = ({
     }
   };
 
+  if ((leadSection === 'recurring' ? recurringPage : page).loading) return <LeadsSkeleton recurring={leadSection === 'recurring'} />;
+
   return (
-    <div className="p-6 md:p-8 space-y-6 bg-[#F6F7F8] min-h-full text-[#12161C]">
+    <div className={`p-6 md:p-8 space-y-6 bg-[#F6F7F8] text-[#12161C] ${leadSection === 'recurring' ? 'md:h-full md:flex md:flex-col md:min-h-0 md:overflow-hidden md:space-y-4' : 'min-h-full'}`}>
 
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl shadow-2xs shrink-0">
         <div>
           <h1 className="font-display text-2xl font-extrabold text-[#12161C] flex items-center gap-2">
             <Users className="w-5 h-5 text-[#1D4E63]" />
@@ -468,15 +485,15 @@ export const LeadsView = ({
               </button>
               <details className="relative">
                 <summary className="cursor-pointer rounded-lg border border-[#E3E6EA] px-3 py-2 text-xs font-semibold">More options</summary>
-              <button
-                type="button"
-                onClick={handleClearRecurringLeads}
-                disabled={!onClearRecurringLeads || isClearingRecurring}
-                className="px-4 py-2 bg-[#FFFFFF] hover:bg-[#FDF2F1] text-[#922D27] border border-[#F4C4C1] rounded-xl text-xs font-bold flex items-center gap-2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#922D27] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Trash2 className="w-4 h-4" aria-hidden="true" />
-                <span>{isClearingRecurring ? 'Deleting…' : 'Delete all recurring leads'}</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={handleClearRecurringLeads}
+                  disabled={!onClearRecurringLeads || isClearingRecurring}
+                  className="px-4 py-2 bg-[#FFFFFF] hover:bg-[#FDF2F1] text-[#922D27] border border-[#F4C4C1] rounded-xl text-xs font-bold flex items-center gap-2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#922D27] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" aria-hidden="true" />
+                  <span>{isClearingRecurring ? 'Deleting…' : 'Delete all recurring leads'}</span>
+                </button>
               </details>
             </>
           )}
@@ -502,525 +519,544 @@ export const LeadsView = ({
         </div>
       </div>
 
-      <div role="tablist" aria-label="Lead type" className="flex items-center gap-2 border-b border-[#E3E6EA]">
-        {[
-          { id: 'regular', label: 'All Leads', count: page.facets?.All || 0 },
-          { id: 'recurring', label: 'Recurring Leads', count: recurringPage.total },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={leadSection === tab.id}
-            onClick={() => {
-              setLeadSection(tab.id);
-              setSelectedLeadIds([]);
-            }}
-            className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-bold transition-colors focus-visible:outline-2 focus-visible:outline-[#1D4E63] ${
-              leadSection === tab.id
-                ? 'border-[#1D4E63] text-[#1D4E63]'
-                : 'border-transparent text-[#5B6472] hover:text-[#12161C]'
-            }`}
-          >
-            <span>{tab.label}</span>
-            <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${leadSection === tab.id ? 'bg-[#EFF6F9]' : 'bg-[#F6F7F8]'}`}>
-              {tab.count}
-            </span>
+      <div className="flex items-center justify-between gap-3 border-b border-[#E3E6EA] shrink-0">
+        <div role="tablist" aria-label="Lead type" className="flex min-w-0 items-center gap-2">
+          {[
+            { id: 'regular', label: 'All Leads', count: page.facets?.All || 0 },
+            { id: 'recurring', label: 'Recurring Leads', count: recurringPage.total },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={leadSection === tab.id}
+              onClick={() => {
+                setLeadSection(tab.id);
+                setSelectedLeadIds([]);
+              }}
+              className={`relative -mb-px flex min-h-10 items-center gap-2 border px-3 py-2 text-xs font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D4E63] ${leadSection === tab.id
+                ? 'border-[#1D4E63] bg-white text-[#1D4E63]'
+                : 'border-transparent bg-transparent text-[#5B6472] hover:border-[#D8E8EF] hover:text-[#12161C]'
+                }`}
+            >
+              <span>{tab.label}</span>
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${leadSection === tab.id ? 'bg-[#EFF6F9]' : 'bg-[#F6F7F8]'}`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div role="group" aria-label="Lead view" className="ml-auto inline-flex shrink-0 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-1">
+          <button type="button" aria-pressed={leadsView === 'detailed'} onClick={() => changeLeadsView('detailed')}
+            className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors ${leadsView === 'detailed' ? 'bg-[var(--surface)] text-[var(--ink)] shadow-sm' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}>
+            <List size={15} aria-hidden="true" />Detailed
           </button>
-        ))}
-      </div>
-
-      {/* Filter Bar */}
-      <div className={`${leadSection === 'regular' ? 'flex' : 'hidden'} bg-[#FFFFFF] border border-[#E3E6EA] p-4 rounded-2xl flex-col md:flex-row items-stretch md:items-center gap-3 shadow-2xs`}>
-
-        {/* Search */}
-        <div className="w-full sm:w-64 relative shrink-0">
-          <Search className="w-4 h-4 text-[#5B6472] absolute left-3.5 top-2.5" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search title, contact, company..."
-            className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl pl-10 pr-4 py-2 text-xs text-[#12161C] placeholder-[#5B6472] focus:outline-none focus:border-[#1D4E63]"
-          />
-        </div>
-
-        {/* Source Filter */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[#5B6472] font-semibold">Type:</span>
-          <select
-            value={selectedSource}
-            onChange={(e) => setSelectedSource(e.target.value)}
-            className="bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
-          >
-            <option value="All">All Sources</option>
-            <option value="Outbound">Cold Outbound Effort</option>
-            <option value="Inbound">Inbound Inquiry</option>
-            <option value="Website">Website</option>
-            <option value="LinkedIn">LinkedIn</option>
-            <option value="Trade Show">Trade Show</option>
-          </select>
-        </div>
-
-        {/* Owner Filter */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[#5B6472] font-semibold">Owner:</span>
-          <select
-            value={selectedOwner}
-            onChange={(e) => setSelectedOwner(e.target.value)}
-            className="bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
-          >
-            <option value="All">{currentUser.role === 'Sales Rep' ? 'My leads' : 'All Reps'}</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>{u.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Pipeline Stage Filter */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[#5B6472] font-semibold">Stage:</span>
-          <select
-            value={selectedStage}
-            onChange={(e) => setSelectedStage(e.target.value)}
-            className="bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl px-3 py-2 text-xs text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
-          >
-            <option value="All">All Stages</option>
-            {stages.map(stg => (
-              <option key={stg.id} value={stg.id}>{stg.name}</option>
-            ))}
-          </select>
-        </div>
-
-      </div>
-
-      <div className={leadSection === 'regular' ? '' : 'hidden'}>
-        <RecordPagination page={page} label="leads" />
-      </div>
-
-      {/* Quick Filter Chips */}
-      <div className={`${leadSection === 'regular' ? 'flex' : 'hidden'} items-center gap-2 overflow-x-auto no-scrollbar py-1`}>
-        {[
-          { id: 'All', label: 'All Leads', count: page.facets?.All || 0 },
-          { id: 'MyLeads', label: 'My Leads', count: myLeadsCount },
-          { id: 'Outbound', label: 'Outbound Leads', count: outboundCount },
-          { id: 'Inbound', label: 'Inbound Inquiries', count: inboundCount },
-          { id: 'New', label: 'New Uncontacted', count: newCount }
-        ].map(chip => (
-          <button
-            key={chip.id}
-            onClick={() => setQuickLeadFilter(chip.id)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 border ${
-              quickLeadFilter === chip.id
-                ? 'bg-[#1D4E63] text-white border-[#1D4E63] shadow-2xs'
-                : 'bg-[#FFFFFF] hover:bg-[#F6F7F8] text-[#5B6472] hover:text-[#12161C] border-[#E3E6EA]'
-            }`}
-          >
-            <span>{chip.label}</span>
-            <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-extrabold ${
-              quickLeadFilter === chip.id ? 'bg-white/20 text-white' : 'bg-[#F6F7F8] text-[#5B6472]'
-            }`}>
-              {chip.count}
-            </span>
+          <button type="button" aria-pressed={leadsView === 'board'} onClick={() => changeLeadsView('board')}
+            className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors ${leadsView === 'board' ? 'bg-[var(--surface)] text-[var(--ink)] shadow-sm' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}>
+            <LayoutGrid size={15} aria-hidden="true" />Board
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* Responsive Mobile Cards View (< md) */}
-      <div className={`${leadSection === 'regular' ? 'block md:hidden' : 'hidden'} space-y-3`}>
-        {filteredLeads.length === 0 ? (
-          <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-6 text-center text-xs text-[#5B6472]">
-            No leads found matching criteria.
+      {leadSection === 'regular' && (
+        <>
+          {/* Filter Bar */}
+          <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#E3E6EA] bg-white p-4">
+
+            {/* Search */}
+            <label className="min-w-48 flex-1 text-xs font-semibold text-[#5B6472]">Search leads
+              <div className="relative mt-1">
+                <Search className="w-4 h-4 text-[#5B6472] absolute left-3.5 top-2.5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search title, contact, company..."
+                  className="min-h-10 w-full rounded-lg border border-[#E3E6EA] bg-white py-2 pl-10 pr-4 text-sm text-[#12161C] placeholder-[#8A929E] focus:outline-none focus:border-[#1D4E63]"
+                />
+              </div>
+            </label>
+
+            {/* Source Filter */}
+            <label className="min-w-36 text-xs font-semibold text-[#5B6472]">Type
+              <select
+                value={selectedSource}
+                onChange={(e) => setSelectedSource(e.target.value)}
+                className="mt-1 block min-h-10 w-full rounded-lg border border-[#E3E6EA] bg-white px-3 py-2 text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
+              >
+                <option value="All">All Sources</option>
+                <option value="Outbound">Cold Outbound Effort</option>
+                <option value="Inbound">Inbound Inquiry</option>
+                <option value="Website">Website</option>
+                <option value="LinkedIn">LinkedIn</option>
+                <option value="Trade Show">Trade Show</option>
+              </select>
+            </label>
+
+            {/* Owner Filter */}
+            <label className="min-w-36 text-xs font-semibold text-[#5B6472]">Owner
+              <select
+                value={selectedOwner}
+                onChange={(e) => setSelectedOwner(e.target.value)}
+                className="mt-1 block min-h-10 w-full rounded-lg border border-[#E3E6EA] bg-white px-3 py-2 text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
+              >
+                <option value="All">{currentUser.role === 'Sales Rep' ? 'My leads' : 'All Reps'}</option>
+                {users.map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </label>
+
+            {/* Pipeline Stage Filter */}
+            <label className="min-w-36 text-xs font-semibold text-[#5B6472]">Stage
+              <select
+                value={selectedStage}
+                onChange={(e) => setSelectedStage(e.target.value)}
+                className="mt-1 block min-h-10 w-full rounded-lg border border-[#E3E6EA] bg-white px-3 py-2 text-sm text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
+              >
+                <option value="All">All Stages</option>
+                {stages.map(stg => (
+                  <option key={stg.id} value={stg.id}>{stg.name}</option>
+                ))}
+              </select>
+            </label>
+
           </div>
-        ) : (
-          filteredLeads.map(lead => {
-            const isSelected = selectedLeadIds.includes(lead.id);
-            const leadDeal = deals.find(d => d.leadId === lead.id && !d.isRebuy) || deals.find(d => d.leadId === lead.id);
-            const currentStageName = leadDeal ? leadDeal.stageName : 'New Lead';
-            const currentStageObj = stages.find(s => s.id === leadDeal?.stageId);
 
-            return (
-              <div
-                key={lead.id}
-                onClick={(e) => {
-                  if (e.target.closest('button') || e.target.closest('input') || e.target.closest('a')) return;
-                  if (onOpenLeadJourney) onOpenLeadJourney(lead);
-                  else if (onOpenDrawer) onOpenDrawer('lead', lead);
-                  else handleOpenEditModal(lead);
-                }}
-                className={`bg-[#FFFFFF] border rounded-2xl p-4 space-y-3 transition-colors cursor-pointer ${isSelected ? 'border-[#1D4E63] bg-[#F6F7F8]' : 'border-[#E3E6EA]'
+          {/* Quick Filter Chips */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+            {[
+              { id: 'All', label: 'All Leads', count: page.facets?.All || 0 },
+              { id: 'MyLeads', label: 'My Leads', count: myLeadsCount },
+              { id: 'Outbound', label: 'Outbound Leads', count: outboundCount },
+              { id: 'Inbound', label: 'Inbound Inquiries', count: inboundCount },
+              { id: 'New', label: 'New Uncontacted', count: newCount }
+            ].map(chip => (
+              <button
+                key={chip.id}
+                onClick={() => setQuickLeadFilter(chip.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 border ${quickLeadFilter === chip.id
+                  ? 'bg-[#1D4E63] text-white border-[#1D4E63] shadow-2xs'
+                  : 'bg-[#FFFFFF] hover:bg-[#F6F7F8] text-[#5B6472] hover:text-[#12161C] border-[#E3E6EA]'
                   }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => handleToggleSelectLead(lead.id)}
-                      className="w-4 h-4 rounded border-[#E3E6EA] bg-[#F6F7F8] text-[#1D4E63] focus:ring-0 cursor-pointer"
-                    />
-                    <div>
-                      <h3 className="font-display font-bold text-xs text-[#12161C]">{lead.title}</h3>
-                      {lead.isRecurring && <span className="inline-flex items-center gap-1 text-xs text-[#1D4E63]"><Repeat size={12} />Recurring</span>}
-                      <div className="text-[11px] text-[#5B6472] flex items-center gap-1 mt-0.5">
-                        <Building2 className="w-3 h-3 text-[#5B6472]" />
-                        <span>{lead.companyName || 'Unlinked Company'}</span>
-                      </div>
-                    </div>
-                  </div>
+                <span>{chip.label}</span>
+                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-extrabold ${quickLeadFilter === chip.id ? 'bg-white/20 text-white' : 'bg-[#F6F7F8] text-[#5B6472]'
+                  }`}>
+                  {chip.count}
+                </span>
+              </button>
+            ))}
+          </div>
 
-                  <div className="flex items-center gap-1.5 relative">
-                    <button
-                      onClick={() => handleOpenEditModal(lead)}
-                      className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg transition-colors"
-                      title="Edit Lead"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
+          <RecordPagination page={page} label="leads" />
 
-                    <div className="relative">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMenuLeadId(openMenuLeadId === lead.id ? null : lead.id);
-                        }}
-                        className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg transition-colors"
-                        title="Lead Quick Actions"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
+          {/* Responsive Mobile Cards View (< md) */}
+          {leadsView === 'board' && <LeadsBoard leads={filteredLeads} stages={stages} deals={deals} users={users}
+            currentUser={currentUser} onOpenLeadJourney={onOpenLeadJourney} onOpenDrawer={onOpenDrawer}
+            onTransitionDealStage={onTransitionDealStage} onSubmitStageGateCheck={onSubmitStageGateCheck}
+            onApproveStageGateCheck={onApproveStageGateCheck} onRejectStageGateCheck={onRejectStageGateCheck} />}
 
-                      {openMenuLeadId === lead.id && (
-                        <div
-                          className="absolute right-0 mt-1 w-44 bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl shadow-xl z-50 py-1 text-left text-xs font-semibold text-[#12161C]"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            onClick={() => {
-                              setOpenMenuLeadId(null);
-                              if (onOpenLeadJourney) onOpenLeadJourney(lead);
-                            }}
-                            className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                          >
-                            <Layers className="w-3.5 h-3.5 text-[#1D4E63]" />
-                            <span>Lead Journey</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setOpenMenuLeadId(null);
-                              if (onOpenDrawer) onOpenDrawer('lead', lead);
-                            }}
-                            className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5 text-[#1D4E63]" />
-                            <span>Open Lead 360</span>
-                          </button>
-                          {isAdmin && !lead.isRecurring && (
-                             <button
-                               onClick={() => handleMoveToRecurring(lead)}
-                               className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                             >
-                               <Repeat className="w-3.5 h-3.5 text-[#1D4E63]" />
-                               <span>Move to Recurring Leads</span>
-                             </button>
-                          )}
-                          <button
-                            onClick={() => handleOpenAddActivityModal(lead)}
-                            className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                          >
-                            <Calendar className="w-3.5 h-3.5 text-[#3F7A5C]" />
-                            <span>Add Activity</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between text-[11px] text-[#5B6472] pt-2 border-t border-[#E3E6EA] gap-2">
-                  <div>
-                    <span className="font-bold text-[#12161C]">{lead.contactName}</span>
-                    {lead.contactEmail && <span className="block text-[10px] text-[#5B6472] font-mono">{lead.contactEmail}</span>}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {(() => {
-                      const badgeStyle = getStageBadgeStyle(currentStageObj || {});
-                      return (
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeStyle.badgeClass}`}>
-                          {currentStageName}
-                        </span>
-                      );
-                    })()}
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${lead.isOutbound === true
-                        ? 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
-                        : 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]'
-                      }`}>
-                      {lead.isOutbound === true ? 'Outbound' : lead.isOutbound === false ? 'Inbound' : 'Unavailable'}
-                    </span>
-                  </div>
-                </div>
-
-
-
-                <div className="flex items-center justify-between text-[10px] text-[#5B6472] pt-1 font-mono">
-                  <span>Assigned: {lead.ownerName || 'Unassigned'}</span>
-                  <span>{formatDate(lead.lastActivityDate)}</span>
-                </div>
+          <div className={`${leadsView === 'detailed' ? 'block md:hidden' : 'hidden'} space-y-3`}>
+            {filteredLeads.length === 0 ? (
+              <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-6 text-center text-xs text-[#5B6472]">
+                No leads found matching criteria.
               </div>
-            );
-          })
-        )}
-      </div>
+            ) : (
+              filteredLeads.map(lead => {
+                const isSelected = selectedLeadIds.includes(lead.id);
+                const leadDeal = deals.find(d => d.leadId === lead.id && !d.isRebuy) || deals.find(d => d.leadId === lead.id);
+                const currentStageName = leadDeal ? leadDeal.stageName : 'New Lead';
+                const currentStageObj = stages.find(s => s.id === leadDeal?.stageId);
 
-      {/* Desktop Leads Table (>= md) */}
-      <div className={`${leadSection === 'regular' ? 'hidden md:block' : 'hidden'} bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm`}>
-        <div className="overflow-x-auto max-h-[640px] overflow-y-auto no-scrollbar pb-10">
-          <table className="w-full text-left text-xs text-[var(--ink)]">
-            <thead className="sticky top-0 z-10 bg-[var(--canvas)] text-[var(--ink-muted)] uppercase font-mono font-bold text-[10px] tracking-wider border-b border-[var(--border)] shadow-xs">
-              <tr>
-                <th scope="col" className="px-4 py-3.5 w-10">
-                  <input
-                    type="checkbox"
-                    checked={filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length}
-                    onChange={handleToggleSelectAll}
-                    aria-label="Select all leads"
-                    className="w-4 h-4 rounded border-[var(--border)] bg-[var(--surface)] text-[var(--primary-700)] focus:ring-0 cursor-pointer"
-                  />
-                </th>
-                <th scope="col" className="px-4 py-3.5">Lead / Company</th>
-                <th scope="col" className="px-4 py-3.5">Pipeline Stage</th>
-                <th scope="col" className="px-4 py-3.5">Contact</th>
-                <th scope="col" className="px-4 py-3.5">Source & Effort</th>
-                <th scope="col" className="px-4 py-3.5">Assigned Owner</th>
-                <th scope="col" className="px-4 py-3.5">Last Activity</th>
-                <th scope="col" className="px-4 py-3.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {filteredLeads.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-[#5B6472]">
-                    <div className="max-w-xs mx-auto space-y-2.5">
-                      <div className="w-10 h-10 rounded-2xl bg-[#EFF6F9] text-[#1D4E63] flex items-center justify-center mx-auto border border-[#D8E8EF]">
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <p className="font-bold text-xs text-[#12161C]">No leads match your active filters</p>
-                      <p className="text-[11px] text-[#5B6472]">Try clearing search or switch to another filter chip.</p>
-                      <button
-                        onClick={handleOpenAddModal}
-                        className="mt-1 px-3 py-1.5 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Create New Lead</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredLeads.map((lead, idx) => {
-                  const isSelected = selectedLeadIds.includes(lead.id);
-                  const leadDeal = deals.find(d => d.leadId === lead.id && !d.isRebuy) || deals.find(d => d.leadId === lead.id);
-                  const currentStageName = leadDeal ? leadDeal.stageName : 'New Lead';
-                  const currentStageObj = stages.find(s => s.id === leadDeal?.stageId);
-                  const isLowerRow = idx >= Math.max(0, filteredLeads.length - 2);
-
-                  return (
-                    <tr
-                      key={lead.id}
-                      onClick={(e) => {
-                        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('a')) return;
-                        if (onOpenLeadJourney) onOpenLeadJourney(lead);
-                        else if (onOpenDrawer) onOpenDrawer('lead', lead);
-                        else handleOpenEditModal(lead);
-                      }}
-                      className={`transition-colors cursor-pointer ${isSelected ? 'bg-[#EFF6F9]' : 'hover:bg-[#EFF6F9]/50'}`}
-                    >
-                      {/* Select Checkbox */}
-                      <td className="px-4 py-3.5">
+                return (
+                  <div
+                    key={lead.id}
+                    onClick={(e) => {
+                      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('a')) return;
+                      if (onOpenLeadJourney) onOpenLeadJourney(lead);
+                      else if (onOpenDrawer) onOpenDrawer('lead', lead);
+                      else handleOpenEditModal(lead);
+                    }}
+                    className={`bg-[#FFFFFF] border rounded-2xl p-4 space-y-3 transition-colors cursor-pointer ${isSelected ? 'border-[#1D4E63] bg-[#F6F7F8]' : 'border-[#E3E6EA]'
+                      }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3">
                         <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleToggleSelectLead(lead.id)}
-                          className="w-4 h-4 rounded border-[#E3E6EA] bg-[#FFFFFF] text-[#1D4E63] focus:ring-0 cursor-pointer"
+                          className="w-4 h-4 rounded border-[#E3E6EA] bg-[#F6F7F8] text-[#1D4E63] focus:ring-0 cursor-pointer"
                         />
-                      </td>
-
-                      {/* Title & Company */}
-                      <td className="px-4 py-3.5">
-                        <div className="font-display font-bold text-[#12161C]">{lead.title}</div>
-                        {lead.isRecurring && <span className="inline-flex items-center gap-1 text-xs text-[#1D4E63]"><Repeat size={12} />Recurring</span>}
-                        <div className="text-[11px] text-[#5B6472] flex items-center gap-1 mt-0.5">
-                          <Building2 className="w-3 h-3 text-[#5B6472]" />
-                          <span>{lead.companyName || 'Unlinked Company'}</span>
+                        <div>
+                          <h3 className="font-display font-bold text-xs text-[#12161C]">{lead.title}</h3>
+                          {lead.isRecurring && <span className="inline-flex items-center gap-1 text-xs text-[#1D4E63]"><Repeat size={12} />Recurring</span>}
+                          <div className="text-[11px] text-[#5B6472] flex items-center gap-1 mt-0.5">
+                            <Building2 className="w-3 h-3 text-[#5B6472]" />
+                            <span>{lead.companyName || 'Unlinked Company'}</span>
+                          </div>
                         </div>
-                      </td>
+                      </div>
 
-                      {/* Pipeline Stage Badge */}
-                      <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1.5 relative">
+                        <button
+                          onClick={() => handleOpenEditModal(lead)}
+                          className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg transition-colors"
+                          title="Edit Lead"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuLeadId(openMenuLeadId === lead.id ? null : lead.id);
+                            }}
+                            className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg transition-colors"
+                            title="Lead Quick Actions"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+
+                          {openMenuLeadId === lead.id && (
+                            <div
+                              className="absolute right-0 mt-1 w-44 bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl shadow-xl z-50 py-1 text-left text-xs font-semibold text-[#12161C]"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                onClick={() => {
+                                  setOpenMenuLeadId(null);
+                                  if (onOpenLeadJourney) onOpenLeadJourney(lead);
+                                }}
+                                className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
+                              >
+                                <Layers className="w-3.5 h-3.5 text-[#1D4E63]" />
+                                <span>Lead Journey</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setOpenMenuLeadId(null);
+                                  if (onOpenDrawer) onOpenDrawer('lead', lead);
+                                }}
+                                className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5 text-[#1D4E63]" />
+                                <span>Open Lead 360</span>
+                              </button>
+                              {isAdmin && !lead.isRecurring && (
+                                <button
+                                  onClick={() => handleMoveToRecurring(lead)}
+                                  className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
+                                >
+                                  <Repeat className="w-3.5 h-3.5 text-[#1D4E63]" />
+                                  <span>Move to Recurring Leads</span>
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleOpenAddActivityModal(lead)}
+                                className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
+                              >
+                                <Calendar className="w-3.5 h-3.5 text-[#3F7A5C]" />
+                                <span>Add Activity</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between text-[11px] text-[#5B6472] pt-2 border-t border-[#E3E6EA] gap-2">
+                      <div>
+                        <span className="font-bold text-[#12161C]">{lead.contactName}</span>
+                        {lead.contactEmail && <span className="block text-[10px] text-[#5B6472] font-mono">{lead.contactEmail}</span>}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {(() => {
                           const badgeStyle = getStageBadgeStyle(currentStageObj || {});
-                          const isPendingApproval = lead.status === 'Pending Review' || Boolean(leadDeal?.pendingGateCheck);
-
                           return (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-block shadow-2xs border ${badgeStyle.badgeClass}`}>
-                                {currentStageName}
-                              </span>
-                              {isPendingApproval && (
-                                <span className="text-[10px] font-mono font-bold text-[#965700] bg-[#FEF8EC] border border-[#F5DDA9] px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
-                                  <Clock className="w-3 h-3 text-[#965700]" />
-                                  <span>Pending Stage Approval</span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeStyle.badgeClass}`}>
+                              {currentStageName}
+                            </span>
+                          );
+                        })()}
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${lead.isOutbound === true
+                          ? 'bg-[#FEF8EC] text-[#965700] border-[#F5DDA9]'
+                          : 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]'
+                          }`}>
+                          {lead.isOutbound === true ? 'Outbound' : lead.isOutbound === false ? 'Inbound' : 'Unavailable'}
+                        </span>
+                      </div>
+                    </div>
+
+
+
+                    <div className="flex items-center justify-between text-[10px] text-[#5B6472] pt-1 font-mono">
+                      <span>Assigned: {lead.ownerName || 'Unassigned'}</span>
+                      <span>{formatDate(lead.lastActivityDate)}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop Leads Table (>= md) */}
+          <div className={`${leadsView === 'detailed' ? 'hidden md:block' : 'hidden'} bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm`}>
+            <div className="overflow-x-auto max-h-[640px] overflow-y-auto no-scrollbar pb-10">
+              <table className="w-full text-left text-xs text-[var(--ink)]">
+                <thead className="sticky top-0 z-10 bg-[var(--canvas)] text-[var(--ink-muted)] uppercase font-mono font-bold text-[10px] tracking-wider border-b border-[var(--border)] shadow-xs">
+                  <tr>
+                    <th scope="col" className="px-4 py-3.5 w-10">
+                      <input
+                        type="checkbox"
+                        checked={filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length}
+                        onChange={handleToggleSelectAll}
+                        aria-label="Select all leads"
+                        className="w-4 h-4 rounded border-[var(--border)] bg-[var(--surface)] text-[var(--primary-700)] focus:ring-0 cursor-pointer"
+                      />
+                    </th>
+                    <th scope="col" className="px-4 py-3.5">Lead / Company</th>
+                    <th scope="col" className="px-4 py-3.5">Pipeline Stage</th>
+                    <th scope="col" className="px-4 py-3.5">Contact</th>
+                    <th scope="col" className="px-4 py-3.5">Source & Effort</th>
+                    <th scope="col" className="px-4 py-3.5">Assigned Owner</th>
+                    <th scope="col" className="px-4 py-3.5">Last Activity</th>
+                    <th scope="col" className="px-4 py-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {filteredLeads.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-12 text-center text-[#5B6472]">
+                        <div className="max-w-xs mx-auto space-y-2.5">
+                          <div className="w-10 h-10 rounded-2xl bg-[#EFF6F9] text-[#1D4E63] flex items-center justify-center mx-auto border border-[#D8E8EF]">
+                            <Users className="w-5 h-5" />
+                          </div>
+                          <p className="font-bold text-xs text-[#12161C]">No leads match your active filters</p>
+                          <p className="text-[11px] text-[#5B6472]">Try clearing search or switch to another filter chip.</p>
+                          <button
+                            onClick={handleOpenAddModal}
+                            className="mt-1 px-3 py-1.5 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Create New Lead</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredLeads.map((lead, idx) => {
+                      const isSelected = selectedLeadIds.includes(lead.id);
+                      const leadDeal = deals.find(d => d.leadId === lead.id && !d.isRebuy) || deals.find(d => d.leadId === lead.id);
+                      const currentStageName = leadDeal ? leadDeal.stageName : lead.isRecurring ? 'Buy Again (Renewal)' : 'New Lead';
+                      const currentStageObj = stages.find(s => s.id === leadDeal?.stageId) || (lead.isRecurring ? stages.find(s => s.category === 'Buy Again' || s.name === 'Buy Again (Renewal)' || s.id === 'stg-7') : null);
+                      const isLowerRow = idx >= Math.max(0, filteredLeads.length - 2);
+
+                      return (
+                        <tr
+                          key={lead.id}
+                          onClick={(e) => {
+                            if (e.target.closest('button') || e.target.closest('input') || e.target.closest('a')) return;
+                            if (onOpenLeadJourney) onOpenLeadJourney(lead);
+                            else if (onOpenDrawer) onOpenDrawer('lead', lead);
+                            else handleOpenEditModal(lead);
+                          }}
+                          className={`transition-colors cursor-pointer ${isSelected ? 'bg-[#EFF6F9]' : 'hover:bg-[#EFF6F9]/50'}`}
+                        >
+                          {/* Select Checkbox */}
+                          <td className="px-4 py-3.5">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectLead(lead.id)}
+                              className="w-4 h-4 rounded border-[#E3E6EA] bg-[#FFFFFF] text-[#1D4E63] focus:ring-0 cursor-pointer"
+                            />
+                          </td>
+
+                          {/* Title & Company */}
+                          <td className="px-4 py-3.5">
+                            <div className="font-display font-bold text-[#12161C]">{lead.title}</div>
+                            {lead.isRecurring && <span className="inline-flex items-center gap-1 text-xs text-[#1D4E63]"><Repeat size={12} />Recurring</span>}
+                            <div className="text-[11px] text-[#5B6472] flex items-center gap-1 mt-0.5">
+                              <Building2 className="w-3 h-3 text-[#5B6472]" />
+                              <span>{lead.companyName || 'Unlinked Company'}</span>
+                            </div>
+                          </td>
+
+                          {/* Pipeline Stage Badge */}
+                          <td className="px-4 py-3.5">
+                            {(() => {
+                              const badgeStyle = getStageBadgeStyle(currentStageObj || {});
+                              const isPendingApproval = lead.status === 'Pending Review' || Boolean(leadDeal?.pendingGateCheck);
+
+                              return (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold inline-block shadow-2xs border ${badgeStyle.badgeClass}`}>
+                                    {currentStageName}
+                                  </span>
+                                  {isPendingApproval && (
+                                    <span className="text-[10px] font-mono font-bold text-[#965700] bg-[#FEF8EC] border border-[#F5DDA9] px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                                      <Clock className="w-3 h-3 text-[#965700]" />
+                                      <span>Pending Stage Approval</span>
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+
+                          {/* Contact */}
+                          <td className="px-4 py-3.5">
+                            <div className="text-[#12161C] font-bold">{lead.contactName}</div>
+                            <div className="text-[10px] text-[#5B6472] flex items-center gap-2 mt-0.5 font-mono">
+                              {lead.contactEmail && (
+                                <span className="flex items-center gap-1">
+                                  <Mail className="w-3 h-3 text-[#5B6472]" />
+                                  {lead.contactEmail}
+                                </span>
+                              )}
+                              {lead.contactPhone && (
+                                <span className="flex items-center gap-1">
+                                  <Phone className="w-3 h-3 text-[#5B6472]" />
+                                  {lead.contactPhone}
                                 </span>
                               )}
                             </div>
-                          );
-                        })()}
-                      </td>
+                          </td>
 
-                      {/* Contact */}
-                      <td className="px-4 py-3.5">
-                        <div className="text-[#12161C] font-bold">{lead.contactName}</div>
-                        <div className="text-[10px] text-[#5B6472] flex items-center gap-2 mt-0.5 font-mono">
-                          {lead.contactEmail && (
-                            <span className="flex items-center gap-1">
-                              <Mail className="w-3 h-3 text-[#5B6472]" />
-                              {lead.contactEmail}
-                            </span>
-                          )}
-                          {lead.contactPhone && (
-                            <span className="flex items-center gap-1">
-                              <Phone className="w-3 h-3 text-[#5B6472]" />
-                              {lead.contactPhone}
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                          {/* Source & Effort */}
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${lead.isOutbound === true
+                                ? 'bg-[#FEFCE8] text-[#A16207] border-[#FEF08A]'
+                                : 'bg-[#FFFFFF] text-[#12161C] border-[#E3E6EA]'
+                                }`}>
+                                {lead.isOutbound === true ? 'Cold Outbound' : lead.isOutbound === false ? 'Inbound' : 'Unavailable'}
+                              </span>
+                              {lead.source && <span className="text-[10px] text-[#5B6472] font-mono">({lead.source})</span>}
+                            </div>
+                          </td>
 
-                      {/* Source & Effort */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border ${lead.isOutbound === true
-                              ? 'bg-[#FEFCE8] text-[#A16207] border-[#FEF08A]'
-                              : 'bg-[#FFFFFF] text-[#12161C] border-[#E3E6EA]'
-                            }`}>
-                            {lead.isOutbound === true ? 'Cold Outbound' : lead.isOutbound === false ? 'Inbound' : 'Unavailable'}
-                          </span>
-                          {lead.source && <span className="text-[10px] text-[#5B6472] font-mono">({lead.source})</span>}
-                        </div>
-                      </td>
-
-                      {/* Assigned Owner */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full bg-[#1D4E63] text-white text-[10px] font-extrabold flex items-center justify-center">
-                            {lead.ownerName ? lead.ownerName.charAt(0) : 'U'}
-                          </div>
-                          <span className="text-[#12161C] font-semibold">{lead.ownerName || 'Unassigned'}</span>
-                        </div>
-                      </td>
-
-                      {/* Last Activity */}
-                      <td className="px-4 py-3.5 text-[#5B6472] text-[11px] font-mono">
-                        {formatDate(lead.lastActivityDate)}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-4 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5 relative">
-                          {lead.status === 'Qualified' && !leadDeal && onConvertToDeal && (
-                            <button
-                              onClick={() => onConvertToDeal(lead)}
-                              className="px-2.5 py-1 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors"
-                              title="Convert to Deal"
-                            >
-                              <ArrowRightLeft className="w-3 h-3" />
-                              <span>Convert</span>
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleOpenEditModal(lead)}
-                            className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg transition-colors"
-                            title="Edit Lead"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-
-                          <div className="relative">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenMenuLeadId(openMenuLeadId === lead.id ? null : lead.id);
-                              }}
-                              className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg transition-colors"
-                              title="Lead Quick Actions"
-                            >
-                              <MoreVertical className="w-3.5 h-3.5" />
-                            </button>
-
-                            {openMenuLeadId === lead.id && (
-                              <div
-                                className={`absolute right-0 w-44 bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl shadow-xl z-50 py-1 text-left text-xs font-semibold text-[#12161C] ${isLowerRow ? 'bottom-full mb-1' : 'top-full mt-1'
-                                  }`}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <button
-                                  onClick={() => {
-                                    setOpenMenuLeadId(null);
-                                    if (onOpenLeadJourney) onOpenLeadJourney(lead);
-                                  }}
-                                  className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                                >
-                                  <Layers className="w-3.5 h-3.5 text-[#1D4E63]" />
-                                  <span>Lead Journey</span>
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setOpenMenuLeadId(null);
-                                    if (onOpenDrawer) onOpenDrawer('lead', lead);
-                                  }}
-                                  className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5 text-[#1D4E63]" />
-                                  <span>Open Lead 360</span>
-                                </button>
-                                {isAdmin && !lead.isRecurring && (
-                                   <button
-                                     onClick={() => handleMoveToRecurring(lead)}
-                                     className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                                   >
-                                     <Repeat className="w-3.5 h-3.5 text-[#1D4E63]" />
-                                     <span>Move to Recurring Leads</span>
-                                   </button>
-                                )}
-                                <button
-                                  onClick={() => handleOpenAddActivityModal(lead)}
-                                  className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
-                                >
-                                  <Calendar className="w-3.5 h-3.5 text-[#3F7A5C]" />
-                                  <span>Add Activity</span>
-                                </button>
+                          {/* Assigned Owner */}
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded-full bg-[#1D4E63] text-white text-[10px] font-extrabold flex items-center justify-center">
+                                {lead.ownerName ? lead.ownerName.charAt(0) : 'U'}
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
+                              <span className="text-[#12161C] font-semibold">{lead.ownerName || 'Unassigned'}</span>
+                            </div>
+                          </td>
 
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                          {/* Last Activity */}
+                          <td className="px-4 py-3.5 text-[#5B6472] text-[11px] font-mono">
+                            {formatDate(lead.lastActivityDate)}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5 relative">
+                              {lead.status === 'Qualified' && !leadDeal && onConvertToDeal && (
+                                <button
+                                  onClick={() => onConvertToDeal(lead)}
+                                  className="px-2.5 py-1 bg-[#1D4E63] hover:bg-[#153B4B] text-white rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors"
+                                  title="Convert to Deal"
+                                >
+                                  <ArrowRightLeft className="w-3 h-3" />
+                                  <span>Convert</span>
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleOpenEditModal(lead)}
+                                className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg transition-colors"
+                                title="Edit Lead"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+
+                              <div className="relative">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenMenuLeadId(openMenuLeadId === lead.id ? null : lead.id);
+                                  }}
+                                  className="p-1.5 text-[#5B6472] hover:text-[#12161C] hover:bg-[#F6F7F8] rounded-lg transition-colors"
+                                  title="Lead Quick Actions"
+                                >
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </button>
+
+                                {openMenuLeadId === lead.id && (
+                                  <div
+                                    className={`absolute right-0 w-44 bg-[#FFFFFF] border border-[#E3E6EA] rounded-xl shadow-xl z-50 py-1 text-left text-xs font-semibold text-[#12161C] ${isLowerRow ? 'bottom-full mb-1' : 'top-full mt-1'
+                                      }`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      onClick={() => {
+                                        setOpenMenuLeadId(null);
+                                        if (onOpenLeadJourney) onOpenLeadJourney(lead);
+                                      }}
+                                      className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
+                                    >
+                                      <Layers className="w-3.5 h-3.5 text-[#1D4E63]" />
+                                      <span>Lead Journey</span>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setOpenMenuLeadId(null);
+                                        if (onOpenDrawer) onOpenDrawer('lead', lead);
+                                      }}
+                                      className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5 text-[#1D4E63]" />
+                                      <span>Open Lead 360</span>
+                                    </button>
+                                    {isAdmin && !lead.isRecurring && (
+                                      <button
+                                        onClick={() => handleMoveToRecurring(lead)}
+                                        className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
+                                      >
+                                        <Repeat className="w-3.5 h-3.5 text-[#1D4E63]" />
+                                        <span>Move to Recurring Leads</span>
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleOpenAddActivityModal(lead)}
+                                      className="w-full px-3.5 py-2 hover:bg-[#F6F7F8] flex items-center gap-2 text-[#12161C] transition-colors"
+                                    >
+                                      <Calendar className="w-3.5 h-3.5 text-[#3F7A5C]" />
+                                      <span>Add Activity</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>)}
 
       {leadSection === 'recurring' && <>
         {recurringClearError && <p role="alert" className="text-sm text-[#922D27]">{recurringClearError}</p>}
         <RecurringLeadsPanel page={recurringPage} search={recurringSearch} onSearch={setRecurringSearch}
           owner={recurringOwner} onOwner={setRecurringOwner} sort={recurringSort} onSort={setRecurringSort}
           view={recurrenceView} onView={setRecurrenceView} users={users} currentUser={currentUser}
-          onChanged={onRecurringChanged} onEdit={handleOpenEditModal} onDelete={onDeleteLead} onOpen={lead => onOpenDrawer?.('lead', lead)} />
+          onChanged={onRecurringChanged} onEdit={handleOpenEditModal} onDelete={onDeleteLead} onOpen={lead => onOpenDrawer?.('lead', lead)}
+          stages={stages} hideRecords={leadsView === 'board'} />
+        {leadsView === 'board' && <LeadsBoard leads={recurringPage.items} stages={stages} deals={deals} users={users}
+          currentUser={currentUser} onOpenLeadJourney={onOpenLeadJourney} onOpenDrawer={onOpenDrawer}
+          onTransitionDealStage={onTransitionDealStage} onSubmitStageGateCheck={onSubmitStageGateCheck}
+          onApproveStageGateCheck={onApproveStageGateCheck} onRejectStageGateCheck={onRejectStageGateCheck} />}
       </>}
 
       {/* Add / Edit Lead Modal */}
@@ -1063,8 +1099,8 @@ export const LeadsView = ({
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder={formData.isRecurring ? 'Enter the lead name' : 'e.g. AeroTech Circuit Thermal Pads Supply'}
                   className={`w-full bg-[#F6F7F8] border rounded-xl p-2.5 text-[#12161C] focus:outline-none ${!formData.isRecurring && /^\d+$/.test((formData.title || '').trim()) && formData.title.trim().length > 0
-                      ? 'border-[#B5423A] focus:border-[#B5423A]'
-                      : 'border-[#E3E6EA] focus:border-[#1D4E63]'
+                    ? 'border-[#B5423A] focus:border-[#B5423A]'
+                    : 'border-[#E3E6EA] focus:border-[#1D4E63]'
                     }`}
                 />
                 {!formData.isRecurring && /^\d+$/.test((formData.title || '').trim()) && formData.title.trim().length > 0 && (
@@ -1147,14 +1183,26 @@ export const LeadsView = ({
                     onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] focus:outline-none focus:border-[#1D4E63] cursor-pointer"
                   >
-                    {(formData.isRecurring || !formData.status) && <option value="">Unavailable</option>}
-                    <option value="New">New</option>
-                    <option value="Working">Working</option>
-                    <option value="Qualified">Qualified</option>
-                    <option value="Unqualified">Unqualified</option>
-                    <option value="Converted">Converted</option>
-                    <option value="Follow up">Follow up</option>
-                    <option value="Pending Review">Pending Review</option>
+                    {formData.isRecurring ? (
+                      <>
+                        <option value="Buy Again (Renewal)">Buy Again (Renewal)</option>
+                        <option value="Contact Attempted">Contact Attempted</option>
+                        <option value="Purchase Confirmed">Purchase Confirmed</option>
+                        <option value="Renewal Postponed">Renewal Postponed</option>
+                        <option value="Paused">Paused</option>
+                      </>
+                    ) : (
+                      <>
+                        {!formData.status && <option value="">Select status</option>}
+                        <option value="New">New</option>
+                        <option value="Working">Working</option>
+                        <option value="Qualified">Qualified</option>
+                        <option value="Unqualified">Unqualified</option>
+                        <option value="Converted">Converted</option>
+                        <option value="Follow up">Follow up</option>
+                        <option value="Pending Review">Pending Review</option>
+                      </>
+                    )}
                   </select>
                 </div>
 

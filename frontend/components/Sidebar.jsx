@@ -1,12 +1,11 @@
 import React, { useEffect, useRef } from 'react';
-import { ArrowRight, BarChart3, Building2, CheckSquare, Contact, FileSpreadsheet, Kanban, LayoutDashboard, LogOut, Plug, RefreshCw, Settings, Users, Users2, X } from 'lucide-react';
+import { ArrowRight, BarChart3, Building2, CheckSquare, Contact, FileSpreadsheet, LayoutDashboard, LogOut, Plug, RefreshCw, Settings, Users, Users2, X } from 'lucide-react';
 import { Avatar } from './DashboardPrimitives.jsx';
 import { canAccessPage } from '../../shared/accessPolicy.js';
 
 const modules = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'leads', label: 'Leads', icon: Users },
-  { id: 'pipeline', label: 'Pipeline', icon: Kanban },
   { id: 'contacts', label: 'Contacts', icon: Contact },
   { id: 'companies', label: 'Companies', icon: Building2 },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare },
@@ -18,11 +17,12 @@ const tools = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
-function SidebarContent({ activeTab, userRole, currentUser, branding, pendingTasksCount, renewalsDueCount, navigate, onOpenImportExport, onLogout, onClose }) {
+function SidebarContent({ activeTab, userRole, currentUser, branding, pendingTasksCount, renewalsDueCount, navigate, onPrefetch, onOpenImportExport, onLogout, onClose }) {
   const renderItems = items => items.filter(item => canAccessPage(currentUser, item.id)).map(item => {
     const Icon = item.icon, active = activeTab === item.id;
-    const count = item.id === 'tasks' ? pendingTasksCount : item.id === 'pipeline' ? renewalsDueCount : 0;
+    const count = item.id === 'tasks' ? pendingTasksCount : 0;
     return <button type="button" key={item.id} className={'crm-nav-item' + (active ? ' is-active' : '')}
+      onMouseEnter={() => onPrefetch?.(item.id)} onFocus={() => onPrefetch?.(item.id)} onTouchStart={() => onPrefetch?.(item.id)}
       onClick={() => navigate(item.id)} aria-current={active ? 'page' : undefined} title={item.label}
       aria-label={item.label + (count > 0 ? ' (' + count + ')' : '')}>
       <Icon size={19} strokeWidth={1.7} aria-hidden="true" /><span className="crm-nav-label">{item.label}</span>
@@ -40,9 +40,9 @@ function SidebarContent({ activeTab, userRole, currentUser, branding, pendingTas
       <div className="crm-sidebar-tools"><p className="crm-nav-group-label">Tools</p>{renderItems(tools)}</div>
     </nav>
     <div className="crm-sidebar-footer">
-      {renewalsDueCount > 0 && <button type="button" className="crm-sidebar-renewal" onClick={() => navigate('pipeline')} title={renewalsDueCount + ' renewals due'} aria-label={'View ' + renewalsDueCount + ' recurring orders'}>
+      {renewalsDueCount > 0 && <button type="button" className="crm-sidebar-renewal" onClick={() => navigate('leads')} title={renewalsDueCount + ' renewals due'} aria-label={'View ' + renewalsDueCount + ' recurring orders'}>
         <span><RefreshCw size={17} aria-hidden="true" /><strong className="crm-nav-label">{renewalsDueCount} renewals due</strong></span>
-        <p className="crm-nav-label">Keep repeat orders on track.</p><span className="crm-nav-label">View pipeline <ArrowRight size={14} aria-hidden="true" /></span>
+        <p className="crm-nav-label">Keep repeat orders on track.</p><span className="crm-nav-label">View leads <ArrowRight size={14} aria-hidden="true" /></span>
       </button>}
       <button type="button" className="crm-nav-item" onClick={onOpenImportExport} title="Export CSV data" aria-label="Export CRM data as CSV spreadsheet">
         <FileSpreadsheet size={18} aria-hidden="true" /><span className="crm-nav-label">Export CSV</span>
@@ -56,7 +56,7 @@ function SidebarContent({ activeTab, userRole, currentUser, branding, pendingTas
 }
 
 export const Sidebar = ({ activeTab, setActiveTab, userRole, currentUser, branding, pendingTasksCount = 0, renewalsDueCount = 0,
-  onOpenImportExport, onLogout, isMobileOpen = false, onCloseMobile }) => {
+  onPrefetch, onOpenImportExport, onLogout, isMobileOpen = false, onCloseMobile }) => {
   const mobileRef = useRef(null);
   useEffect(() => {
     if (!isMobileOpen) return;
@@ -75,7 +75,7 @@ export const Sidebar = ({ activeTab, setActiveTab, userRole, currentUser, brandi
     return () => { node.removeEventListener('keydown', keydown); previousFocus?.focus(); };
   }, [isMobileOpen, onCloseMobile]);
   const navigate = tab => { setActiveTab(tab); if (isMobileOpen) onCloseMobile(); };
-  const props = { activeTab, userRole, currentUser, branding, pendingTasksCount, renewalsDueCount, navigate, onOpenImportExport, onLogout };
+  const props = { activeTab, userRole, currentUser, branding, pendingTasksCount, renewalsDueCount, navigate, onPrefetch, onOpenImportExport, onLogout };
   return <>
     <aside aria-label="Main Navigation" className="crm-sidebar-rail"><SidebarContent {...props} /></aside>
     {isMobileOpen && <div className="crm-mobile-sidebar">

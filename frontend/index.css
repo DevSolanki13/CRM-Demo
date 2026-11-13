@@ -2,6 +2,19 @@
 @import "tailwindcss";
 @import "./dashboard.css";
 
+/* Reserve layout immediately, reveal placeholders only for requests over 150ms. */
+.crm-skeleton { background: var(--border); animation: crm-skeleton-pulse 1.5s ease-in-out infinite; }
+.crm-skeleton-content { min-width: 0; animation: crm-skeleton-reveal 150ms step-end; }
+@keyframes crm-skeleton-reveal { from { visibility: hidden; } to { visibility: visible; } }
+@keyframes crm-skeleton-pulse { 50% { opacity: .45; } }
+.crm-refresh-progress { height: 2px; background: var(--primary); opacity: .45; }
+.leads-board-viewport { scrollbar-width: none; }
+.leads-board-viewport::-webkit-scrollbar { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .crm-skeleton { animation: none; }
+  [aria-busy="true"] .animate-pulse { animation: none; }
+}
+
 :root {
   /* Tonal Primary Scale (Base Hue H201 S55% - Signature Deep Petroleum Teal) */
   --primary: #1D4E63;
@@ -67,12 +80,22 @@
   --info-border: #D8E8EF;
 }
 
-body {
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
   background-color: var(--canvas);
   color: var(--ink);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 .font-display {

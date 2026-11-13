@@ -1,7 +1,17 @@
 import { test, expect } from './fixtures.js';
 
 test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
+  test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: 'wait' }); });
+
   test.beforeEach(async ({ page }) => {
+    // These legacy journey scenarios exercise the seeded demonstration records.
+    await page.addInitScript(() => localStorage.setItem('crm.showMockData', 'true'));
+    await page.route('**/api/state*', async route => {
+      const response = await route.fetch();
+      const data = await response.json();
+      data.branding = { ...data.branding, customFields: { ...data.branding?.customFields, showMockData: true } };
+      await route.fulfill({ response, json: data });
+    });
     await page.goto('/');
     // Wait for the application navigation to load
     await expect(page.locator('aside[aria-label="Main Navigation"]')).toBeVisible({ timeout: 15000 });
@@ -21,7 +31,7 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
     // 3. Verify Salesforce Lightning Highlights Panel (Header)
     await expect(page.getByRole('button', { name: /Back to Ledger/i })).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('button', { name: /Open Lead 360/i })).toBeVisible();
-    await expect(page.getByText(/Lead Status/i)).toBeVisible();
+    await expect(page.getByText(/^(Lead Status|Renewal Status)$/i)).toBeVisible();
     await expect(page.getByText(/Pipeline Stage/i)).toBeVisible();
     await expect(page.getByText(/Lead Owner/i)).toBeVisible();
     await expect(page.getByText(/Estimated Value/i)).toBeVisible();
@@ -46,6 +56,7 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
     const before = await (await page.request.get('/api/state')).json();
     const dealBefore = before.deals.find(deal => deal.title === 'Vanguard Silicone Liners Supply');
     expect(dealBefore).toBeTruthy();
+    await page.getByPlaceholder('Search title, contact, company...').fill('Vanguard Silicone Liners');
     const leadRow = page.locator('table tbody tr', { hasText: 'Vanguard Silicone Liners' });
     await expect(leadRow).toBeVisible();
     await leadRow.click();
@@ -123,7 +134,7 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
     // 5. Click "Back to Ledger" and verify return to Leads ledger
     const backBtn = page.getByRole('button', { name: /Back to Ledger/i });
     await backBtn.click();
-    await expect(page.getByRole('heading', { name: /Lead Management Ledger/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Leads', exact: true })).toBeVisible();
   });
 
   test('05: Full multi-stage history is synchronous and visible across all chevrons for advanced leads', async ({ page }) => {
@@ -133,6 +144,7 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
     await nav.getByRole('button', { name: /Leads/i }).click();
 
     // 2. Select Vanguard Silicone Liners Supply (Stage 5: Negotiation)
+    await page.getByPlaceholder('Search title, contact, company...').fill('Vanguard Silicone Liners');
     const vanguardRow = page.locator('table tbody tr', { hasText: 'Vanguard Silicone Liners' });
     await expect(vanguardRow).toBeVisible({ timeout: 10000 });
     await vanguardRow.click();
@@ -170,6 +182,7 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
 
     // 9. Back to Ledger and check Closed Lost off-ramp diagnostic banner for Titan Industrial
     await page.getByRole('button', { name: /Back to Ledger/i }).click();
+    await page.getByPlaceholder('Search title, contact, company...').fill('Titan Heavy Machinery');
     const titanRow = page.locator('table tbody tr', { hasText: 'Titan Heavy Machinery' });
     await expect(titanRow).toBeVisible({ timeout: 10000 });
     await titanRow.click();
@@ -180,6 +193,7 @@ test.describe('Salesforce-Style Lead Journey E2E Test Suite', () => {
 
     // 10. Back to Ledger and check Closed Won automated repeat cycle for Apex Apparel
     await page.getByRole('button', { name: /Back to Ledger/i }).click();
+    await page.getByPlaceholder('Search title, contact, company...').fill('Apex Apparel');
     const apexRow = page.locator('table tbody tr', { hasText: 'Apex Apparel' });
     await expect(apexRow).toBeVisible({ timeout: 10000 });
     await apexRow.click();

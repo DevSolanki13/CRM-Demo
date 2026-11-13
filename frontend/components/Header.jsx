@@ -1,3 +1,4 @@
+import { Skeleton, SkeletonAvatar, SkeletonStatus } from './skeletons/primitives.jsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Briefcase, Check, ChevronDown, Menu, Plus, Search, UserCheck, UserPlus, X } from 'lucide-react';
 import { Avatar } from './DashboardPrimitives.jsx';
@@ -41,7 +42,7 @@ function HeaderSearch({ onSelectResult }) {
     <kbd>⌘ K</kbd>
     {open && <div id="crm-search-results" className="crm-search-results" role="region" aria-label="Search results">
       {!enabled ? <p>Type at least two characters to search leads and deals.</p>
-        : loading ? <p role="status">Searching…</p>
+        : loading ? <SkeletonStatus label="search results"><div className="p-3 space-y-3">{[1,2,3].map(i=><div key={i} className="flex gap-3 items-center"><SkeletonAvatar /><div className="space-y-2"><Skeleton className="h-3 w-40" /><Skeleton className="h-2 w-24" /></div></div>)}</div></SkeletonStatus>
         : error ? <div role="alert"><p>Could not load search results.</p><button type="button" onClick={() => { leads.retry(); deals.retry(); }}>Try again</button></div>
         : results.length ? <>{results.map(({ item, type }) => <button type="button" key={type + item.id} onClick={() => {
           onSelectResult(type, item); setOpen(false); setQuery('');

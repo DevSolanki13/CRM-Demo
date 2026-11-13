@@ -59,7 +59,7 @@ export const ManifestStrip = ({ summary = {}, activities = [], tasks = [], deals
       <div className="flex items-center gap-2">
         {renewalsDueCount > 0 ? (
           <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FEF8EC] border border-[#F5DDA9] text-[#965700] font-bold text-[10px]">
-            <RefreshCw className="w-3 h-3 text-[#965700] animate-spin" />
+            <RefreshCw className="w-3 h-3 text-[#965700]" />
             {renewalsDueCount} RENEWAL{renewalsDueCount > 1 ? 'S' : ''} DUE
           </span>
         ) : (

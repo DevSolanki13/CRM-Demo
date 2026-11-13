@@ -1,3 +1,5 @@
+import { getCachedRecordsPage } from '../api/recordsCache.js';
+import { SettingsRulesSkeleton } from './skeletons/SettingsSkeleton.jsx';
 import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
@@ -48,7 +50,7 @@ export const SettingsView = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   // Automation Rules State
-  const [rules, setRules] = useState([]);
+  const [rules, setRules] = useState(() => getCachedRecordsPage('automation-rules', {}) || []);
   const [loadingRules, setLoadingRules] = useState(false);
   const [savingRules, setSavingRules] = useState(false);
   const [automationStatus, setAutomationStatus] = useState(null);
@@ -59,11 +61,8 @@ export const SettingsView = ({
   }));
 
   const [showMockData, setShowMockData] = useState(() => {
-    if (branding?.customFields?.showMockData !== undefined) {
-      return Boolean(branding.customFields.showMockData);
-    }
     const local = typeof window !== 'undefined' ? localStorage.getItem('crm.showMockData') : null;
-    return local !== null ? local === 'true' : false; // Default: false (hidden)
+    return local === 'true'; // Default: false (hidden); enable only through this switch.
   });
 
   const handleToggleMockData = async () => {
@@ -458,7 +457,7 @@ export const SettingsView = ({
               disabled={savingRules}
               className="px-4 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold rounded-full text-xs shadow-2xs flex items-center gap-2 transition-colors disabled:opacity-50"
             >
-              {savingRules ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {savingRules ? <RefreshCw className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
               <span>Save Rules</span>
             </button>
           </div>
@@ -474,11 +473,8 @@ export const SettingsView = ({
             </div>
           )}
 
-          {loadingRules ? (
-            <div className="p-8 text-center text-[#5B6472] space-y-2">
-              <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#1D4E63]" />
-              <p>Loading follow-up rules...</p>
-            </div>
+          {loadingRules && !rules.length ? (
+            <SettingsRulesSkeleton />
           ) : (
             <div className="space-y-4">
               {rules.map((rule) => (
@@ -695,7 +691,7 @@ export const SettingsView = ({
               <div>
                 <h3 className="font-display font-bold text-sm text-[#12161C] flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-[#1D4E63]" />
-                  <span>Show / Hide Mock Data</span>
+                  <span>Show Mock Data</span>
                 </h3>
                 <p className="text-[#5B6472] mt-1 font-medium text-xs leading-relaxed">
                   Controls whether sample demo leads (ld-1 to ld-9), companies (c-1 to c-9), and contacts (cnt-1 to cnt-9) are displayed.

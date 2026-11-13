@@ -1,3 +1,4 @@
+import { ContactsSkeleton } from './skeletons/ContactsSkeleton.jsx';
 import { RecordSelect } from './RecordSelect.jsx';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
 import { RecordPagination } from './RecordPagination.jsx';
@@ -104,7 +105,7 @@ export const ContactsView = ({
   });
 
   const page = useRecordsPage('contacts', { q: searchQuery, companyId: selectedCompanyId === 'All' ? undefined : selectedCompanyId }, revision);
-  const showMockData = Boolean(branding?.customFields?.showMockData ?? (typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true'));
+  const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
   const contacts = useMemo(() => {
     return showMockData ? page.items : page.items.filter(contact => !isMockContact(contact));
   }, [page.items, showMockData]);
@@ -167,6 +168,8 @@ export const ContactsView = ({
   const contactNotes = useMemo(() => {
     return selectedContact ? notes.filter(n => n.linkedType === 'Contact' && n.linkedId === selectedContact.id) : [];
   }, [selectedContact, notes]);
+
+  if (page.loading) return <ContactsSkeleton detail={Boolean(selectedContact)} />;
 
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">

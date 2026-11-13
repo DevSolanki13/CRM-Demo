@@ -58,7 +58,7 @@ export const getRecordsPage = asyncHandler(async (req, res) => {
 });
 
 export const getWorkspaceSummary = asyncHandler(async (req, res) => {
-  res.json(await workspaceSummary(req.user));
+  res.json(await workspaceSummary(req.user, req.query));
 });
 
 export const getReportSummary = asyncHandler(async (req, res) => {
@@ -76,7 +76,7 @@ export const getState = asyncHandler(async (req, res) => {
       requested.some(key => !systemService.STATE_COLLECTIONS.includes(key))) {
     return res.status(400).json({ error: 'Unknown state collection' });
   }
-  res.json(await systemService.getStateCollections(req.user, requested));
+  res.json(await systemService.getStateCollections(req.user, requested, { showMockData: req.query.showMockData }));
 });
 
 export const resetState = asyncHandler(async (_req, res) => {

@@ -1,3 +1,5 @@
+import { TimelineSkeleton } from './skeletons/TimelineSkeleton.jsx';
+import { Skeleton, SkeletonStatus } from './skeletons/primitives.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { fetchLeadRecurrence, updateLeadRecurrence, controlLeadRecurrence } from '../api/crmClient.js';
@@ -60,7 +62,7 @@ export function RecurringCycleDialog({ lead, currentUser, onClose, onChanged }) 
       <button type="button" disabled={busy} onClick={onClose} aria-label="Close cycle update" className="rounded-lg p-2 hover:bg-[#F6F7F8]"><X size={20} /></button>
     </header>
     {error && <div role="alert" className="m-5 rounded-lg bg-[#FDF2F1] p-3 text-sm text-[#922D27]">{error} <button type="button" disabled={busy} onClick={() => setReload(value => value + 1)} className="underline">Reload cycle</button></div>}
-    {!data ? <p role="status" className="p-5 text-sm">Loading cycle history…</p> : <div className="grid gap-6 p-5 md:grid-cols-2">
+    {!data ? <SkeletonStatus label="cycle history" className="grid gap-6 p-5 md:grid-cols-2"><div className="space-y-4"><Skeleton className="h-5 w-40" /><Skeleton className="h-10 w-full" /><Skeleton className="h-24 w-full" /><Skeleton className="h-10 w-full" /></div><TimelineSkeleton /></SkeletonStatus> : <div className="grid gap-6 p-5 md:grid-cols-2">
       <div className="space-y-4">
         <p className="text-sm">Expected purchase: <strong>{formatDate(data.current?.expectedDate || data.lead.nextRecurrenceDate)}</strong><br />
           Last monthly update: <strong>{formatDate(data.lead.lastRecurringReviewDate) || 'No update recorded'}</strong></p>

@@ -33,10 +33,10 @@ async function allVisiblePages(resource, user) {
 export const STATE_COLLECTIONS = ['branding', 'users', 'stages', 'companies', 'contacts',
   'leads', 'deals', 'tasks', 'notes', 'activities', 'stageGateChecks', 'auditLogs', 'pipelines'];
 
-export async function getStateCollections(user, requested = STATE_COLLECTIONS) {
+export async function getStateCollections(user, requested = STATE_COLLECTIONS, options = {}) {
   const pages = {};
   const pageCollection = (resource, key = resource) => async () => {
-    const page = await listRecordsPage(resource, user, { limit: 50 });
+    const page = await listRecordsPage(resource, user, { limit: 50, showMockData: options.showMockData ?? 'false' });
     pages[key] = { total: page.total, nextCursor: page.nextCursor };
     return page.items;
   };
@@ -45,7 +45,7 @@ export async function getStateCollections(user, requested = STATE_COLLECTIONS) {
     users: () => prisma.user.findMany({ where: canManageTeam(user) ? {} : { id: user.id },
       orderBy: { name: 'asc' }, select: PUBLIC_USER_SELECT }),
     stages: () => prisma.stage.findMany({ orderBy: { order: 'asc' } }),
-    pipelines: () => prisma.pipeline.findMany({ orderBy: { name: 'asc' } }),
+    pipelines: () => prisma.pipeline.findMany({ where: { OR: [{ id: 'pipeline-sales' }, { name: 'Sales' }] }, orderBy: { name: 'asc' } }),
     companies: pageCollection('companies'), contacts: pageCollection('contacts'),
     leads: pageCollection('leads'), deals: pageCollection('deals'), tasks: pageCollection('tasks'),
     notes: pageCollection('notes'), activities: pageCollection('activities'),

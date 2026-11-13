@@ -138,7 +138,7 @@ export const ImportExportModal = ({
             >
               <div className="p-2.5 rounded-xl bg-[#1D4E63] text-white transition-colors">
                 {exportingResource === 'contacts' ? (
-                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  <RefreshCw className="w-5 h-5" />
                 ) : (
                   <Download className="w-5 h-5" />
                 )}
@@ -158,7 +158,7 @@ export const ImportExportModal = ({
             >
               <div className="p-2.5 rounded-xl bg-[#1D4E63] text-white transition-colors">
                 {exportingResource === 'leads' ? (
-                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  <RefreshCw className="w-5 h-5" />
                 ) : (
                   <Download className="w-5 h-5" />
                 )}
@@ -178,7 +178,7 @@ export const ImportExportModal = ({
             >
               <div className="p-2.5 rounded-xl bg-[#1D4E63] text-white transition-colors">
                 {exportingResource === 'deals' ? (
-                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  <RefreshCw className="w-5 h-5" />
                 ) : (
                   <Download className="w-5 h-5" />
                 )}

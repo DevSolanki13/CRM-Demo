@@ -1,3 +1,4 @@
+import { Skeleton, SkeletonStatus } from './skeletons/primitives.jsx';
 import { useState } from 'react';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
 
@@ -23,11 +24,11 @@ export function RecordSelect({ resource, value = '', onChange, label = resource,
       </option>)}
     </select>
     <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--ink-muted)]" aria-live="polite">
-      <span>{page.error || (page.loading ? 'Loading choices…' : `${page.total} matching choices`)}</span>
+      <div>{page.error || (page.loading ? <SkeletonStatus label="choices"><Skeleton className="h-4 w-32" /></SkeletonStatus> : `${page.total} matching choices`)}</div>
       <div className="flex gap-2">
         {page.error ? <button type="button" onClick={page.retry} className="underline">Try again</button> : <>
-          <button type="button" disabled={page.loading || page.number === 1} onClick={page.previous} className="min-h-8 px-1 underline disabled:opacity-40">Previous</button>
-          <button type="button" disabled={page.loading || !page.nextCursor} onClick={page.next} className="min-h-8 px-1 underline disabled:opacity-40">Next</button>
+          <button type="button" disabled={page.loading || page.refreshing || page.number === 1} onClick={page.previous} className="min-h-8 px-1 underline disabled:opacity-40">Previous</button>
+          <button type="button" disabled={page.loading || page.refreshing || !page.nextCursor} onClick={page.next} className="min-h-8 px-1 underline disabled:opacity-40">Next</button>
         </>}
       </div>
     </div>

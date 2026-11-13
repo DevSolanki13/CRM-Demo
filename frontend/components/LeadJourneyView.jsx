@@ -1,3 +1,5 @@
+import { getCachedRecordsPage } from '../api/recordsCache.js';
+import { TimelineSkeleton } from './skeletons/TimelineSkeleton.jsx';
 import React, { useState, useEffect, useMemo } from 'react';
 import { isWonStage, isLostStage, isRenewalStage, semanticStageCode as stageCode } from '../../backend/constants/stageConstants.js';
 import {
@@ -37,7 +39,7 @@ import {
   Loader2,
   Flag
 } from 'lucide-react';
-import { formatDate, getStageBadgeStyle, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
+import { formatDate, getStageBadgeStyle, getLocalDateInputValueAfterDays, getRecurringLeadRenewalStatus, getLocalDateInputValue } from '../utils/crmHelpers.js';
 import { fetchTimeline, createActivity, createTask, updateTask } from '../api/crmClient.js';
 import { toast } from 'sonner';
 
@@ -118,7 +120,7 @@ export const LeadJourneyView = ({
   onTransitionDealStage
 }) => {
   // Timeline items fetched from backend
-  const [timelineItems, setTimelineItems] = useState([]);
+  const [timelineItems, setTimelineItems] = useState(() => getCachedRecordsPage('timeline', { entityType: 'Lead', entityId: lead.id, limit: 25 })?.items || []);
   const [loadingTimeline, setLoadingTimeline] = useState(true);
   const [loadingMoreTimeline, setLoadingMoreTimeline] = useState(false);
   const [timelineNextCursor, setTimelineNextCursor] = useState(null);
@@ -172,8 +174,12 @@ export const LeadJourneyView = ({
       const match = sortedStages.find(s => s.id === linkedDeal.stageId);
       if (match) return match;
     }
+    if (lead?.isRecurring) {
+      const renewalStage = sortedStages.find(s => s.category === 'Buy Again' || s.name === 'Buy Again (Renewal)' || s.id === 'stg-7');
+      if (renewalStage) return renewalStage;
+    }
     return sortedStages[0] || { id: 'unconfigured', name: 'No stage configured', order: 1 };
-  }, [linkedDeal, sortedStages]);
+  }, [linkedDeal, sortedStages, lead?.isRecurring]);
 
   // Set initial selected stage to the current actual stage
   useEffect(() => {
@@ -678,15 +684,26 @@ export const LeadJourneyView = ({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* 1. Lead Status */}
           <div className="bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-3 space-y-1">
-            <span className="text-[10px] font-mono text-[#5B6472] uppercase tracking-wider block font-bold">Lead Status</span>
-            <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${lead.status === 'Qualified' || lead.status === 'Converted'
-                ? 'bg-[#F0F7F3] text-[#255B40] border-[#BCDBC9]'
-                : lead.status === 'Unqualified'
-                  ? 'bg-[#FDF2F1] text-[#922D27] border-[#F4C4C1]'
-                  : 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]'
-              }`}>
-              {lead.status || 'New'}
+            <span className="text-[10px] font-mono text-[#5B6472] uppercase tracking-wider block font-bold">
+              {lead?.isRecurring ? 'Renewal Status' : 'Lead Status'}
             </span>
+            {lead?.isRecurring ? (() => {
+              const renewalStatus = getRecurringLeadRenewalStatus(lead, getLocalDateInputValue(), sortedStages);
+              return (
+                <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${renewalStatus.badgeClass}`}>
+                  {renewalStatus.label}
+                </span>
+              );
+            })() : (
+              <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${lead.status === 'Qualified' || lead.status === 'Converted'
+                  ? 'bg-[#F0F7F3] text-[#255B40] border-[#BCDBC9]'
+                  : lead.status === 'Unqualified'
+                    ? 'bg-[#FDF2F1] text-[#922D27] border-[#F4C4C1]'
+                    : 'bg-[#EFF6F9] text-[#1D4E63] border-[#D8E8EF]'
+                }`}>
+                {lead.status || 'New'}
+              </span>
+            )}
           </div>
 
           {/* 2. Pipeline Stage */}
@@ -802,7 +819,7 @@ export const LeadJourneyView = ({
               } else if (status === 'current') {
                 chevronBg = 'bg-[#1D4E63] text-white font-extrabold hover:bg-[#153B4B] shadow-sm';
                 iconElement = (
-                  <Loader2 className="w-3.5 h-3.5 text-white shrink-0 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 text-white shrink-0" />
                 );
               } else if (status === 'closed_won') {
                 chevronBg = 'bg-[#255B40] text-white font-extrabold shadow-sm hover:bg-[#1C4731]';
@@ -1162,7 +1179,7 @@ export const LeadJourneyView = ({
                   className="px-5 py-2.5 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
                 >
                   {isSubmittingComposer ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <RefreshCw className="w-3.5 h-3.5" />
                   ) : (
                     <Check className="w-3.5 h-3.5 stroke-[3]" />
                   )}
@@ -1276,11 +1293,8 @@ export const LeadJourneyView = ({
             </div>
 
             {/* Items List */}
-            {loadingTimeline ? (
-              <div className="p-8 text-center text-[#5B6472] space-y-2">
-                <RefreshCw className="w-5 h-5 animate-spin mx-auto text-[#1D4E63]" />
-                <p className="font-semibold text-xs">Loading activity timeline...</p>
-              </div>
+            {loadingTimeline && !timelineItems.length ? (
+              <TimelineSkeleton />
             ) : filteredTimelineItems.length === 0 ? (
               <div className="p-8 text-center bg-[#F6F7F8] border border-dashed border-[#E3E6EA] rounded-2xl text-[#5B6472] space-y-2">
                 <FileText className="w-6 h-6 mx-auto text-[#5B6472]/50" />
@@ -1391,10 +1405,7 @@ export const LeadJourneyView = ({
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E3E6EA] bg-[#FFFFFF] hover:bg-[#F6F7F8] text-xs font-semibold text-[#1D4E63] disabled:opacity-50 transition cursor-pointer"
                     >
                       {loadingMoreTimeline ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Loading older activities...</span>
-                        </>
+                        <TimelineSkeleton rows={1} />
                       ) : (
                         <span>Load older activities</span>
                       )}
@@ -1601,7 +1612,7 @@ export const LeadJourneyView = ({
                   className="px-4 py-2 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
                 >
                   {isSubmittingStage ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <RefreshCw className="w-3.5 h-3.5" />
                   ) : (
                     <Check className="w-3.5 h-3.5 stroke-[3]" />
                   )}

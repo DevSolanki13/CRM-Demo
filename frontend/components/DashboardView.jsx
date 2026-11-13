@@ -1,10 +1,12 @@
-import React, { useRef, useState } from 'react';
+import { DashboardQueueSkeleton, DashboardActivitySkeleton } from './skeletons/DashboardSkeleton.jsx';
+import { Skeleton } from './skeletons/primitives.jsx';
+import React, { useMemo, useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2, Clock, Layers, Mail, Package, Phone, Plus, RefreshCw, RotateCcw, ShieldCheck, Trophy, Users, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
 import { RecordPagination } from './RecordPagination.jsx';
 import { Avatar, DashboardEmptyState, DashboardPanel, MetricCard, StatusBadge } from './DashboardPrimitives.jsx';
-import { formatCurrency, formatDate, getLocalDateInputValue, getLocalDateInputValueAfterDays } from '../utils/crmHelpers.js';
+import { formatCurrency, formatDate, getLocalDateInputValue, getLocalDateInputValueAfterDays, isMockDeal, isMockTask, isMockActivity } from '../utils/crmHelpers.js';
 import { isRecurringTask } from '../../shared/leadRecurrence.js';
 
 const queueFilters = [
@@ -36,21 +38,95 @@ export const DashboardView = ({
   const [checkingRenewals, setCheckingRenewals] = useState(false);
   const [selectedPipeline, setSelectedPipeline] = useState('');
   const actionLocks = useRef(new Set());
-  const queuePage = useRecordsPage('dashboard-queue', { type: activeQueueFilter, limit: 4 }, revision);
-  const activityPage = useRecordsPage('activities', { sort: 'recent', limit: 4 }, revision, activeViewMode === 'activity');
-  const taskPage = useRecordsPage('tasks', { owner: currentUser.id, queue: 'followups', showCompleted: 'false', limit: 4 }, revision);
+  const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
+  const queuePage = useRecordsPage('dashboard-queue', { type: activeQueueFilter, limit: 4, showMockData: String(showMockData) }, revision);
+  const activityPage = useRecordsPage('activities', { sort: 'recent', limit: 4, showMockData: String(showMockData) }, revision, activeViewMode === 'activity');
+  const taskPage = useRecordsPage('tasks', { owner: currentUser.id, queue: 'followups', showCompleted: 'false', limit: 4, showMockData: String(showMockData) }, revision);
+
+  const queueItems = useMemo(() => {
+    return showMockData ? queuePage.items : queuePage.items.filter(item => {
+      if (item.type === 'overdue' || item.type === 'approval') return !isMockTask(item.raw || item);
+      return !isMockDeal(item.raw || item);
+    });
+  }, [queuePage.items, showMockData]);
+
+  const taskItems = useMemo(() => {
+    return showMockData ? taskPage.items : taskPage.items.filter(task => !isMockTask(task));
+  }, [taskPage.items, showMockData]);
+
+  const activityItems = useMemo(() => {
+    return showMockData ? activityPage.items : activityPage.items.filter(activity => !isMockActivity(activity));
+  }, [activityPage.items, showMockData]);
+
   const currency = branding.currency || 'INR';
   const money = value => formatCurrency(value || 0, currency);
   const compactMoney = value => new Intl.NumberFormat('en-IN', {
     style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1,
   }).format(value || 0);
-  const availablePipelines = pipelines.filter(pipeline => pipeline.active !== false || stages.some(stage => stage.pipelineId === pipeline.id));
-  const pipelineId = availablePipelines.some(pipeline => pipeline.id === selectedPipeline)
-    ? selectedPipeline : availablePipelines[0]?.id || '';
-  const stageRows = stages.filter(stage => !pipelineId || stage.pipelineId === pipelineId)
-    .sort((a, b) => a.order - b.order).map(stage => ({
-      stage, ...(summary.stageTotals?.find(total => total.stageId === stage.id) || { count: 0, value: 0 }),
-    }));
+  const visibleDeals = useMemo(() => {
+    return showMockData ? deals : deals.filter(deal => !isMockDeal(deal));
+  }, [deals, showMockData]);
+
+  const activeDeals = useMemo(() => visibleDeals.filter(d => d.status === 'Active'), [visibleDeals]);
+  const wonDeals = useMemo(() => visibleDeals.filter(d => d.status === 'Won'), [visibleDeals]);
+
+  const recurringLeads = useMemo(() => (leads || []).filter(l => l.isRecurring), [leads]);
+  const activeRecurringCount = useMemo(() => {
+    return recurringLeads.filter(l => !l.recurrencePaused && !['purchased', 'not_buying'].includes(l.recurrenceState) && !visibleDeals.some(d => d.leadId === l.id)).length;
+  }, [recurringLeads, visibleDeals]);
+
+  const activeDealCount = summary.activeDealCount != null
+    ? summary.activeDealCount
+    : (activeDeals.length + activeRecurringCount);
+
+  const totalPipelineValue = summary.totalPipelineValue != null 
+    ? summary.totalPipelineValue 
+    : activeDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
+
+  const wonCount = summary.wonCount != null ? summary.wonCount : wonDeals.length;
+  const wonRevenue = summary.wonRevenue != null 
+    ? summary.wonRevenue 
+    : wonDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
+
+  const availablePipelines = useMemo(() => {
+    const sales = pipelines.filter(pipeline => pipeline.id === 'pipeline-sales' || pipeline.name?.toLowerCase() === 'sales');
+    return sales.length > 0 ? sales : [{ id: 'pipeline-sales', name: 'Sales' }];
+  }, [pipelines]);
+  const pipelineId = availablePipelines[0]?.id || 'pipeline-sales';
+
+  const stageRows = useMemo(() => {
+    const relevantStages = stages.filter(stage => !pipelineId || stage.pipelineId === pipelineId)
+      .sort((a, b) => a.order - b.order);
+
+    return relevantStages.map(stage => {
+      const isRenewal = stage.category === 'Buy Again' || stage.id === 'stg-7' || stage.name === 'Buy Again (Renewal)';
+      const isWon = stage.category === 'Won' || stage.id === 'stg-6';
+      const isLost = stage.category === 'Lost' || stage.id === 'stg-8';
+
+      const matchingDeals = visibleDeals.filter(d => d.stageId === stage.id && (!pipelineId || d.pipelineId === pipelineId));
+      
+      const unlinkedRecurring = recurringLeads.filter(l => !visibleDeals.some(d => d.leadId === l.id));
+      const recurringCount = isRenewal
+        ? unlinkedRecurring.filter(l => !l.recurrencePaused && !['purchased', 'not_buying'].includes(l.recurrenceState)).length
+        : isWon
+          ? unlinkedRecurring.filter(l => l.recurrenceState === 'purchased').length
+          : isLost
+            ? unlinkedRecurring.filter(l => l.recurrenceState === 'not_buying').length
+            : 0;
+
+      const found = summary.stageTotals?.find(total => total.stageId === stage.id);
+      const computedCount = matchingDeals.length + recurringCount;
+      const count = found?.count != null ? found.count : computedCount;
+      const value = found?.value != null ? found.value : matchingDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
+
+      return {
+        stage,
+        count,
+        value
+      };
+    });
+  }, [stages, pipelineId, deals, visibleDeals, recurringLeads, summary.stageTotals]);
+
   const maxStageCount = Math.max(...stageRows.map(row => row.count), 1);
   const pipelineDealCount = stageRows.reduce((total, row) => total + row.count, 0);
   const hour = new Date().getHours();
@@ -65,6 +141,9 @@ export const DashboardView = ({
       const record = records.find(record => record.id === linked?.linkedId);
       if (record && onOpenDrawer && ['Lead', 'Deal'].includes(linked.linkedType)) onOpenDrawer(linked.linkedType.toLowerCase(), record);
       else onNavigateTab('tasks');
+    } else if (item.type === 'renewal' && (item.raw?.isRecurring || item.raw?.linkedType === 'Lead')) {
+      if (onOpenDrawer) onOpenDrawer('lead', item.raw);
+      else onNavigateTab('leads');
     } else if (onOpenDrawer) onOpenDrawer('deal', item.raw);
     else onNavigateTab('pipeline');
   };
@@ -117,18 +196,18 @@ export const DashboardView = ({
         <button type="button" className="crm-button crm-button--secondary" onClick={checkRenewals}
           disabled={checkingRenewals || currentUser.role === 'Sales Rep' || !onTriggerRenewalCheck}
           title={currentUser.role === 'Sales Rep' ? 'Renewal checks are managed by your manager or administrator.' : 'Check recurring order cycles'}>
-          <RefreshCw size={17} className={checkingRenewals ? 'animate-spin' : ''} aria-hidden="true" />
+          <RefreshCw size={17} aria-busy={checkingRenewals} aria-hidden="true" />
           {checkingRenewals ? 'Checking…' : 'Renewal cycle'}
         </button>
         <button type="button" className="crm-button crm-button--primary" onClick={onOpenLeadModal}><Plus size={18} aria-hidden="true" />Add lead</button>
       </div>
     </div>
     <div className="dashboard-metrics" aria-label="Sales overview">
-      <MetricCard label="Pipeline value" value={compactMoney(summary.totalPipelineValue)} title={money(summary.totalPipelineValue)}
-        context={(summary.activeDealCount || 0) + ' active opportunities'} icon={Wallet} />
-      <MetricCard label="Revenue won" value={compactMoney(summary.wonRevenue)} title={money(summary.wonRevenue)}
-        context={(summary.wonCount || 0) + ' closed-won deals'} icon={Trophy} />
-      <MetricCard label="Active deals" value={(summary.activeDealCount || 0).toLocaleString()} context="Across your sales workspace" icon={Users} />
+      <MetricCard label="Pipeline value" value={compactMoney(totalPipelineValue)} title={money(totalPipelineValue)}
+        context={activeDealCount + ' active opportunities'} icon={Wallet} />
+      <MetricCard label="Revenue won" value={compactMoney(wonRevenue)} title={money(wonRevenue)}
+        context={wonCount + ' closed-won deals'} icon={Trophy} />
+      <MetricCard label="Active deals" value={activeDealCount.toLocaleString()} context="Across your sales workspace" icon={Users} />
       <MetricCard label="Overdue follow-ups" value={(counts.overdue || 0).toLocaleString()}
         context={counts.overdue ? 'Needs your attention' : 'Your follow-ups are on track'} icon={Clock} danger={counts.overdue > 0}
         onClick={() => { setActiveViewMode('queue'); setActiveQueueFilter('overdue'); }} />
@@ -146,12 +225,12 @@ export const DashboardView = ({
               onClick={() => setActiveQueueFilter(id)}>{label} <span>{counts[countKey] || 0}</span></button>)}
           </div>}
         </div>
-        {page.loading ? <div className="dashboard-loading" role="status">Loading {activeViewMode === 'queue' ? 'work items' : 'activity'}…</div>
+        {page.loading ? (activeViewMode === 'queue' ? <DashboardQueueSkeleton /> : <DashboardActivitySkeleton />)
           : page.error ? null : activeViewMode === 'queue' ? <>
-            {queuePage.items.length > 0 ? <>
+            {queueItems.length > 0 ? <>
               <div className="dashboard-queue-labels" aria-hidden="true"><span>Item / customer</span><span>Status</span><span>Owner</span><span>Action</span></div>
               <ul className="dashboard-queue-list">
-                {queuePage.items.map(item => {
+                {queueItems.map(item => {
                   const owner = users.find(user => user.id === item.raw?.ownerId);
                   const ownerName = owner?.name || item.raw?.ownerName || 'Unassigned';
                   const busy = busyActions.has(item.type === 'approval'
@@ -178,18 +257,16 @@ export const DashboardView = ({
                 })}
               </ul>
             </> : <DashboardEmptyState title="All clear in this queue" icon={CheckCircle2}>No items in this category need your attention.</DashboardEmptyState>}
-          </> : activityPage.items.length ? <ul className="dashboard-activity-list">
-            {activityPage.items.map(activity => <li key={activity.id}><span className="dashboard-activity-icon"><Clock size={16} aria-hidden="true" /></span>
+          </> : activityItems.length ? <ul className="dashboard-activity-list">
+            {activityItems.map(activity => <li key={activity.id}><span className="dashboard-activity-icon"><Clock size={16} aria-hidden="true" /></span>
               <div><strong>{activity.type}</strong><p>{activity.description}</p><span>{activity.authorName}{activity.timestamp ? ' · ' + formatDate(activity.timestamp) : ''}</span></div>
             </li>)}
           </ul> : <DashboardEmptyState title="No activity recorded yet" icon={Clock}>Calls, emails and customer updates will appear here.</DashboardEmptyState>}
-        <div className="dashboard-pagination"><RecordPagination page={page} label={activeViewMode === 'queue' ? 'work items' : 'activities'} /></div>
+        <div className="dashboard-pagination"><RecordPagination page={page} retryLabel="Try again" label={activeViewMode === 'queue' ? 'work items' : 'activities'} /></div>
       </DashboardPanel>
       <DashboardPanel title="Pipeline overview" description="Opportunity distribution by stage" className="dashboard-pipeline" action={<Layers size={18} aria-hidden="true" />}>
         <div className="dashboard-pipeline-scope">
-          {availablePipelines.length ? <select aria-label="Dashboard pipeline" value={pipelineId} onChange={event => setSelectedPipeline(event.target.value)}>
-            {availablePipelines.map(pipeline => <option key={pipeline.id} value={pipeline.id}>{pipeline.name}</option>)}
-          </select> : <span>All stages</span>}
+          <span className="font-semibold text-xs text-[#1D4E63]">{availablePipelines[0]?.name || 'Sales'}</span>
           <StatusBadge>{pipelineDealCount.toLocaleString()} total</StatusBadge>
         </div>
         {stageRows.length ? <ul className="dashboard-stage-list">
@@ -202,10 +279,10 @@ export const DashboardView = ({
         <div className="dashboard-panel-footer"><span>Counts for selected pipeline</span><button type="button" className="dashboard-text-button" onClick={() => onNavigateTab('pipeline', pipelineId)}>View board <ArrowRight size={16} aria-hidden="true" /></button></div>
       </DashboardPanel>
       <DashboardPanel title="Your follow-ups" description="Pending tasks assigned to you" className="dashboard-tasks"
-        action={<StatusBadge>{taskPage.loading ? 'Loading…' : taskPage.total + ' pending'}</StatusBadge>}>
-        {taskPage.loading ? <div className="dashboard-loading" role="status">Loading your follow-ups…</div>
-          : taskPage.error ? null : taskPage.items.length ? <ul className="dashboard-task-list">
-            {taskPage.items.map(task => <li key={task.id}>
+        action={<StatusBadge>{taskPage.loading ? <Skeleton className="h-4 w-16" /> : (showMockData ? taskPage.total : taskItems.length) + ' pending'}</StatusBadge>}>
+        {taskPage.loading ? <DashboardQueueSkeleton followups />
+          : taskPage.error ? null : taskItems.length ? <ul className="dashboard-task-list">
+            {taskItems.map(task => <li key={task.id}>
               {isRecurringTask(task) ? <button type="button" className="dashboard-text-button" onClick={() => onOpenRecurringTask?.(task)}>Update cycle</button> : <input type="checkbox" checked={completingTasks.has(task.id)} disabled={!onUpdateTask || busyActions.has('task-' + task.id)}
                 aria-label={'Mark ' + task.title + ' complete'} onChange={() => completeTask(task)} />}
               <button type="button" className="dashboard-task-detail" onClick={() => onNavigateTab('tasks')}><strong>{task.title}</strong><span>{task.linkedTitle || task.type || 'Follow-up'}</span></button>

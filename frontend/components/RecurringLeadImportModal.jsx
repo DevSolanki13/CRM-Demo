@@ -1,5 +1,6 @@
+import { Skeleton, SkeletonStatus } from './skeletons/primitives.jsx';
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, FileSpreadsheet, LoaderCircle, Upload, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, FileSpreadsheet, Upload, X } from 'lucide-react';
 import { previewRecurringLeadImport } from '../api/crmClient.js';
 import { parseRecurringLeadWorkbook } from '../utils/recurringLeadWorkbook.js';
 import { LeadScheduleFields } from './LeadScheduleFields.jsx';
@@ -219,7 +220,7 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
                 disabled={busy}
                 className="block min-w-0 max-w-full text-[11px] text-[#5B6472] file:mr-3 file:rounded-lg file:border-0 file:bg-[#EFF6F9] file:px-3 file:py-2 file:text-[11px] file:font-bold file:text-[#1D4E63] hover:file:bg-[#D8E8EF] focus-visible:outline-2 focus-visible:outline-[#1D4E63] disabled:opacity-50"
               />
-              {isReading && <LoaderCircle size={16} className="animate-spin text-[#1D4E63]" aria-label="Reading workbook" />}
+              {isReading && <SkeletonStatus label="workbook"><Skeleton className="h-4 w-16" /></SkeletonStatus>}
             </div>
           </div>
 
@@ -330,7 +331,7 @@ export function RecurringLeadImportModal({ isOpen, onClose, onImport, onImported
                 disabled={busy || !preview?.stats.readyToImport || !onImport}
                 className="inline-flex items-center gap-2 rounded-lg bg-[#1D4E63] px-3 py-2 text-xs font-bold text-white hover:bg-[#153B4B] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D4E63] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isImporting && <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />}
+                {isImporting && <Skeleton className="h-3.5 w-3.5" />}
                 Import {preview?.stats.readyToImport?.toLocaleString() || 0}
               </button>
             )}

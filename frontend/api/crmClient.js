@@ -1,3 +1,4 @@
+import { clearRecordsCache, requestRecordsPage, setRecordsCacheScope } from './recordsCache.js';
 const BASE_URL = '/api';
 const WORKSPACE_ACCOUNT_KEY = 'crm.workspaceAccountId';
 
@@ -7,6 +8,7 @@ export function getWorkspaceAccountId() {
 }
 
 export function clearWorkspaceAccount() {
+  clearRecordsCache();
   globalThis.sessionStorage.removeItem(WORKSPACE_ACCOUNT_KEY);
 }
 
@@ -17,6 +19,7 @@ export async function selectWorkspaceAccount(accountId) {
   }
   // Keep each tab's identity independent. Reloading then clears all prior account data.
   globalThis.sessionStorage.setItem(WORKSPACE_ACCOUNT_KEY, accountId);
+  clearRecordsCache();
 }
 
 async function apiFetch(url, options = {}) {
@@ -51,6 +54,7 @@ export async function fetchCurrentUser(accountId) {
 }
 
 export async function signIn(email, password) {
+  clearRecordsCache();
   const response = await apiFetch(`${BASE_URL}/auth/login`, {
     method: 'POST', body: JSON.stringify({ email, password }),
   });
@@ -59,6 +63,7 @@ export async function signIn(email, password) {
 
 export async function signOut() {
   await apiFetch(`${BASE_URL}/auth/logout`, { method: 'POST' });
+  clearRecordsCache();
 }
 
 export async function acceptInvitation(token, password) {
@@ -75,7 +80,10 @@ export async function createAccountInvitation(userId) {
 
 export async function fetchCRMState(collections = []) {
   try {
-    const query = collections.length ? `?collections=${encodeURIComponent(collections.join(','))}` : '';
+    const params = new URLSearchParams();
+    if (collections.length) params.set('collections', collections.join(','));
+    params.set('showMockData', typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true' ? 'true' : 'false');
+    const query = `?${params}`;
     const res = await apiFetch(`${BASE_URL}/state${query}`);
     if (!res.ok) throw new Error('Failed to load state');
     return await res.json();
@@ -86,8 +94,11 @@ export async function fetchCRMState(collections = []) {
 }
 
 export async function fetchRecordsPage(resource, filters = {}, signal) {
-  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== undefined && value !== null));
-  return (await apiFetch(`${BASE_URL}/pages/${encodeURIComponent(resource)}?${query}`, { signal })).json();
+  setRecordsCacheScope(getWorkspaceAccountId());
+  return requestRecordsPage(resource, filters, signal, async sharedSignal => {
+    const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== undefined && value !== null));
+    return (await apiFetch(`${BASE_URL}/pages/${encodeURIComponent(resource)}?${query}`, { signal: sharedSignal })).json();
+  });
 }
 
 export async function previewRecurringLeadImport(rows) {
@@ -131,12 +142,20 @@ export async function fetchRecord(resource, id) {
   return page.items[0];
 }
 
-export async function fetchWorkspaceSummary() {
-  return (await apiFetch(`${BASE_URL}/workspace-summary`)).json();
+export async function fetchWorkspaceSummary(params = {}) {
+  const showMockData = params.showMockData ?? (typeof window !== 'undefined' ? localStorage.getItem('crm.showMockData') : undefined);
+  const query = showMockData !== undefined && showMockData !== null ? `?showMockData=${showMockData}` : '';
+  return (await apiFetch(`${BASE_URL}/workspace-summary${query}`)).json();
 }
 
 export async function fetchIntegrationStatus() {
-  return (await apiFetch(`${BASE_URL}/integrations/status`)).json();
+  return fetchCachedQuery('connections', {}, `${BASE_URL}/integrations/status`);
+}
+
+// The same bounded, account-scoped request cache also keeps auxiliary views warm.
+function fetchCachedQuery(resource, filters, url) {
+  setRecordsCacheScope(getWorkspaceAccountId());
+  return requestRecordsPage(resource, filters, undefined, async signal => (await apiFetch(url, { signal })).json());
 }
 
 export async function connectGoogleWorkspace() {
@@ -471,12 +490,12 @@ export async function deleteAttachment(id) {
 
 export async function fetchReportSummary(rep, month, pipeline = 'All') {
   const query = new URLSearchParams({ rep, month, pipeline });
-  return (await apiFetch(`${BASE_URL}/reports/summary?${query}`)).json();
+  return fetchCachedQuery('report-summary', { rep, month, pipeline }, `${BASE_URL}/reports/summary?${query}`);
 }
 
 export async function fetchReportAuditPage(rep, action, cursor = '', pipeline = 'All') {
   const query = new URLSearchParams({ rep, action, cursor, pipeline, limit: '25' });
-  return (await apiFetch(`${BASE_URL}/reports/audit?${query}`)).json();
+  return fetchCachedQuery('report-audit', { rep, action, cursor, pipeline }, `${BASE_URL}/reports/audit?${query}`);
 }
 
 export async function rejectStageGateCheck(id, _reviewer, reason) {
@@ -501,11 +520,7 @@ export async function importContacts(items) {
 // Unified Activity Timeline
 export async function fetchTimeline(entityType, entityId, options = {}) {
   const params = new URLSearchParams({ entityType, entityId, ...options });
-  const res = await apiFetch(`${BASE_URL}/timeline?${params}`);
-  if (!res.ok) {
-    throw new Error('Failed to fetch unified timeline');
-  }
-  return res.json();
+  return fetchCachedQuery('timeline', { entityType, entityId, ...options }, `${BASE_URL}/timeline?${params}`);
 }
 
 // Complete Paginated Fetch for Exports
@@ -522,11 +537,7 @@ export async function fetchAllRecords(resource, batchSize = 100) {
 
 // Automation & Follow-up Rules
 export async function fetchAutomationRules() {
-  const res = await apiFetch(`${BASE_URL}/settings/automation-rules`);
-  if (!res.ok) {
-    throw new Error('Failed to fetch automation rules');
-  }
-  return res.json();
+  return fetchCachedQuery('automation-rules', {}, `${BASE_URL}/settings/automation-rules`);
 }
 
 export async function fetchAutomationStatus() {

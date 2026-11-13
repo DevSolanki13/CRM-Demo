@@ -1,3 +1,6 @@
+import { getCachedRecordsPage } from '../api/recordsCache.js';
+import { ReportsSkeleton } from './skeletons/ReportsSkeleton.jsx';
+import { Skeleton } from './skeletons/primitives.jsx';
 import React, { useEffect, useState } from 'react';
 import {
   BarChart3,
@@ -24,18 +27,17 @@ export const ReportsView = ({
   const [selectedRep, setSelectedRep] = useState(currentUser?.role === 'Sales Rep' ? currentUser.id : 'All');
   const [selectedPipeline, setSelectedPipeline] = useState('All');
   const [auditFilterAction, setAuditFilterAction] = useState('All');
-  const [summary, setSummary] = useState(null);
+  const [month] = useState(() => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 7));
+  const [summary, setSummary] = useState(() => getCachedRecordsPage('report-summary', { rep: selectedRep, month, pipeline: selectedPipeline }) || null);
   const [summaryError, setSummaryError] = useState('');
-  const [auditRows, setAuditRows] = useState([]);
-  const [auditCursor, setAuditCursor] = useState(null);
+  const [auditRows, setAuditRows] = useState(() => getCachedRecordsPage('report-audit', { rep: selectedRep, action: auditFilterAction, pipeline: selectedPipeline })?.items || []);
+  const [auditCursor, setAuditCursor] = useState(() => getCachedRecordsPage('report-audit', { rep: selectedRep, action: auditFilterAction, pipeline: selectedPipeline })?.nextCursor || null);
   const [auditError, setAuditError] = useState('');
   const [auditLoading, setAuditLoading] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
-  const [month] = useState(() => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 7));
 
   useEffect(() => {
     let active = true;
-    setSummary(null);
     setSummaryError('');
     fetchReportSummary(selectedRep, month, selectedPipeline).then(data => { if (active) setSummary(data); })
       .catch(error => { if (active) setSummaryError(error.message || 'Could not load reports.'); });
@@ -44,7 +46,6 @@ export const ReportsView = ({
 
   useEffect(() => {
     let active = true;
-    setAuditRows([]);
     setAuditCursor(null);
     setAuditError('');
     setAuditLoading(true);
@@ -68,7 +69,7 @@ export const ReportsView = ({
   };
 
   if (summaryError) return <div className="p-8" role="alert">{summaryError} <button onClick={() => setRetryKey(key => key + 1)} className="underline">Retry</button></div>;
-  if (!summary) return <div className="p-8 text-sm text-[#5B6472]" role="status">Loading reports…</div>;
+  if (!summary) return <ReportsSkeleton />;
 
   const { wonCount, lostCount, totalRevenue, winRate, avgDealSize,
     renewalDueCount, activeRebuyCount, rebuyRevenue, lostByStage, lostByReason, accountLTV,
@@ -371,7 +372,7 @@ export const ReportsView = ({
               {auditRows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-[#5B6472] italic">
-                    {auditLoading ? 'Loading change history…' : 'No matching audit records in ledger.'}
+                    {auditLoading ? <Skeleton className="h-6 w-full" /> : 'No matching audit records in ledger.'}
                   </td>
                 </tr>
               ) : (
@@ -446,7 +447,7 @@ export const ReportsView = ({
         {auditError && <p role="alert" className="text-sm text-red-700">{auditError}</p>}
         {auditCursor && <button type="button" onClick={loadMoreAudit} disabled={auditLoading}
           className="rounded-lg border border-[#E3E6EA] px-4 py-2 text-sm font-semibold text-[#1D4E63] disabled:opacity-50">
-          {auditLoading ? 'Loading…' : 'Load more history'}
+          {auditLoading ? <Skeleton className="h-4 w-32" /> : 'Load more history'}
         </button>}
       </div>
 

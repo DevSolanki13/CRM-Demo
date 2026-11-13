@@ -1,0 +1,12 @@
+import { Skeleton, SkeletonText, SkeletonTableRow, SkeletonStatus } from './primitives.jsx';
+export function LeadsSkeleton({ recurring = false }) {
+ return <SkeletonStatus label="Leads" className="p-6 md:p-8 space-y-6 bg-[var(--canvas)] min-h-full"><div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6 flex flex-wrap justify-between gap-4"><div className="space-y-3"><Skeleton className="h-7 w-64 max-w-full" /><SkeletonText className="w-72 max-w-full" /></div><Skeleton className="h-9 w-28" /></div>
+ <div className="flex gap-3"><Skeleton className="h-10 w-32" /><Skeleton className="h-10 w-40" /></div>
+ <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 flex flex-wrap gap-3"><Skeleton className="h-9 w-64" />{[1,2,3].map(i => <Skeleton key={i} className="h-9 w-32" />)}</div>
+ <div className="flex flex-wrap gap-2">{Array.from({length: recurring ? 8 : 5},(_,i)=><Skeleton key={i} className="h-8 w-24 rounded-full" />)}</div>
+ <div className="md:hidden space-y-3">{[1,2,3,4].map(i=><div key={i} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-4"><div className="flex justify-between"><Skeleton className="h-5 w-48 max-w-full" /><Skeleton className="h-6 w-6" /></div><SkeletonText className="w-40" /><div className="flex justify-between border-t border-[var(--border)] pt-3"><SkeletonText className="w-24" /><Skeleton className="h-5 w-24 rounded-full" /></div><div className="flex justify-between"><SkeletonText className="w-20" /><SkeletonText className="w-20" /></div></div>)}</div>
+ <div className="hidden md:block overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)]"><table className="w-full text-left"><thead><tr>{(recurring ? ['Lead name','Company','Email / phone','Status','Assigned employee','Recurrence date','Next recurrence','Next follow-up','Last contacted','Actions'] : ['','Lead / Company','Pipeline Stage','Contact','Source & Effort','Assigned Owner','Last Activity','Actions']).map((name,i)=><th key={i} className="px-4 py-3.5 text-[10px] text-[var(--ink-muted)]">{name}</th>)}</tr></thead><tbody className="divide-y divide-[var(--border)]">{[1,2,3,4,5,6].map(i=><SkeletonTableRow key={i} columns={recurring ? 10 : 8} />)}</tbody></table></div>
+ <div className="flex justify-between py-3"><SkeletonText /><Skeleton className="h-10 w-48" /></div>
+ </SkeletonStatus>;
+}
+

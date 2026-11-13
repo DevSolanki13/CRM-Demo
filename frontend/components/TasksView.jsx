@@ -1,3 +1,4 @@
+import { TasksSkeleton } from './skeletons/TasksSkeleton.jsx';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
 import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState, useMemo } from 'react';
@@ -20,11 +21,12 @@ import {
   Filter,
   Check
 } from 'lucide-react';
-import { formatDateTime, getLocalDateInputValue } from '../utils/crmHelpers.js';
+import { formatDateTime, getLocalDateInputValue, isMockTask } from '../utils/crmHelpers.js';
 import { isRecurringTask } from '../../shared/leadRecurrence.js';
 
 export const TasksView = ({
   revision = 0,
+  branding = {},
   users = [],
   leads = [],
   deals = [],
@@ -58,16 +60,20 @@ export const TasksView = ({
   const todayStr = getLocalDateInputValue();
   const isManagerOrAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Manager';
 
+  const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
   const [searchQuery, setSearchQuery] = useState('');
   const taskPage = useRecordsPage('tasks', { q: searchQuery,
     owner: activeScope === 'my' ? currentUser?.id : 'All',
     queue: activeQueue, type: activeQueue === 'followups' ? typeFilter : 'All',
     showCompleted: String(showCompleted),
+    showMockData: String(showMockData),
   }, revision, activeQueue !== 'approvals' || isManagerOrAdmin);
   const approvalsPage = useRecordsPage('stageGateChecks', { q: searchQuery, status: 'pending_review' },
     revision, activeQueue === 'approvals' && !isManagerOrAdmin);
   const page = activeQueue === 'approvals' && !isManagerOrAdmin ? approvalsPage : taskPage;
-  const tasks = taskPage.items;
+  const tasks = useMemo(() => {
+    return showMockData ? taskPage.items : taskPage.items.filter(task => !isMockTask(task));
+  }, [taskPage.items, showMockData]);
   const pendingApprovals = isManagerOrAdmin ? tasks.filter(task => task.type === 'Approval' || task.stageGateCheckId)
     : approvalsPage.items.map(check => ({
       ...check, id: check.id, stageGateCheckId: check.id, title: check.dealTitle,
@@ -233,6 +239,8 @@ export const TasksView = ({
       </div>
     );
   };
+
+  if (page.loading) return <TasksSkeleton approvals={activeQueue === 'approvals'} />;
 
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C]">

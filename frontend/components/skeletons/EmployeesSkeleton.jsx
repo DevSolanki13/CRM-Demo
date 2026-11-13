@@ -1,0 +1,6 @@
+import { Skeleton, SkeletonText, SkeletonAvatar, SkeletonStatus } from './primitives.jsx';
+export function EmployeesSkeleton() {
+ return <SkeletonStatus label="Employees" className="p-6 md:p-8 space-y-6 bg-[var(--canvas)] min-h-screen"><div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6 flex flex-wrap justify-between gap-4"><div className="space-y-3"><Skeleton className="h-7 w-64 max-w-full" /><SkeletonText className="w-72 max-w-full" /></div><Skeleton className="h-9 w-28" /></div>
+ <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">{[1,2,3,4].map(i=><div key={i} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4"><div className="flex gap-3"><SkeletonAvatar /><div className="space-y-2"><SkeletonText /><SkeletonText className="w-40" /></div></div><div className="flex justify-between border-t border-[var(--border)] pt-3"><SkeletonText className="w-10" /><Skeleton className="h-5 w-20 rounded-full" /></div><div className="rounded-xl bg-[var(--canvas)] p-3.5 space-y-4">{[1,2,3].map(j=><div key={j} className="flex justify-between"><SkeletonText /><SkeletonText className="w-10" /></div>)}</div></div>)}</div></SkeletonStatus>;
+}
+

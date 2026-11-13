@@ -1,3 +1,5 @@
+import { getCachedRecordsPage } from '../api/recordsCache.js';
+import { TimelineSkeleton } from './skeletons/TimelineSkeleton.jsx';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   PhoneCall,
@@ -36,7 +38,7 @@ export const UnifiedTimeline = ({
   fallbackTasks = [],
   fallbackAuditLogs = []
 }) => {
-  const [timelineItems, setTimelineItems] = useState([]);
+  const [timelineItems, setTimelineItems] = useState(() => getCachedRecordsPage('timeline', { entityType, entityId })?.items || []);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
@@ -274,7 +276,7 @@ export const UnifiedTimeline = ({
             className="px-4 py-1.5 bg-[#1D4E63] hover:bg-[#153B4B] text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-2xs transition-colors disabled:opacity-50"
           >
             {isSubmitting ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              <RefreshCw className="w-3.5 h-3.5" />
             ) : (
               <Send className="w-3.5 h-3.5" />
             )}
@@ -319,16 +321,13 @@ export const UnifiedTimeline = ({
           title="Refresh timeline"
           className="p-1.5 text-[#5B6472] hover:text-[#1D4E63] hover:bg-[#EFF6F9] rounded-lg transition-colors"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className="w-3.5 h-3.5" />
         </button>
       </div>
 
       {/* Timeline Stream */}
-      {loading ? (
-        <div className="p-8 text-center bg-[#FAFCFD] border border-dashed border-[#E3E6EA] rounded-2xl text-[#5B6472] space-y-2">
-          <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#1D4E63]" />
-          <p className="font-semibold text-xs">Aggregating complete customer timeline...</p>
-        </div>
+      {loading && !timelineItems.length ? (
+        <TimelineSkeleton />
       ) : filteredItems.length === 0 ? (
         <div className="p-8 text-center bg-[#FAFCFD] border border-dashed border-[#E3E6EA] rounded-2xl text-[#5B6472] space-y-2">
           <FileText className="w-8 h-8 mx-auto text-[#5B6472]/40" />
@@ -459,8 +458,7 @@ export const UnifiedTimeline = ({
                 disabled={loadingMore}
                 className="px-4 py-2 bg-[#FFFFFF] hover:bg-[#EFF6F9] border border-[#E3E6EA] rounded-xl text-xs font-bold text-[#1D4E63] transition-colors shadow-2xs inline-flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
-                {loadingMore ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                <span>{loadingMore ? 'Loading older history…' : `Load older history (${timelineItems.length} of ${totalCount})`}</span>
+                {loadingMore ? <TimelineSkeleton rows={1} /> : <><ChevronDown className="w-3.5 h-3.5" /><span>{`Load older history (${timelineItems.length} of ${totalCount})`}</span></>}
               </button>
             </div>
           )}

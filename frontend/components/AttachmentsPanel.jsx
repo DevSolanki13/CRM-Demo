@@ -1,3 +1,4 @@
+import { Skeleton, SkeletonStatus } from './skeletons/primitives.jsx';
 import React, { useEffect, useState } from 'react';
 import { Download, FileText, Upload, Trash2 } from 'lucide-react';
 import { deleteAttachment, getAttachmentDownload, listAttachments, uploadAttachment } from '../api/crmClient.js';
@@ -93,7 +94,7 @@ export function AttachmentsPanel({ recordType, recordId }) {
         </label>
       </div>
       {error && <p role="alert" className="rounded-lg bg-[#FDF2F1] p-3 text-[#922D27]">{error}</p>}
-      {loading ? <p role="status" className="text-[#5B6472]">Loading files…</p>
+      {loading ? <SkeletonStatus label="files"><div className="space-y-2">{[1,2].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div></SkeletonStatus>
         : !items.length ? <p className="rounded-lg bg-[#F6F7F8] p-4 text-[#5B6472]">No files attached yet.</p>
           : <ul className="divide-y divide-[#E3E6EA] rounded-xl border border-[#E3E6EA]">
               {items.map(item => <li key={item.id} className="flex flex-wrap items-center gap-2 px-3 py-3">
