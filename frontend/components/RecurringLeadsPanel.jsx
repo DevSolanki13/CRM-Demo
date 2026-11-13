@@ -8,7 +8,7 @@ import { formatDate, getLocalDateInputValue, getRecurringLeadRenewalStatus } fro
 
 const filterClass = 'min-h-10 rounded-lg border border-[#E3E6EA] bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-[#1D4E63]';
 const views = [['All', 'All recurring'], ['overdue', 'Overdue'], ['today', 'Due today'], ['upcoming', 'Next 10 days'],
-  ['awaiting', 'Awaiting confirmation'], ['missing', 'Missing monthly update'], ['unassigned', 'Unassigned'], ['paused', 'Paused']];
+['awaiting', 'Awaiting confirmation'], ['missing', 'Missing monthly update'], ['unassigned', 'Unassigned'], ['paused', 'Paused']];
 
 export function RecurringLeadsPanel({ page, search, onSearch, owner, onOwner, sort, onSort, view, onView,
   users, currentUser, onChanged, onEdit, onOpen, onDelete, stages = [], hideRecords = false }) {
@@ -71,14 +71,14 @@ export function RecurringLeadsPanel({ page, search, onSearch, owner, onOwner, so
       <ul className="divide-y divide-[#E3E6EA] md:hidden">{page.items.map(lead => {
         const renewalStatus = getRecurringLeadRenewalStatus(lead, today, stages);
         return <li key={lead.id} className="space-y-3 p-4">
-        <button type="button" onClick={() => onOpen?.(lead)} className="font-semibold text-[#1D4E63]">{lead.contactName || lead.title}</button><p className="text-sm text-[#5B6472]">{lead.companyName} · {lead.ownerName || 'Unassigned'}</p>
-        <dl className="grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-[#5B6472]">Expected purchase</dt><dd>{formatDate(lead.nextRecurrenceDate)}</dd></div><div><dt className="text-xs text-[#5B6472]">Next follow-up</dt><dd>{formatDate(lead.nextFollowUpDate) || 'See Tasks'}</dd></div><div><dt className="text-xs text-[#5B6472]">Schedule</dt><dd>{recurrenceLabel(lead)}</dd></div><div><dt className="text-xs text-[#5B6472]">Monthly review</dt><dd>{lead.recurrencePaused ? 'Paused' : lead.lastRecurringReviewDate?.slice(0, 7) === today.slice(0, 7) ? 'Updated' : 'Update needed'}</dd></div></dl>
-        <div><span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${renewalStatus.badgeClass}`}>{renewalStatus.label}</span></div>
-        {!lead.recurrencePaused && (lead.nextRecurrenceDate < today || (lead.nextFollowUpDate && lead.nextFollowUpDate < today)) && <p className="text-sm font-semibold text-[#922D27]">Action overdue</p>}
-        <button type="button" onClick={() => setSelected(lead)} className="min-h-10 rounded-lg bg-[#1D4E63] px-3 py-2 text-sm font-semibold text-white">{lead.recurrencePaused ? 'View cycle' : 'Update cycle'}</button>
-        {currentUser.role === 'Admin' && <button type="button" onClick={() => onEdit(lead)} className="ml-2 min-h-10 px-3 text-sm text-[#1D4E63]">Edit schedule</button>}
-        {currentUser.role === 'Admin' && onDelete && <button type="button" disabled={deletingId !== null} onClick={() => remove(lead)} className="ml-2 min-h-10 px-3 text-sm text-[#922D27] disabled:opacity-50">Delete lead</button>}
-      </li>;
+          <button type="button" onClick={() => onOpen?.(lead)} className="font-semibold text-[#1D4E63]">{lead.contactName || lead.title}</button><p className="text-sm text-[#5B6472]">{lead.companyName} · {lead.ownerName || 'Unassigned'}</p>
+          <dl className="grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-[#5B6472]">Expected purchase</dt><dd>{formatDate(lead.nextRecurrenceDate)}</dd></div><div><dt className="text-xs text-[#5B6472]">Next follow-up</dt><dd>{formatDate(lead.nextFollowUpDate) || 'See Tasks'}</dd></div><div><dt className="text-xs text-[#5B6472]">Schedule</dt><dd>{recurrenceLabel(lead)}</dd></div><div><dt className="text-xs text-[#5B6472]">Monthly review</dt><dd>{lead.recurrencePaused ? 'Paused' : lead.lastRecurringReviewDate?.slice(0, 7) === today.slice(0, 7) ? 'Updated' : 'Update needed'}</dd></div></dl>
+          <div><span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${renewalStatus.badgeClass}`}>{renewalStatus.label}</span></div>
+          {!lead.recurrencePaused && (lead.nextRecurrenceDate < today || (lead.nextFollowUpDate && lead.nextFollowUpDate < today)) && <p className="text-sm font-semibold text-[#922D27]">Action overdue</p>}
+          <button type="button" onClick={() => setSelected(lead)} className="min-h-10 rounded-lg bg-[#1D4E63] px-3 py-2 text-sm font-semibold text-white">{lead.recurrencePaused ? 'View cycle' : 'Update cycle'}</button>
+          {currentUser.role === 'Admin' && <button type="button" onClick={() => onEdit(lead)} className="ml-2 min-h-10 px-3 text-sm text-[#1D4E63]">Edit schedule</button>}
+          {currentUser.role === 'Admin' && onDelete && <button type="button" disabled={deletingId !== null} onClick={() => remove(lead)} className="ml-2 min-h-10 px-3 text-sm text-[#922D27] disabled:opacity-50">Delete lead</button>}
+        </li>;
       })}</ul>
     </div>}
     {selected && <RecurringCycleDialog key={selected.id} lead={selected} currentUser={currentUser} onClose={() => setSelected(null)} onChanged={changed} />}

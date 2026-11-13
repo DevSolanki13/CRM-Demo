@@ -60,10 +60,21 @@ export const SettingsView = ({
     ...DEFAULT_APPROVAL_POLICY, ...(branding.customFields?.approvalPolicy || {})
   }));
 
+  // Prefer branding (backend truth); fall back to localStorage for first-visit
   const [showMockData, setShowMockData] = useState(() => {
+    if (branding?.customFields?.showMockData !== undefined) return Boolean(branding.customFields.showMockData);
     const local = typeof window !== 'undefined' ? localStorage.getItem('crm.showMockData') : null;
-    return local === 'true'; // Default: false (hidden); enable only through this switch.
+    return local === 'true';
   });
+
+  // Keep in sync when branding prop updates after toggle/reload
+  useEffect(() => {
+    if (branding?.customFields?.showMockData !== undefined) {
+      const next = Boolean(branding.customFields.showMockData);
+      setShowMockData(next);
+      if (typeof window !== 'undefined') localStorage.setItem('crm.showMockData', String(next));
+    }
+  }, [branding?.customFields?.showMockData]);
 
   const handleToggleMockData = async () => {
     const nextVal = !showMockData;

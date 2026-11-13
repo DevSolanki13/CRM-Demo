@@ -70,7 +70,7 @@ export const DashboardView = ({
   const activeDeals = useMemo(() => visibleDeals.filter(d => d.status === 'Active'), [visibleDeals]);
   const wonDeals = useMemo(() => visibleDeals.filter(d => d.status === 'Won'), [visibleDeals]);
 
-  const recurringLeads = useMemo(() => (leads || []).filter(l => l.isRecurring), [leads]);
+  const recurringLeads = useMemo(() => (leads || []).filter(l => l.isRecurring && (showMockData || !l.id.match(/^ld-\d+$/))), [leads, showMockData]);
   const activeRecurringCount = useMemo(() => {
     return recurringLeads.filter(l => !l.recurrencePaused && !['purchased', 'not_buying'].includes(l.recurrenceState) && !visibleDeals.some(d => d.leadId === l.id)).length;
   }, [recurringLeads, visibleDeals]);
@@ -125,7 +125,7 @@ export const DashboardView = ({
         value
       };
     });
-  }, [stages, pipelineId, deals, visibleDeals, recurringLeads, summary.stageTotals]);
+  }, [stages, pipelineId, deals, visibleDeals, recurringLeads, summary.stageTotals, showMockData]);
 
   const maxStageCount = Math.max(...stageRows.map(row => row.count), 1);
   const pipelineDealCount = stageRows.reduce((total, row) => total + row.count, 0);
