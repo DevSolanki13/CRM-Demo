@@ -9,7 +9,7 @@ const optionalText = z.string().max(10000).nullable().optional();
 const optionalId = z.string().max(256).nullable().optional();
 const optionalEmail = z.union([z.email(), z.literal(''), z.null()]).optional();
 const optionalJson = z.json().nullable().optional();
-const taskStatus = z.enum(['pending', 'completed', 'done']);
+const taskStatus = z.enum(['pending', 'overdue', 'completed', 'done', 'cancelled']);
 const recordType = z.enum(['Deal', 'Lead', 'Contact', 'Company']);
 const recordLinkIsValid = data => Boolean(data.linkedId) === Boolean(data.linkedType);
 const followUpSchema = z.object({
@@ -376,6 +376,9 @@ export const brandingSchema = z.object({
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   defaultRecurrenceDays: z.number().int().positive().max(3650).optional(),
+  recurringFollowUpDueDays: z.number().int().min(0).max(3650).optional(),
+  recurringFollowUpReminderDays: z.number().int().positive().max(3650).optional(),
+  recurringFollowUpEscalationDays: z.number().int().positive().max(3650).optional(),
   customFields: z.object({
     approvalPolicy: approvalPolicySchema.optional(),
     followUpRules: automationRuleList.optional(),
@@ -427,10 +430,25 @@ export const userSchema = z.object({
   role: z.enum(['Sales Rep', 'Manager', 'Admin']),
   active: z.boolean().optional(),
   avatarUrl: z.string().optional(),
+  timeZone: z.string().trim().min(1).max(64).refine(value => {
+    try { new Intl.DateTimeFormat('en-US', { timeZone: value }); return true; }
+    catch { return false; }
+  }, 'Choose a valid IANA time zone').optional(),
   password: z.string().min(12).max(128).optional(),
 });
 
 export const updateUserSchema = userSchema.partial();
+
+export const recurringFollowUpSubmissionSchema = z.object({
+  outcome: z.enum(['completed', 'not_completed']),
+  dealValue: z.number().finite().nonnegative().optional(),
+  completionDate: z.iso.date().optional(),
+  updateText: z.string().trim().max(5000).optional(),
+  currentStatus: z.enum(['In Progress', 'On Hold', 'Customer Not Responding', 'Lost']).optional(),
+  lostReason: z.string().trim().max(2000).optional(),
+  nextFollowUpDate: z.iso.date().optional(),
+  notes: z.string().trim().max(5000).optional(),
+}).strict();
 
 export const mergeCustomerSchema = z.object({
   sourceId: z.string().trim().min(1),

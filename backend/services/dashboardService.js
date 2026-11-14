@@ -35,7 +35,7 @@ function queueQuery(actor, showMockData = false) {
   const mockFilters = getMockFilters(showMockData);
   return Prisma.sql`
     SELECT 'overdue' AS kind, r.id, to_jsonb(r) AS record FROM "Task" r WHERE ${tasks} ${mockFilters.task}
-      AND r.status = 'pending' AND r.type <> 'Approval' AND r."dueDate" < ${today}
+      AND r.status IN ('pending', 'overdue') AND r.type <> 'Approval' AND r."dueDate" < ${today}
     UNION ALL SELECT 'approval', r.id, to_jsonb(r) FROM "Task" r WHERE ${tasks} ${mockFilters.task}
       AND r.status = 'pending' AND r.type = 'Approval'
     UNION ALL SELECT 'closing', r.id, to_jsonb(r) FROM "Deal" r WHERE ${deals} ${mockFilters.deal}
@@ -95,8 +95,8 @@ export async function getWorkspaceSummary(actor, options = {}) {
         ds."atRiskCount",
         ds."totalAtRiskValue"
       FROM deal_summary ds, recurring_summary rs`),
-    prisma.$queryRaw(Prisma.sql`SELECT count(*) FILTER (WHERE status = 'pending' AND "ownerId" = ${actor.id})::int AS "pendingTasksCount",
-      count(*) FILTER (WHERE status = 'pending' AND left("dueDate",10) <= ${today})::int AS "pendingTasksToday"
+    prisma.$queryRaw(Prisma.sql`SELECT count(*) FILTER (WHERE status IN ('pending', 'overdue') AND "ownerId" = ${actor.id})::int AS "pendingTasksCount",
+      count(*) FILTER (WHERE status IN ('pending', 'overdue') AND left("dueDate",10) <= ${today})::int AS "pendingTasksToday"
       FROM "Task" r WHERE ${recordVisibility('tasks', actor)} ${mockFilters.task}`),
     prisma.$queryRaw(Prisma.sql`SELECT count(*) FILTER (WHERE type = 'Outbound Call')::int AS "outboundCalls",
       count(*) FILTER (WHERE type = 'Outbound Email')::int AS "outboundEmails",

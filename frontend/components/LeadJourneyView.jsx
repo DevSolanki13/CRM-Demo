@@ -42,6 +42,8 @@ import {
 import { formatDate, getStageBadgeStyle, getLocalDateInputValueAfterDays, getRecurringLeadRenewalStatus, getLocalDateInputValue } from '../utils/crmHelpers.js';
 import { fetchTimeline, createActivity, createTask, updateTask } from '../api/crmClient.js';
 import { toast } from 'sonner';
+import { useSearchParams } from 'react-router-dom';
+import { RecurringFollowUpForm, RecurringLeadHistory } from './RecurringFollowUpPanels.jsx';
 
 // Stage guidance & success checklist definitions adapted to CRM tone
 const STAGE_GUIDANCE_MAP = {
@@ -117,8 +119,12 @@ export const LeadJourneyView = ({
   onCreateActivity,
   onCreateTask,
   onUpdateTask,
-  onTransitionDealStage
+  onTransitionDealStage,
+  onRecurringFollowUpSaved,
 }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const followUpId = searchParams.get('followUp');
+  const detailTab = searchParams.get('detail') === 'history' ? 'history' : 'overview';
   // Timeline items fetched from backend
   const [timelineItems, setTimelineItems] = useState(() => getCachedRecordsPage('timeline', { entityType: 'Lead', entityId: lead.id, limit: 25 })?.items || []);
   const [loadingTimeline, setLoadingTimeline] = useState(true);
@@ -599,6 +605,19 @@ export const LeadJourneyView = ({
     keyQuestions: ['Confirm next steps with the customer', 'Update deal value and close date']
   };
 
+  const setDetailTab = tab => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'history') next.set('detail', 'history');
+    else next.delete('detail');
+    setSearchParams(next);
+  };
+
+  const closeFollowUp = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('followUp');
+    setSearchParams(next);
+  };
+
   return (
     <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 bg-[#F6F7F8] min-h-screen text-[#12161C] font-sans">
 
@@ -753,6 +772,17 @@ export const LeadJourneyView = ({
 
       </div>
 
+      {lead.isRecurring && <nav role="tablist" aria-label="Lead detail sections" className="flex gap-2 border-b border-[#E3E6EA]">
+        {[['overview', 'Overview'], ['history', 'History']].map(([tab, label]) => <button key={tab} type="button" role="tab" aria-selected={detailTab === tab}
+          onClick={() => setDetailTab(tab)} className={`min-h-10 border-b-2 px-4 text-sm font-semibold ${detailTab === tab ? 'border-[#1D4E63] text-[#1D4E63]' : 'border-transparent text-[#5B6472] hover:text-[#12161C]'}`}>
+          {label}
+        </button>)}
+      </nav>}
+
+      {followUpId && <RecurringFollowUpForm lead={lead} followUpId={followUpId} currentUser={currentUser}
+        onClose={closeFollowUp} onSaved={onRecurringFollowUpSaved} />}
+
+      {lead.isRecurring && detailTab === 'history' && <RecurringLeadHistory leadId={lead.id} />}
       {/* ============================================================ */}
       {/* 2. SIGNATURE INTERLOCKING CHEVRON STAGE PATH (FULL BAR)       */}
       {/* ============================================================ */}
@@ -984,7 +1014,6 @@ export const LeadJourneyView = ({
         </div>
 
       </div>
-
       {/* ============================================================ */}
       {/* 3. GUIDANCE FOR SUCCESS (ASSISTANT PANEL)                     */}
       {/* ============================================================ */}

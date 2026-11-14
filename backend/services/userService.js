@@ -10,6 +10,10 @@ const fields = z.object({
   role: z.enum(ROLES),
   active: z.boolean(),
   avatarUrl: z.string().max(2048).nullable().optional(),
+  timeZone: z.string().trim().min(1).max(64).refine(value => {
+    try { new Intl.DateTimeFormat('en-US', { timeZone: value }); return true; }
+    catch { return false; }
+  }, 'Choose a valid IANA time zone').optional(),
   password: z.string().min(12).max(128).optional(),
 });
 

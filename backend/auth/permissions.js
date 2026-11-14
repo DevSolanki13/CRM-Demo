@@ -81,7 +81,7 @@ export const authorizeCRM = asyncHandler(async (req, _res, next) => {
   const [resource, id, action] = req.path.split('/').filter(Boolean);
   const write = !['GET', 'HEAD'].includes(req.method);
   const recurringLeadImport = resource === 'leads' && id === 'recurring-import';
-  const known = ['state', 'branding', 'companies', 'contacts', 'leads', 'stages', 'pipelines', 'deals', 'audit-logs', 'tasks', 'notes', 'activities', 'attachments', 'users', 'stage-gate-checks', 'import', 'timeline', 'settings'];
+  const known = ['state', 'branding', 'companies', 'contacts', 'leads', 'stages', 'pipelines', 'deals', 'audit-logs', 'tasks', 'notes', 'activities', 'attachments', 'users', 'stage-gate-checks', 'import', 'timeline', 'settings', 'notifications'];
   if (!known.includes(resource)) fail(404, 'API endpoint not found');
   const adminOnly = (resource === 'state' && write) || resource === 'branding' || resource === 'settings' ||
     (resource === 'stages' && write) || (resource === 'pipelines' && write) ||
@@ -114,7 +114,7 @@ export const authorizeCRM = asyncHandler(async (req, _res, next) => {
     const recurringRequest = req.body?.isRecurring === true ||
       ['recurrenceDate', 'recurrenceFrequency', 'recurrenceInterval'].some(key =>
         req.body?.[key] != null && req.body[key] !== '');
-    if ((recurringRecord || recurringRequest) && !['recurrence-update', 'recurrence-control'].includes(action)) fail(403, 'Administrator permission required for recurring lead settings; use Update cycle to record an outcome');
+    if ((recurringRecord || recurringRequest) && !['recurrence-update', 'recurrence-control', 'follow-ups', 'archive'].includes(action)) fail(403, 'Administrator permission required for recurring lead settings; use Update cycle to record an outcome');
   }
   if (action === 'merge' && ['companies', 'contacts'].includes(resource)) {
     if (!managed(req.user)) fail(403, 'Manager permission required to merge customer records');

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../utils/crmHelpers.js';
 import { fetchReportSummary, fetchReportAuditPage } from '../api/crmClient.js';
+import { useUrlParamState } from '../hooks/useUrlParamState.js';
 
 export const ReportsView = ({
   state,
@@ -24,9 +25,9 @@ export const ReportsView = ({
 }) => {
   const { users = [], pipelines = [] } = state;
 
-  const [selectedRep, setSelectedRep] = useState(currentUser?.role === 'Sales Rep' ? currentUser.id : 'All');
-  const [selectedPipeline, setSelectedPipeline] = useState('All');
-  const [auditFilterAction, setAuditFilterAction] = useState('All');
+  const [selectedRep, setSelectedRep] = useUrlParamState('rep', currentUser?.role === 'Sales Rep' ? currentUser.id : 'All');
+  const [selectedPipeline, setSelectedPipeline] = useUrlParamState('pipeline', 'All');
+  const [auditFilterAction, setAuditFilterAction] = useUrlParamState('action', 'All');
   const [month] = useState(() => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 7));
   const [summary, setSummary] = useState(() => getCachedRecordsPage('report-summary', { rep: selectedRep, month, pipeline: selectedPipeline }) || null);
   const [summaryError, setSummaryError] = useState('');

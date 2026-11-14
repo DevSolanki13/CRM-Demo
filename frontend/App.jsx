@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getLocalDateInputValueAfterDays } from './utils/crmHelpers.js';
 import {
   fetchCRMState,
@@ -26,6 +27,7 @@ import {
   createLead,
   updateLead,
   deleteLead,
+  archiveRecurringLead,
   importRecurringLeads as importRecurringLeadCompanies,
   clearRecurringLeads as clearRecurringLeadRecords,
   createStage,
@@ -83,9 +85,11 @@ import {
 import { normalizeStageColor, isRenewalStage } from '../backend/constants/stageConstants.js';
 import { canAccessPage, getRecordUsers } from '../shared/accessPolicy.js';
 import { isRecurringTask } from '../shared/leadRecurrence.js';
+import { APP_PAGE_PATHS, LEAD_SECTION_PATHS, resolveAppLocation } from './utils/leadRoutes.js';
+import { useUrlParamState } from './hooks/useUrlParamState.js';
 const RecurringCycleDialog = lazy(() => import('./components/RecurringCycleDialog.jsx').then(module => ({ default: module.RecurringCycleDialog })));
 
-const KNOWN_TABS = ['dashboard', 'leads', 'pipeline', 'contacts', 'companies', 'tasks', 'employees', 'reports', 'settings', 'connections'];
+const KNOWN_TABS = Object.keys(APP_PAGE_PATHS);
 const INITIAL_COLLECTIONS = ['branding', 'users', 'stages', 'pipelines', 'leads',
   'deals', 'tasks', 'activities'];
 const TAB_COLLECTIONS = {
@@ -105,14 +109,15 @@ const normalizeStateStages = (data) => {
 };
 
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const route = resolveAppLocation(location);
+  const activeTab = route.activeTab;
+  const leadSection = route.leadSection;
   const [state, setState] = useState(null);
   const [revision, setRevision] = useState(0);
   const [recurringTaskLead, setRecurringTaskLead] = useState(null);
-  const [activeTab, setActiveTab] = useState(() => {
-    const tab = window.location.hash.slice(1).split('?')[0];
-    return KNOWN_TABS.includes(tab) ? tab : 'dashboard';
-  });
-  const [selectedPipelineId, setSelectedPipelineId] = useState('pipeline-sales');
+  const [selectedPipelineId, setSelectedPipelineId] = useUrlParamState('pipeline', 'pipeline-sales');
   const [currentUser, setCurrentUser] = useState(null);
   const [canSignOut, setCanSignOut] = useState(false);
   const [workspaceAccounts, setWorkspaceAccounts] = useState([]);
@@ -123,7 +128,7 @@ export default function App() {
   const [tabLoadError, setTabLoadError] = useState('');
   const [tabRetry, setTabRetry] = useState(0);
   const [authRequired, setAuthRequired] = useState(false);
-  const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('invite'));
+  const [inviteToken, setInviteToken] = useState(() => new URLSearchParams(location.hash.slice(1)).get('invite'));
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Modals & Drawer
@@ -135,6 +140,10 @@ export default function App() {
   });
 
   const handleOpenDrawer = (type, item) => {
+    if (type === 'lead' && item?.id) {
+      navigateToLeadDetail(item);
+      return;
+    }
     setDrawerState({ isOpen: true, type, item });
   };
 
@@ -171,31 +180,87 @@ export default function App() {
     return state?.leads?.find(l => l.id === selectedLeadForJourney.id) || selectedLeadForJourney;
   }, [selectedLeadForJourney, state?.leads]);
 
+  const navigateToLeadSection = section => {
+    const path = LEAD_SECTION_PATHS[section] || LEAD_SECTION_PATHS.new;
+    const search = activeTab === 'leads' ? location.search : '';
+    navigate(`${path}${search}`);
+    setSelectedLeadForJourney(null);
+    setIsMobileMenuOpen(false);
+    setDrawerState(previous => ({ ...previous, isOpen: false }));
+  };
+
+  const navigateToLeadDetail = (lead, section = lead?.isRecurring ? 'recurring' : leadSection) => {
+    if (!lead?.id) return;
+    const basePath = LEAD_SECTION_PATHS[section] || LEAD_SECTION_PATHS.new;
+    const search = activeTab === 'leads' ? location.search : '';
+    navigate(`${basePath}/${encodeURIComponent(lead.id)}${search}`, {
+      state: { from: `${location.pathname}${location.search}` },
+    });
+    setSelectedLeadForJourney(lead);
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleOpenLeadFollowUp = (lead, followUpId) => {
+    if (!lead?.id || !followUpId) return;
+    const query = new URLSearchParams(location.search);
+    query.set('followUp', followUpId);
+    navigate(`${LEAD_SECTION_PATHS.recurring}/${encodeURIComponent(lead.id)}?${query}`, {
+      state: { from: `${location.pathname}${location.search}` },
+    });
+    setSelectedLeadForJourney(lead);
+    setIsMobileMenuOpen(false);
+  };
+
+  const handleBackFromLead = () => {
+    if (location.state?.from) {
+      navigate(-1);
+      return;
+    }
+    navigate(`${LEAD_SECTION_PATHS[leadSection]}${location.search}`, { replace: true });
+  };
+
+  const navigateToTab = tab => {
+    if (tab === 'leads') {
+      navigateToLeadSection('new');
+      return;
+    }
+    navigate(APP_PAGE_PATHS[tab] || APP_PAGE_PATHS.dashboard);
+  };
+
   const handleNavigateTab = (tab, pipelineId) => {
     if (!canAccessPage(currentUser, tab)) return;
-    if (tab === 'pipeline' && pipelineId) setSelectedPipelineId(pipelineId);
-    setActiveTab(tab);
-    if (tab === 'leads' && activeTab === 'leads') {
-      setSelectedLeadForJourney(null);
+    if (tab === 'pipeline' && pipelineId) {
+      navigate(`${APP_PAGE_PATHS.pipeline}?pipeline=${encodeURIComponent(pipelineId)}`);
+      return;
     }
+    navigateToTab(tab);
   };
 
   useEffect(() => {
-    if (!currentUser) return;
-    const navigateFromHash = () => {
-      const requested = window.location.hash.slice(1).split('?')[0] || 'dashboard';
-      const tab = canAccessPage(currentUser, requested) ? requested : 'dashboard';
-      if (tab !== requested) {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search + '#dashboard');
-      }
-      setActiveTab(tab);
-      setSelectedLeadForJourney(null);
-      setIsMobileMenuOpen(false);
-      setDrawerState(previous => ({ ...previous, isOpen: false }));
-    };
-    window.addEventListener('hashchange', navigateFromHash);
-    return () => window.removeEventListener('hashchange', navigateFromHash);
-  }, [currentUser]);
+    if (loading || !currentUser) return;
+    if (!canAccessPage(currentUser, route.activeTab)) {
+      navigate(APP_PAGE_PATHS.dashboard, { replace: true });
+      return;
+    }
+    if (route.canonicalUrl) navigate(route.canonicalUrl, { replace: true });
+  }, [currentUser, loading, navigate, route.activeTab, route.canonicalUrl]);
+
+  useEffect(() => {
+    if (!route.leadId || !currentUser) {
+      if (!route.leadId) setSelectedLeadForJourney(null);
+      return;
+    }
+    const lead = state?.leads?.find(item => item.id === route.leadId);
+    if (lead) {
+      setSelectedLeadForJourney(lead);
+      return;
+    }
+    let cancelled = false;
+    fetchRecord('leads', route.leadId).then(item => {
+      if (!cancelled) setSelectedLeadForJourney(item);
+    }).catch(error => toast.error(error.message));
+    return () => { cancelled = true; };
+  }, [currentUser, route.leadId, state?.leads]);
 
   // Global Keyboard Shortcuts (Cmd+K / Ctrl+K) focuses header search input
   useEffect(() => {
@@ -215,15 +280,10 @@ export default function App() {
     async function loadData() {
       try {
         const { user, authMode, accounts = [] } = await fetchCurrentUser();
-        const requestedTab = window.location.hash.slice(1).split('?')[0];
-        if (KNOWN_TABS.includes(requestedTab) && !canAccessPage(user, requestedTab)) {
-          window.history.replaceState(null, '', window.location.pathname + window.location.search + '#dashboard');
-        }
         const [data, overview] = await Promise.all([fetchCRMState(INITIAL_COLLECTIONS), fetchWorkspaceSummary()]);
         if (!cancelled) {
           setState(normalizeStateStages({ ...data, overview, auditLogs: [] }));
           setCurrentUser(user);
-          setActiveTab(tab => canAccessPage(user, tab) ? tab : 'dashboard');
           setCanSignOut(authMode === 'session');
           setWorkspaceAccounts(authMode === 'shared' ? accounts : []);
         }
@@ -306,7 +366,6 @@ export default function App() {
     const [data, overview] = await Promise.all([fetchCRMState(INITIAL_COLLECTIONS), fetchWorkspaceSummary()]);
     setState(normalizeStateStages({ ...data, overview, auditLogs: [] }));
     setCurrentUser(user);
-    setActiveTab(tab => canAccessPage(user, tab) ? tab : 'dashboard');
     setCanSignOut(true);
     setWorkspaceAccounts([]);
     setAuthRequired(false);
@@ -319,7 +378,6 @@ export default function App() {
       setState(null);
       setCurrentUser(null);
       setAuthRequired(true);
-      setActiveTab('dashboard');
     } catch (error) {
       toast.error(error.message || 'Could not sign out');
     }
@@ -331,7 +389,6 @@ export default function App() {
     setAccountSwitchError('');
     try {
       await selectWorkspaceAccount(accountId);
-      window.history.replaceState(null, '', window.location.pathname + window.location.search + '#dashboard');
       window.location.reload();
     } catch (error) {
       setAccountSwitchError(error.message || 'Could not switch accounts. Please try again.');
@@ -342,7 +399,7 @@ export default function App() {
   const handleAcceptInvitation = async password => {
     await acceptInvitation(inviteToken, password);
     await signOut().catch(() => {});
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    navigate(`${location.pathname}${location.search}`, { replace: true });
     setInviteToken(null);
     setState(null);
     setCurrentUser(null);
@@ -403,7 +460,6 @@ export default function App() {
       setCurrentUser(user);
       setCanSignOut(authMode === 'session');
       setWorkspaceAccounts(authMode === 'shared' ? accounts : []);
-      setActiveTab(tab => canAccessPage(user, tab) ? tab : 'dashboard');
     }
     setRevision(value => value + 1);
   };
@@ -565,6 +621,18 @@ export default function App() {
     }
   };
 
+  const handleArchiveRecurringLead = async id => {
+    try {
+      await archiveRecurringLead(id);
+      setState(prev => prev ? { ...prev, leads: (prev.leads || []).filter(lead => lead.id !== id) } : prev);
+      await reloadState('leads', 'tasks', 'auditLogs');
+      toast.success('Recurring lead archived; its history is preserved');
+    } catch (error) {
+      toast.error(error.message || 'Could not archive recurring lead');
+      throw error;
+    }
+  };
+
   const handleImportRecurringLeadCompanies = async (rows, schedule) => {
     try {
       const result = await importRecurringLeadCompanies(rows, schedule);
@@ -677,10 +745,23 @@ export default function App() {
 
   const handleOpenRecurringTask = async task => {
     try {
-      const record = task.linkedId ? task : await fetchRecord('tasks', task.id);
+      const record = task.recurringFollowUpId ? task : await fetchRecord('tasks', task.id);
       const lead = await fetchRecord('leads', record.linkedId);
+      if (record.recurringFollowUpId) {
+        const query = new URLSearchParams(location.search);
+        query.set('followUp', record.recurringFollowUpId);
+        navigate(`${LEAD_SECTION_PATHS.recurring}/${encodeURIComponent(lead.id)}?${query}`, {
+          state: { from: `${location.pathname}${location.search}` },
+        });
+        setSelectedLeadForJourney(lead);
+        return;
+      }
       setRecurringTaskLead(lead);
     } catch (err) { toast.error(err.message || 'Could not open the recurring lead.'); }
+  };
+
+  const handleRecurringFollowUpSaved = async () => {
+    await reloadState('leads', 'tasks', 'activities', 'auditLogs');
   };
 
   const handleDeleteTask = async (id) => {
@@ -889,28 +970,27 @@ export default function App() {
   // Quick Action Handler from Header
   const handleQuickAction = (type) => {
     if (type === 'lead') {
-      setSelectedLeadForJourney(null);
+      navigateToLeadSection('new');
       setLeadCreateRequest(request => request + 1);
-      setActiveTab('leads');
     }
-    else if (type === 'deal') setActiveTab('pipeline');
-    else if (type === 'contact') setActiveTab('contacts');
-    else if (type === 'activity') setActiveTab('dashboard');
+    else if (type === 'deal') navigateToTab('pipeline');
+    else if (type === 'contact') navigateToTab('contacts');
+    else if (type === 'activity') navigateToTab('dashboard');
   };
 
   // Global search result selection
   const handleSelectSearchResult = (type, item) => {
     if (type === 'lead') {
-      setActiveTab('leads');
-      if (item) setSelectedLeadForJourney(item);
+      if (item) navigateToLeadDetail(item);
     } else if (type === 'deal') {
-      if (item?.pipelineId) setSelectedPipelineId(item.pipelineId);
-      setActiveTab('pipeline');
+      navigate(item?.pipelineId
+        ? `${APP_PAGE_PATHS.pipeline}?pipeline=${encodeURIComponent(item.pipelineId)}`
+        : APP_PAGE_PATHS.pipeline);
       if (item) setDrawerState({ isOpen: true, type: 'deal', item });
     } else if (type === 'contact') {
-      setActiveTab('contacts');
+      navigateToTab('contacts');
     } else if (type === 'company') {
-      setActiveTab('companies');
+      navigateToTab('companies');
     }
   };
 
@@ -929,6 +1009,7 @@ export default function App() {
             onPrefetch={tab => prefetchView(tab, currentUser)}
             activeTab={activeTab}
             setActiveTab={handleNavigateTab}
+            navigateToLeadSection={navigateToLeadSection}
             userRole={currentUser.role}
             currentUser={currentUser}
             branding={state.branding}
@@ -941,8 +1022,9 @@ export default function App() {
           />
 
           <div className="flex min-w-0 flex-1 flex-col">
-          <Header activeTab={activeTab} currentUser={currentUser}
+          <Header activeTab={activeTab} leadSection={leadSection} currentUser={currentUser}
             onLogout={canSignOut ? handleLogout : undefined}
+            onNavigateNotification={href => navigate(href)}
             accounts={workspaceAccounts} onSwitchAccount={handleSwitchAccount}
             switchingAccountId={switchingAccountId} accountSwitchError={accountSwitchError}
             onSelectSearchResult={handleSelectSearchResult}
@@ -978,7 +1060,7 @@ export default function App() {
                   users={recordUsers}
                   currentUser={currentUser}
                   branding={state.branding}
-                  onBack={() => setSelectedLeadForJourney(null)}
+                  onBack={handleBackFromLead}
                   onOpenDrawer={handleOpenDrawer}
                   onUpdateLead={handleUpdateLead}
                   onUpdateDeal={handleUpdateDeal}
@@ -986,9 +1068,12 @@ export default function App() {
                   onCreateTask={handleCreateTask}
                   onUpdateTask={handleUpdateTask}
                   onTransitionDealStage={handleTransitionDealStage}
+                  onRecurringFollowUpSaved={handleRecurringFollowUpSaved}
                 />
               ) : (
                 <LeadsView revision={revision}
+                  leadSection={leadSection}
+                  onLeadSectionChange={navigateToLeadSection}
                   createRequest={leadCreateRequest}
                   onConsumeCreateRequest={() => setLeadCreateRequest(0)}
                   leads={state.leads}
@@ -1003,6 +1088,7 @@ export default function App() {
                   onClearRecurringLeads={handleClearRecurringLeadRecords}
                   onUpdateLead={handleUpdateLead}
                   onDeleteLead={handleDeleteLead}
+                  onArchiveRecurringLead={handleArchiveRecurringLead}
                   onConvertToDeal={handleConvertToDeal}
                   onCreateActivity={handleCreateActivity}
                   onCreateNote={handleCreateNote}
@@ -1012,7 +1098,8 @@ export default function App() {
                   onApproveStageGateCheck={handleApproveStageGateCheck}
                   onRejectStageGateCheck={handleRejectStageGateCheck}
                   onOpenDrawer={handleOpenDrawer}
-                  onOpenLeadJourney={(lead) => setSelectedLeadForJourney(lead)}
+                  onOpenLeadJourney={navigateToLeadDetail}
+                  onOpenRecurringFollowUp={handleOpenLeadFollowUp}
                 />
               )
             )}
@@ -1150,7 +1237,7 @@ export default function App() {
             {!KNOWN_TABS.includes(activeTab) && (
               <NotFoundView
                 requestedTab={activeTab}
-                onNavigateTab={setActiveTab}
+                onNavigateTab={handleNavigateTab}
                 onOpenSearch={() => document.querySelector('header input')?.focus()}
               />
             )}
@@ -1182,7 +1269,7 @@ export default function App() {
           onCreateTask={handleCreateTask}
           onUpdateTask={handleUpdateTask}
           onOpenStageGateModal={() => {
-            setActiveTab('pipeline');
+            navigateToTab('pipeline');
             handleCloseDrawer();
           }}
           onCloseLostDeal={handleCloseLostDeal}

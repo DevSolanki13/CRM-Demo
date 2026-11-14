@@ -1,5 +1,7 @@
 import { TasksSkeleton } from './skeletons/TasksSkeleton.jsx';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { useUrlRecordsPage } from '../hooks/useUrlRecordsPage.js';
+import { useUrlParamState } from '../hooks/useUrlParamState.js';
 import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState, useMemo } from 'react';
 import { 
@@ -40,10 +42,12 @@ export const TasksView = ({
   onRejectStageGateCheck
 }) => {
   // Dual-Queue primary tab: 'followups' | 'approvals'
-  const [activeQueue, setActiveQueue] = useState('followups');
-  const [activeScope, setActiveScope] = useState('my'); // 'my' | 'team'
-  const [typeFilter, setTypeFilter] = useState('All');
-  const [showCompleted, setShowCompleted] = useState(false);
+  const [activeQueue, setActiveQueue] = useUrlParamState('queue', 'followups');
+  const [activeScope, setActiveScope] = useUrlParamState('scope', 'my');
+  const [typeFilter, setTypeFilter] = useUrlParamState('type', 'All');
+  const [showCompletedValue, setShowCompletedValue] = useUrlParamState('completed', 'false');
+  const showCompleted = showCompletedValue === 'true';
+  const setShowCompleted = value => setShowCompletedValue(String(value));
 
   // Modal State for New Task
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,14 +65,14 @@ export const TasksView = ({
   const isManagerOrAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Manager';
 
   const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
-  const [searchQuery, setSearchQuery] = useState('');
-  const taskPage = useRecordsPage('tasks', { q: searchQuery,
+  const [searchQuery, setSearchQuery] = useUrlParamState('q', '', { replace: true });
+  const taskPage = useUrlRecordsPage('tasks', { q: searchQuery,
     owner: activeScope === 'my' ? currentUser?.id : 'All',
     queue: activeQueue, type: activeQueue === 'followups' ? typeFilter : 'All',
     showCompleted: String(showCompleted),
     showMockData: String(showMockData),
   }, revision, activeQueue !== 'approvals' || isManagerOrAdmin);
-  const approvalsPage = useRecordsPage('stageGateChecks', { q: searchQuery, status: 'pending_review' },
+  const approvalsPage = useUrlRecordsPage('stageGateChecks', { q: searchQuery, status: 'pending_review' },
     revision, activeQueue === 'approvals' && !isManagerOrAdmin);
   const page = activeQueue === 'approvals' && !isManagerOrAdmin ? approvalsPage : taskPage;
   const tasks = useMemo(() => {
@@ -98,7 +102,7 @@ export const TasksView = ({
 
   // Grouped Follow-ups by Urgency
   const overdueTasks = useMemo(() => {
-    return filteredFollowups.filter(t => t.status === 'pending' && t.dueDate?.split('T')[0] < todayStr);
+    return filteredFollowups.filter(t => ['pending', 'overdue'].includes(t.status) && (t.status === 'overdue' || t.dueDate?.split('T')[0] < todayStr));
   }, [filteredFollowups, todayStr]);
 
   const dueTodayTasks = useMemo(() => {
@@ -227,7 +231,11 @@ export const TasksView = ({
           </div>
 
           {isRecurringTask(task) ? <button type="button" onClick={() => onOpenRecurringTask?.(task)}
-            className="min-h-10 rounded-lg border border-[#D8E8EF] px-3 py-2 text-xs font-semibold text-[#1D4E63]">Update cycle</button> : <button
+            className="min-h-10 rounded-lg border border-[#D8E8EF] px-3 py-2 text-xs font-semibold text-[#1D4E63]">
+            {task.recurringFollowUpId
+              ? task.ownerId === currentUser?.id ? 'Complete follow-up' : 'View follow-up'
+              : 'Update cycle'}
+          </button> : <button
             onClick={() => onDeleteTask(task.id)}
             aria-label={`Delete task ${task.title}`}
             className="p-1.5 text-[#5B6472] hover:text-[#922D27] hover:bg-[#FDF2F1] rounded-lg transition-colors"

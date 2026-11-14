@@ -23,11 +23,14 @@ test.afterAll(async () => {
 test('admin creates a schedule; assigned rep updates it and opens its reminder task', async ({ page }) => {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   const title = `QA recurring monthly ${suffix}`;
-  await page.goto('/#leads');
+  const companyName = `QA recurring company ${suffix}`;
+  await page.goto('/leads/new');
   await page.getByRole('tab', { name: /Recurring Leads/ }).click();
+  await expect(page).toHaveURL(/\/leads\/recurring$/);
   await page.getByRole('button', { name: 'Add Recurring Lead', exact: true }).click();
   const form = page.getByRole('dialog', { name: 'Create Recurring Lead' });
   await form.getByPlaceholder('Enter the lead name').fill(title);
+  await form.getByPlaceholder('e.g. AeroTech Solutions').fill(companyName);
   await form.getByLabel('Assigned Owner').selectOption(repId);
   await form.getByLabel('Expected first purchase date').fill(shiftDate(today, 10));
   await form.getByLabel('Repeat every (months)').fill('4');
@@ -39,13 +42,19 @@ test('admin creates a schedule; assigned rep updates it and opens its reminder t
   expect(lead.recurrenceInterval).toBe(4);
   expect(lead.nextRecurrenceDate).toBe(shiftDate(today, 10));
   await expect(form).toBeHidden();
-  await page.getByRole('searchbox', { name: 'Search recurring leads', exact: true }).fill(title);
+  const search = page.getByRole('searchbox', { name: 'Search recurring leads', exact: true });
+  await search.fill(title);
   await expect(page.getByRole('table')).toContainText('Every 4 months');
   await expect(page.getByRole('table').getByRole('columnheader')).toHaveText([
-    'Lead name', 'Company', 'Email / phone', 'Status', 'Assigned employee',
+    'Lead name', 'Email / phone', 'Status', 'Assigned employee',
     'Recurrence date', 'Next recurrence', 'Next follow-up', 'Last contacted', 'Actions',
   ]);
+  const leadNameCell = page.getByRole('row').filter({ hasText: title }).locator('td').first();
+  await expect(leadNameCell).toContainText(title);
+  await expect(leadNameCell).toContainText(companyName);
   await expect(page.getByRole('table')).toContainText('Monthly update needed');
+  await search.fill(companyName);
+  await expect(page.getByRole('table')).toContainText(title);
 
   // Each tab's account selection is independent; use the existing shared-mode account switch protocol.
   await page.evaluate(id => sessionStorage.setItem('crm.workspaceAccountId', id), repId);
@@ -74,6 +83,28 @@ test('admin creates a schedule; assigned rep updates it and opens its reminder t
   await page.getByRole('button', { name: 'Update cycle', exact: true }).first().click();
   await expect(page.getByRole('dialog', { name: `Update cycle — ${title}` })).toBeVisible();
   await page.getByRole('button', { name: 'Close cycle update' }).click();
+
+  const cycle = await prisma.leadRecurrenceCycle.findFirst({ where: { leadId: lead.id } });
+  const followUpId = `rlf-${suffix}`;
+  const followUpTaskId = `recurrence:${cycle.id}:follow-up`;
+  await prisma.task.create({ data: {
+    id: followUpTaskId, title: `Follow-up: ${title}`, dueDate: shiftDate(today, 2), type: 'Follow-up',
+    linkedType: 'Lead', linkedId: lead.id, linkedTitle: title, ownerId: repId,
+    ownerName: 'Recurring browser test rep', status: 'pending', createdAt: today,
+  } });
+  await prisma.recurringLeadFollowUp.create({ data: {
+    id: followUpId, leadId: lead.id, cycleId: cycle.id, taskId: followUpTaskId,
+    cycleNumber: cycle.cycleNumber, assigneeId: repId, assigneeName: 'Recurring browser test rep',
+    assigneeTimeZone: 'UTC', dueDate: shiftDate(today, 2), status: 'pending',
+  } });
+  await page.goto('/leads/recurring');
+  await page.getByRole('searchbox', { name: 'Search recurring leads', exact: true }).fill(title);
+  await page.getByRole('button', { name: `Complete follow-up for ${title}` }).click();
+  await expect(page).toHaveURL(new RegExp(`/leads/recurring/${lead.id}\\?.*followUp=${followUpId}`));
+  await expect(page.getByText('Was the deal completed for this cycle?')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Cycle 1 follow-up' })).toBeVisible();
+  await expect(page.getByText('Assigned to Recurring browser test rep')).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Deal Completed' })).toBeEnabled();
   expect(errors).toEqual([]);
 });
 
@@ -84,7 +115,7 @@ test('mobile supports selected monthly dates and manager pause with a reason', a
   expect(response.status()).toBe(201);
   const lead = await response.json(); leadIds.push(lead.id);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/#leads');
+  await page.goto('/leads/recurring');
   await page.getByRole('tab', { name: /Recurring Leads/ }).click();
   await page.getByRole('searchbox', { name: 'Search recurring leads', exact: true }).fill(title);
   await expect(page.getByRole('region', { name: 'Recurring leads', exact: true }).getByRole('list').getByText('Monthly on 5, 15, 25')).toBeVisible();

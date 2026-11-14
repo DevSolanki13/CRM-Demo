@@ -39,6 +39,7 @@ import {
   updateUserSchema,
   mergeCustomerSchema,
   resolveReferenceSchema,
+  recurringFollowUpSubmissionSchema,
 } from '../middleware/validation.js';
 
 export const crmRouter = Router();
@@ -61,6 +62,8 @@ crmRouter.get('/me', attachWorkspaceActor, getWorkspaceIdentity);
 crmRouter.get('/state', attachWorkspaceActor, crmController.getState);
 crmRouter.get('/leads/:id/recurrence', attachWorkspaceActor, crmController.getLeadRecurrence);
 crmRouter.use(protectWrites, attachWorkspaceActor, authorizeCRM);
+crmRouter.get('/notifications', crmController.getNotifications);
+crmRouter.put('/notifications/:id/read', crmController.markNotificationRead);
 crmRouter.post('/state/reset', crmController.resetState);
 
 // Branding & Settings
@@ -85,6 +88,10 @@ crmRouter.post('/leads/recurring-import/preview', validateBody(recurringLeadImpo
 crmRouter.post('/leads/recurring-import/import', validateBody(recurringLeadImportSchema), crmController.importRecurringLeads);
 crmRouter.post('/leads/recurring-import/clear', validateBody(clearRecurringLeadsSchema), crmController.clearRecurringLeads);
 crmRouter.put('/leads/:id', validateBody(updateLeadSchema), crmController.updateLead);
+crmRouter.get('/leads/:id/history', crmController.getLeadHistory);
+crmRouter.get('/leads/:id/follow-ups/:followUpId', crmController.getRecurringFollowUp);
+crmRouter.post('/leads/:id/follow-ups/:followUpId/submit', validateBody(recurringFollowUpSubmissionSchema), crmController.submitRecurringFollowUp);
+crmRouter.post('/leads/:id/archive', crmController.archiveRecurringLead);
 crmRouter.post('/leads/:id/recurrence-update', validateBody(recurrenceUpdateSchema), crmController.updateLeadRecurrence);
 crmRouter.post('/leads/:id/recurrence-control', validateBody(recurrenceControlSchema), crmController.controlLeadRecurrence);
 crmRouter.delete('/leads/:id', crmController.deleteLead);

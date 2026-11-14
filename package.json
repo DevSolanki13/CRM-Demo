@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node backend/server.js",
+    "dev": "node backend/scripts/dev.js",
     "build": "prisma generate && vite build && esbuild backend/server.js --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "seed": "node prisma/seed.js",
@@ -41,6 +41,7 @@
     "pg": "^8.23.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-router-dom": "^7.18.5",
     "sonner": "^2.0.8",
     "vite": "^6.2.3",
     "zod": "^4.6.5"

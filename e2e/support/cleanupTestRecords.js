@@ -30,6 +30,7 @@ export async function cleanupTestRecords({ leadIds = [], dealIds = [], activityI
       throw new Error('Test automation is still running; cleanup cannot remove its records yet.');
     }
     if (eventFilter.length) await tx.automationEvent.deleteMany({ where: { OR: eventFilter } });
+    await tx.recurringLeadFollowUp.deleteMany({ where: { leadId: { in: leads } } });
     const checks = await tx.stageGateCheck.findMany({ where: { dealId: { in: dealList } }, select: { id: true } });
     const tasks = await tx.task.findMany({ where: { OR: [...linked, { stageGateCheckId: { in: checks.map(check => check.id) } }] }, select: { id: true } });
     const taskIds = tasks.map(task => task.id);

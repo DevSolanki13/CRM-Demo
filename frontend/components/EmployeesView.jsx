@@ -26,12 +26,13 @@ export const EmployeesView = ({
     name: '',
     email: '',
     role: 'Sales Rep',
-    active: true
+    active: true,
+    timeZone: 'UTC',
   });
 
   const handleOpenAdd = () => {
     setEditingUser(null);
-    setFormData({ name: '', email: '', role: 'Sales Rep', active: true });
+    setFormData({ name: '', email: '', role: 'Sales Rep', active: true, timeZone: 'UTC' });
     setIsModalOpen(true);
   };
 
@@ -227,6 +228,15 @@ export const EmployeesView = ({
                   <option value="Manager">Manager</option>
                   <option value="Admin">Admin</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-[#5B6472] font-semibold mb-1" htmlFor="member-time-zone">Time zone</label>
+                <input id="member-time-zone" type="text" maxLength={64} required value={formData.timeZone || 'UTC'}
+                  onChange={event => setFormData({ ...formData, timeZone: event.target.value })}
+                  placeholder="e.g. Asia/Kolkata"
+                  className="w-full rounded-xl border border-[#E3E6EA] bg-[#F6F7F8] p-2.5 text-[#12161C] focus-visible:outline-2 focus-visible:outline-[#1D4E63]" />
+                <p className="mt-1 text-[11px] text-[#5B6472]">Use an IANA zone such as America/Los_Angeles or Europe/London.</p>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E3E6EA]">

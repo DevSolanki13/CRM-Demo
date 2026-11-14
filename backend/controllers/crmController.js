@@ -21,6 +21,7 @@ import { listRecordsPage } from '../services/paginatedRecords.js';
 import { getWorkspaceSummary as workspaceSummary, listDashboardQueue } from '../services/dashboardService.js';
 import { listUnresolvedReferences, resolveReference } from '../services/referenceReconciliationService.js';
 import { getReportSummary as buildReportSummary, getReportAuditPage as listReportAuditPage } from '../services/reportService.js';
+import * as recurringFollowUpService from '../services/recurringFollowUpService.js';
 
 // Health & System State
 export const getHealth = (_req, res) => {
@@ -67,6 +68,35 @@ export const getReportSummary = asyncHandler(async (req, res) => {
 
 export const getReportAuditPage = asyncHandler(async (req, res) => {
   res.json(await listReportAuditPage(req.user, req.query));
+});
+
+export const getRecurringFollowUp = asyncHandler(async (req, res) => {
+  res.json(await recurringFollowUpService.getRecurringFollowUp(req.params.id, req.params.followUpId, req.user));
+});
+
+export const submitRecurringFollowUp = asyncHandler(async (req, res) => {
+  res.json(await recurringFollowUpService.submitRecurringFollowUp(
+    req.params.id, req.params.followUpId, req.body, req.user
+  ));
+});
+
+export const getLeadHistory = asyncHandler(async (req, res) => {
+  res.json(await recurringFollowUpService.listLeadHistory(req.params.id, req.user, {
+    cycleNumber: req.query.cycleNumber,
+    outcome: req.query.outcome,
+  }));
+});
+
+export const archiveRecurringLead = asyncHandler(async (req, res) => {
+  res.json(await recurringFollowUpService.archiveRecurringLead(req.params.id, req.user));
+});
+
+export const getNotifications = asyncHandler(async (req, res) => {
+  res.json(await recurringFollowUpService.listNotifications(req.user));
+});
+
+export const markNotificationRead = asyncHandler(async (req, res) => {
+  res.json(await recurringFollowUpService.markNotificationRead(req.params.id, req.user));
 });
 
 export const getState = asyncHandler(async (req, res) => {

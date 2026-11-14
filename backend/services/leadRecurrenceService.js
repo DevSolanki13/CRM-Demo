@@ -39,14 +39,15 @@ async function task(tx, lead, id, title, dueDate, note, today) {
 }
 
 export async function syncRecurringLead(tx, lead, today = getLocalDateString()) {
-  if (!lead.isRecurring || lead.recurrencePaused) return null;
-  let cycle = await tx.leadRecurrenceCycle.findFirst({ where: { leadId: lead.id, ...activeWhere }, orderBy: { createdAt: 'desc' } });
+  if (!lead.isRecurring || lead.recurrencePaused || lead.archivedAt) return null;
+  let cycle = await tx.leadRecurrenceCycle.findFirst({ where: { leadId: lead.id, ...activeWhere }, orderBy: { cycleNumber: 'asc' } });
   if (!cycle) {
     const expectedDate = lead.nextRecurrenceDate || lead.recurrenceDate || today;
     const firstFollowUp = lead.nextFollowUpDate || shiftDate(expectedDate, -reminderOffsets(lead)[0]);
+    const lastCycle = await tx.leadRecurrenceCycle.aggregate({ where: { leadId: lead.id }, _max: { cycleNumber: true } });
     cycle = await tx.leadRecurrenceCycle.upsert({
       where: { leadId_originalDate: { leadId: lead.id, originalDate: expectedDate } }, update: {},
-      create: { id: `lrc-${randomUUID()}`, leadId: lead.id, originalDate: expectedDate,
+      create: { id: `lrc-${randomUUID()}`, leadId: lead.id, cycleNumber: (lastCycle._max.cycleNumber || 0) + 1, originalDate: expectedDate,
         expectedDate, nextActionDate: firstFollowUp, status: 'awaiting', createdAt: new Date().toISOString() },
     });
     // A closed occurrence is never reopened by a scheduler retry.
@@ -59,17 +60,24 @@ export async function syncRecurringLead(tx, lead, today = getLocalDateString()) 
     OR: [{ id: { startsWith: 'recurrence:' } }, { id: { startsWith: 'recurrence-review:' } }, { id: { startsWith: 'recurrence-action:' } }] },
   data: { ownerId: lead.ownerId, ownerName: lead.ownerName } });
 
-  const [first, second] = reminderOffsets(lead);
-  if (cycle.status !== 'confirmed') {
+  if (cycle.expectedDate <= today) {
+    await tx.task.updateMany({
+      where: {
+        linkedType: 'Lead',
+        linkedId: lead.id,
+        status: { in: ['pending', 'overdue'] },
+        id: { startsWith: `recurrence:${cycle.id}:${cycle.expectedDate}:` },
+      },
+      data: { status: 'cancelled', resolution: 'Cycle date reached; use the recurring follow-up form.' },
+    });
+  } else if (cycle.status !== 'confirmed') {
+    const [first, second] = reminderOffsets(lead);
     for (const offset of [...new Set([first, second])]) {
       const due = shiftDate(cycle.expectedDate, -offset);
       if (due <= today) await task(tx, lead, `recurrence:${cycle.id}:${cycle.expectedDate}:${offset}`,
         `Confirm rebuy: ${lead.title} (${cycle.expectedDate})`, due,
         `${offset}-day reminder. Expected purchase: ${cycle.expectedDate}. Open Leads → Recurring Leads → Update cycle to record the outcome.`, today);
     }
-  } else if (cycle.expectedDate <= today) {
-    await task(tx, lead, `recurrence:${cycle.id}:${cycle.expectedDate}:purchase`, `Verify purchase received: ${lead.title}`,
-      cycle.expectedDate, 'Confirmation is not a completed purchase. Record the won deal in Update cycle.', today);
   }
   const month = today.slice(0, 7);
   if (!lead.lastRecurringReviewDate || lead.lastRecurringReviewDate.slice(0, 7) < month) {
@@ -85,11 +93,14 @@ export async function processRecurringLeads(today = getLocalDateString(), databa
   let processed = 0;
   // Bounded batches; failures are surfaced so the existing automation runner retries.
   while (true) {
-    const leads = await database.lead.findMany({ where: { isRecurring: true, recurrencePaused: false },
+    const leads = await database.lead.findMany({ where: { isRecurring: true, recurrencePaused: false, archivedAt: null },
       select: { id: true }, take: 100, orderBy: { id: 'asc' }, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}) });
     if (!leads.length) break;
     for (const lead of leads) {
-      await withRecurringLead(lead.id, null, (tx, current) => syncRecurringLead(tx, current, today), database);
+      await withRecurringLead(lead.id, null, async (tx, current) => {
+        await ensureDueCycles(tx, current, today);
+        await syncRecurringLead(tx, current, today);
+      }, database);
       processed++;
     }
     cursor = leads.at(-1).id;
@@ -114,6 +125,8 @@ export async function updateRecurringCycle(id, input, actor, today = getLocalDat
     if (lead.recurrencePaused) fail(409, 'Resume this schedule before updating a cycle.');
     const cycle = await syncRecurringLead(tx, lead, today);
     if (!cycle || cycle.id !== data.cycleId || cycle.reviewedAt !== data.expectedReviewedAt) fail(409, 'This cycle changed. Reload it before saving.');
+    const mandatoryFollowUp = await tx.recurringLeadFollowUp.findUnique({ where: { cycleId: cycle.id } });
+    if (mandatoryFollowUp) fail(409, 'This cycle is tracked by a follow-up record; use its follow-up form or history instead.');
     const closed = CLOSED_CYCLE_STATUSES.includes(data.outcome);
     if (!closed && (!data.nextActionDate || data.nextActionDate < today)) fail(400, 'Choose a next follow-up date today or later.');
     if (data.outcome === 'postponed' && (!data.expectedDate || data.expectedDate === cycle.expectedDate || data.expectedDate < today)) fail(400, 'Choose a different expected purchase date today or later.');
@@ -166,10 +179,69 @@ export async function updateRecurringCycle(id, input, actor, today = getLocalDat
   });
 }
 
+async function ensureDueCycles(tx, lead, today) {
+  const firstDueDate = lead.nextRecurrenceDate || lead.recurrenceDate;
+  if (!firstDueDate || firstDueDate > today) return 0;
+
+  const cycles = await tx.leadRecurrenceCycle.findMany({
+    where: { leadId: lead.id },
+    select: { originalDate: true, expectedDate: true },
+  });
+  const existingOriginalDates = new Set(cycles.map(cycle => cycle.originalDate));
+  const existingExpectedDates = new Set(cycles.map(cycle => cycle.expectedDate));
+  const lastCycle = await tx.leadRecurrenceCycle.aggregate({
+    where: { leadId: lead.id },
+    _max: { cycleNumber: true },
+  });
+  const anchor = lead.recurrenceDate || firstDueDate;
+  let cycleNumber = lastCycle._max.cycleNumber || 0;
+  let expectedDate = firstDueDate;
+  let generated = 0;
+
+  for (let count = 0; expectedDate && expectedDate <= today; count++) {
+    if (count >= 5000) throw new Error(`Recurring schedule for lead ${lead.id} exceeds the catch-up safety limit.`);
+    const alreadyRepresented = existingOriginalDates.has(expectedDate) ||
+      (count === 0 && existingExpectedDates.has(expectedDate));
+    if (!alreadyRepresented) {
+      const nextCycleNumber = cycleNumber + 1;
+      const [firstReminderOffset] = reminderOffsets(lead);
+      await tx.leadRecurrenceCycle.create({
+        data: {
+          id: `lrc-${randomUUID()}`,
+          leadId: lead.id,
+          cycleNumber: nextCycleNumber,
+          originalDate: expectedDate,
+          expectedDate,
+          nextActionDate: shiftDate(expectedDate, -firstReminderOffset),
+          status: 'awaiting',
+          createdAt: new Date().toISOString(),
+        },
+      });
+      existingOriginalDates.add(expectedDate);
+      cycleNumber = nextCycleNumber;
+      generated++;
+    }
+
+    const nextDate = getNextLeadRecurrenceDate(
+      anchor,
+      lead.recurrenceFrequency,
+      lead.recurrenceInterval || 1,
+      expectedDate,
+      lead.recurrenceDays || [],
+    );
+    if (nextDate && nextDate <= expectedDate) {
+      throw new Error(`Recurring schedule for lead ${lead.id} did not advance beyond ${expectedDate}.`);
+    }
+    expectedDate = nextDate;
+  }
+  return generated;
+}
+
 export async function controlRecurringLead(id, input, actor) {
   if (!privileged(actor)) fail(403, 'A manager must approve pausing or resuming a recurring lead.');
   const data = validatedInput(recurrenceControlSchema, input);
   return withRecurringLead(id, actor, async (tx, lead) => {
+    if (lead.archivedAt) fail(409, 'This recurring lead is archived.');
     const updated = await tx.lead.update({ where: { id }, data: { recurrencePaused: data.paused, recurrencePauseReason: data.reason } });
     // Preserve missed tasks and history; pausing suspends future reminder creation.
     await tx.auditLog.create({ data: { id: `aud-${randomUUID()}`, timestamp: new Date().toISOString(), actorId: actor.id,

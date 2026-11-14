@@ -3,7 +3,8 @@ import { Skeleton } from './skeletons/primitives.jsx';
 import React, { useMemo, useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2, Clock, Layers, Mail, Package, Phone, Plus, RefreshCw, RotateCcw, ShieldCheck, Trophy, Users, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { useUrlRecordsPage } from '../hooks/useUrlRecordsPage.js';
+import { useUrlParamState } from '../hooks/useUrlParamState.js';
 import { RecordPagination } from './RecordPagination.jsx';
 import { Avatar, DashboardEmptyState, DashboardPanel, MetricCard, StatusBadge } from './DashboardPrimitives.jsx';
 import { formatCurrency, formatDate, getLocalDateInputValue, getLocalDateInputValueAfterDays, isMockDeal, isMockTask, isMockActivity } from '../utils/crmHelpers.js';
@@ -31,17 +32,16 @@ export const DashboardView = ({
 }) => {
   const { leads = [], deals = [], stages = [], pipelines = [], users = [], branding = {} } = state || {};
   const summary = state?.overview || {}, counts = summary.queueCounts || {};
-  const [activeQueueFilter, setActiveQueueFilter] = useState('all');
-  const [activeViewMode, setActiveViewMode] = useState('queue');
+  const [activeQueueFilter, setActiveQueueFilter] = useUrlParamState('queueFilter', 'all', { pageKeyPrefix: 'queue' });
+  const [activeViewMode, setActiveViewMode] = useUrlParamState('view', 'queue', { clearPagination: false });
   const [busyActions, setBusyActions] = useState(new Set());
   const [completingTasks, setCompletingTasks] = useState(new Set());
   const [checkingRenewals, setCheckingRenewals] = useState(false);
-  const [selectedPipeline, setSelectedPipeline] = useState('');
   const actionLocks = useRef(new Set());
   const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
-  const queuePage = useRecordsPage('dashboard-queue', { type: activeQueueFilter, limit: 4, showMockData: String(showMockData) }, revision);
-  const activityPage = useRecordsPage('activities', { sort: 'recent', limit: 4, showMockData: String(showMockData) }, revision, activeViewMode === 'activity');
-  const taskPage = useRecordsPage('tasks', { owner: currentUser.id, queue: 'followups', showCompleted: 'false', limit: 4, showMockData: String(showMockData) }, revision);
+  const queuePage = useUrlRecordsPage('dashboard-queue', { type: activeQueueFilter, limit: 4, showMockData: String(showMockData) }, revision, true, 'queue');
+  const activityPage = useUrlRecordsPage('activities', { sort: 'recent', limit: 4, showMockData: String(showMockData) }, revision, activeViewMode === 'activity', 'activity');
+  const taskPage = useUrlRecordsPage('tasks', { owner: currentUser.id, queue: 'followups', showCompleted: 'false', limit: 4, showMockData: String(showMockData) }, revision, true, 'followups');
 
   const queueItems = useMemo(() => {
     return showMockData ? queuePage.items : queuePage.items.filter(item => {

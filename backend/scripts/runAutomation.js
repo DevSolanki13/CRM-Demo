@@ -1,38 +1,21 @@
 import { prisma } from '../prisma.js';
-import { runAutomationCycle } from '../services/automationCycle.js';
+import { createAutomationWorker } from '../services/automationWorker.js';
 
-let stopping = false;
-let inFlight;
-async function tick() {
-  if (stopping || inFlight) return;
-  inFlight = (async () => {
-    try {
-      const result = await runAutomationCycle();
-      if (result.claimed) console.log(JSON.stringify({ status: 'completed', ...result }));
-      return true;
-    } catch {
-      console.error('Automation cycle failed. Its failure and retry time are persisted.');
-      return false;
-    }
-  })();
-  const success = await inFlight;
-  inFlight = null;
-  return success;
-}
+const worker = createAutomationWorker();
 
-const success = await tick();
+const success = await worker.runOnce();
 if (process.argv.includes('--once')) {
   await prisma.$disconnect();
   if (!success) process.exitCode = 1;
 } else {
-  const timer = setInterval(tick, 60_000);
+  worker.start({ runImmediately: false });
+  let stopping = false;
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
-    clearInterval(timer);
     const deadline = setTimeout(() => process.exit(1), 30_000);
     deadline.unref();
-    await inFlight;
+    await worker.stop();
     await prisma.$disconnect();
     clearTimeout(deadline);
   };

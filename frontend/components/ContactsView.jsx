@@ -1,6 +1,8 @@
 import { ContactsSkeleton } from './skeletons/ContactsSkeleton.jsx';
 import { RecordSelect } from './RecordSelect.jsx';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { useUrlRecordsPage } from '../hooks/useUrlRecordsPage.js';
+import { useUrlParamState } from '../hooks/useUrlParamState.js';
 import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState, useMemo } from 'react';
 import { 
@@ -44,11 +46,11 @@ export const ContactsView = ({
   onCreateTask,
   onTransitionDealStage
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCompanyId, setSelectedCompanyId] = useState('All');
+  const [searchQuery, setSearchQuery] = useUrlParamState('q', '', { replace: true });
+  const [selectedCompanyId, setSelectedCompanyId] = useUrlParamState('company', 'All');
   
   // Drawer / Detail state
-  const [selectedContact, setSelectedContact] = useState(null);
+  const [selectedContactId, setSelectedContactId] = useUrlParamState('contact', '', { clearPagination: false });
   const [newNoteText, setNewNoteText] = useState('');
   const [contactDrawerTab, setContactDrawerTab] = useState('overview'); // 'overview' | 'timeline'
   
@@ -104,12 +106,13 @@ export const ContactsView = ({
     ownerId: currentUser?.id || ''
   });
 
-  const page = useRecordsPage('contacts', { q: searchQuery, companyId: selectedCompanyId === 'All' ? undefined : selectedCompanyId }, revision);
+  const page = useUrlRecordsPage('contacts', { q: searchQuery, companyId: selectedCompanyId === 'All' ? undefined : selectedCompanyId }, revision);
   const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
   const contacts = useMemo(() => {
     return showMockData ? page.items : page.items.filter(contact => !isMockContact(contact));
   }, [page.items, showMockData]);
   const filteredContacts = contacts;
+  const selectedContact = contacts.find(contact => contact.id === selectedContactId) || null;
   const dealPage = useRecordsPage('deals', { contactId: selectedContact?.id }, revision, Boolean(selectedContact));
   const notePage = useRecordsPage('notes', { linkedType: 'Contact', linkedId: selectedContact?.id, sort: 'recent' }, revision, Boolean(selectedContact));
   const deals = [...dealPage.items, ...contacts.map(contact => contact.primaryDeal).filter(Boolean), ...contextualDeals];
@@ -254,7 +257,7 @@ export const ContactsView = ({
                   filteredContacts.map(cnt => (
                     <tr 
                       key={cnt.id} 
-                      onClick={() => setSelectedContact(cnt)}
+                      onClick={() => setSelectedContactId(cnt.id)}
                       className={`cursor-pointer transition-colors ${
                         selectedContact?.id === cnt.id ? 'bg-[#EFF6F9] font-semibold border-l-2 border-[#1D4E63]' : 'hover:bg-[#F6F7F8]'
                       }`}
@@ -331,7 +334,7 @@ export const ContactsView = ({
                 <p className="text-xs text-[#5B6472] font-medium">{selectedContact.jobTitle} &bull; {selectedContact.companyName}</p>
               </div>
               <button 
-                onClick={() => setSelectedContact(null)}
+                onClick={() => setSelectedContactId('')}
                 aria-label="Close detail pane"
                 className="text-[#5B6472] hover:text-[#12161C] p-1 rounded-lg"
               >
@@ -562,7 +565,7 @@ export const ContactsView = ({
       {mergeTargetId && <MergeCustomerDialog kind="Contact" records={contacts} initialTargetId={mergeTargetId}
         onClose={() => setMergeTargetId(null)} onMerge={async (targetId, sourceId) => {
           await onMergeContacts(targetId, sourceId);
-          setSelectedContact(null);
+          setSelectedContactId('');
         }} />}
 
     </div>

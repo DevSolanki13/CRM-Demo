@@ -129,6 +129,37 @@ export async function controlLeadRecurrence(id, data) {
   })).json();
 }
 
+export async function fetchRecurringFollowUp(leadId, followUpId) {
+  return (await apiFetch(`${BASE_URL}/leads/${encodeURIComponent(leadId)}/follow-ups/${encodeURIComponent(followUpId)}`)).json();
+}
+
+export async function submitRecurringFollowUp(leadId, followUpId, data) {
+  return (await apiFetch(`${BASE_URL}/leads/${encodeURIComponent(leadId)}/follow-ups/${encodeURIComponent(followUpId)}/submit`, {
+    method: 'POST', body: JSON.stringify(data),
+  })).json();
+}
+
+export async function archiveRecurringLead(leadId) {
+  return (await apiFetch(`${BASE_URL}/leads/${encodeURIComponent(leadId)}/archive`, {
+    method: 'POST',
+  })).json();
+}
+
+export async function fetchLeadHistory(leadId, filters = {}) {
+  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== undefined && value !== null && value !== ''));
+  return (await apiFetch(`${BASE_URL}/leads/${encodeURIComponent(leadId)}/history${query.size ? `?${query}` : ''}`)).json();
+}
+
+export async function fetchNotifications() {
+  return (await apiFetch(`${BASE_URL}/notifications`)).json();
+}
+
+export async function markNotificationRead(notificationId) {
+  return (await apiFetch(`${BASE_URL}/notifications/${encodeURIComponent(notificationId)}/read`, {
+    method: 'PUT',
+  })).json();
+}
+
 export async function clearRecurringLeads() {
   return (await apiFetch(`${BASE_URL}/leads/recurring-import/clear`, {
     method: 'POST',

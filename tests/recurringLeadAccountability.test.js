@@ -17,6 +17,20 @@ const today = getLocalDateString();
 const leadIds = [];
 const dealIds = [];
 const sync = id => withRecurringLead(id, actor, (tx, lead) => syncRecurringLead(tx, lead, today));
+async function createFollowUpFixture(row, cycle) {
+  const id = `rlf-${randomUUID()}`;
+  const taskId = `recurrence:${cycle.id}:follow-up`;
+  await prisma.task.create({ data: {
+    id: taskId, title: `Follow-up: ${row.title}`, dueDate: shiftDate(today, 2), type: 'Follow-up',
+    linkedType: 'Lead', linkedId: row.id, linkedTitle: row.title, ownerId: actor.id, ownerName: actor.name,
+    status: 'pending', createdAt: today,
+  } });
+  return prisma.recurringLeadFollowUp.create({ data: {
+    id, leadId: row.id, cycleId: cycle.id, taskId, cycleNumber: cycle.cycleNumber,
+    assigneeId: actor.id, assigneeName: actor.name, assigneeTimeZone: 'UTC',
+    dueDate: shiftDate(today, 2), status: 'pending', createdAt: new Date(`${today}T12:00:00.000Z`),
+  } });
+}
 async function lead(patch = {}) {
   const id = `recurrence-test-${randomUUID()}`;
   leadIds.push(id);
@@ -31,6 +45,7 @@ beforeAll(async () => {
   for (const user of [actor, other]) await prisma.user.create({ data: { ...user, email: `${user.id}@example.test` } });
 }, 30000);
 afterAll(async () => {
+  await prisma.recurringLeadFollowUp.deleteMany({ where: { leadId: { in: leadIds } } });
   await prisma.leadRecurrenceCycle.deleteMany({ where: { leadId: { in: leadIds } } });
   await prisma.task.deleteMany({ where: { linkedType: 'Lead', linkedId: { in: leadIds } } });
   await prisma.activity.deleteMany({ where: { linkedType: 'Lead', linkedId: { in: leadIds } } });
@@ -74,6 +89,31 @@ describe('recurring lead accountability', () => {
     expect(page.items).toHaveLength(1);
     expect(page.items[0].nextFollowUpDate).toBe(shiftDate(today, -1));
     expect(page.items[0].nextRecurrenceDate).toBe(shiftDate(today, 9));
+  }, 30000);
+  it('does not create past pre-cycle reminders when the purchase date has arrived', async () => {
+    const row = await lead({ recurrenceDate: today, nextRecurrenceDate: today });
+    const cycle = await sync(row.id);
+    const reminderPrefix = `recurrence:${cycle.id}:${today}:`;
+    expect(await prisma.task.count({ where: { id: { startsWith: reminderPrefix } } })).toBe(0);
+
+    const staleReminderId = `${reminderPrefix}10`;
+    await prisma.task.create({ data: {
+      id: staleReminderId, title: 'Stale pre-cycle reminder', dueDate: shiftDate(today, -10),
+      linkedType: 'Lead', linkedId: row.id, ownerId: actor.id, ownerName: actor.name,
+      status: 'pending', createdAt: today,
+    } });
+    await sync(row.id);
+    expect((await prisma.task.findUnique({ where: { id: staleReminderId } })).status).toBe('cancelled');
+  }, 30000);
+  it('exposes an active cycle follow-up to the recurring-lead assignee', async () => {
+    const row = await lead({ recurrenceDate: today, nextRecurrenceDate: today });
+    const cycle = await sync(row.id);
+    const followUp = await createFollowUpFixture(row, cycle);
+    const page = await listRecordsPage('leads', actor, { id: row.id, recurring: 'true' });
+    expect(page.items[0].activeRecurringFollowUp).toMatchObject({
+      id: followUp.id, cycleNumber: cycle.cycleNumber, dueDate: followUp.dueDate,
+      status: 'pending', assigneeId: actor.id,
+    });
   }, 30000);
   it('requires notes and a next action; a review does not close the purchase cycle', async () => {
     const row = await lead(); const cycle = await sync(row.id);

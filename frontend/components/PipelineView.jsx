@@ -1,6 +1,8 @@
 import { PipelineSkeleton } from './skeletons/PipelineSkeleton.jsx';
 import { RecordSelect } from './RecordSelect.jsx';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { useUrlRecordsPage } from '../hooks/useUrlRecordsPage.js';
+import { useUrlParamState } from '../hooks/useUrlParamState.js';
 import { RecordPagination } from './RecordPagination.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -75,9 +77,9 @@ export const PipelineView = ({
   onOpenDrawer
 }) => {
   const [draggedDealId, setDraggedDealId] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('All');
-  const [quickFilter, setQuickFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useUrlParamState('q', '', { replace: true });
+  const [filterStatus, setFilterStatus] = useUrlParamState('status', 'All');
+  const [quickFilter, setQuickFilter] = useUrlParamState('quick', 'All');
 
   // Modal for Quick Add / Edit Deal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -128,7 +130,7 @@ export const PipelineView = ({
   });
 
   const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
-  const page = useRecordsPage('deals', { pipeline: stages[0]?.pipelineId,
+  const page = useUrlRecordsPage('deals', { pipeline: stages[0]?.pipelineId,
     q: searchQuery, status: filterStatus, quick: quickFilter, showMockData: String(showMockData) }, revision);
   const dataPipeline = page.dataKey ? JSON.parse(page.dataKey).pipeline : stages[0]?.pipelineId;
   const pendingPipeline = page.hasData && dataPipeline !== stages[0]?.pipelineId;
@@ -136,9 +138,6 @@ export const PipelineView = ({
     .sort((a, b) => a.order - b.order);
 
   useEffect(() => {
-    setSearchQuery('');
-    setFilterStatus('All');
-    setQuickFilter('All');
     setIsModalOpen(false);
     setEditingDeal(null);
     setActivityModalDeal(null);

@@ -75,7 +75,7 @@ test('mobile cold leads use cards and reduced motion disables skeleton pulses', 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await mockWorkspace(page, { delayPages: 1000, delayBoot: 400 });
-  await page.goto('/#leads');
+  await page.goto('/leads/new');
   const skeleton = page.getByRole('status', { name: 'Loading Leads', exact: true });
   await expect(skeleton).toBeVisible();
   await expect(skeleton.locator('table')).toBeHidden();

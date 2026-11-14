@@ -1,5 +1,7 @@
 import { CompaniesSkeleton } from './skeletons/CompaniesSkeleton.jsx';
 import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { useUrlRecordsPage } from '../hooks/useUrlRecordsPage.js';
+import { useUrlParamState } from '../hooks/useUrlParamState.js';
 import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState, useMemo } from 'react';
 import { 
@@ -32,8 +34,8 @@ export const CompaniesView = ({
   onMergeCompanies,
   onCreateActivity
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState(null);
+  const [searchQuery, setSearchQuery] = useUrlParamState('q', '', { replace: true });
+  const [selectedCompanyId, setSelectedCompanyId] = useUrlParamState('companyId', '', { clearPagination: false });
   const [companyDrawerTab, setCompanyDrawerTab] = useState('overview'); // 'overview' | 'timeline'
 
   // Modal State
@@ -49,11 +51,12 @@ export const CompaniesView = ({
     notes: ''
   });
 
-  const page = useRecordsPage('companies', { q: searchQuery }, revision);
+  const page = useUrlRecordsPage('companies', { q: searchQuery }, revision);
   const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
   const companies = useMemo(() => {
     return showMockData ? page.items : page.items.filter(comp => !isMockCompany(comp));
   }, [page.items, showMockData]);
+  const selectedCompany = companies.find(company => company.id === selectedCompanyId) || null;
   const contactPage = useRecordsPage('contacts', { companyId: selectedCompany?.id }, revision, Boolean(selectedCompany));
   const dealPage = useRecordsPage('deals', { companyId: selectedCompany?.id }, revision, Boolean(selectedCompany));
   const contacts = contactPage.items;
@@ -168,7 +171,7 @@ export const CompaniesView = ({
                     return (
                       <tr
                         key={comp.id}
-                        onClick={() => setSelectedCompany(comp)}
+                        onClick={() => setSelectedCompanyId(comp.id)}
                         className={`cursor-pointer transition-colors ${
                           selectedCompany?.id === comp.id ? 'bg-[#EFF6F9] font-semibold border-l-2 border-[#1D4E63]' : 'hover:bg-[#F6F7F8]'
                         }`}
@@ -249,7 +252,7 @@ export const CompaniesView = ({
                   {selectedCompany.industry}
                 </span>
               </div>
-              <button onClick={() => setSelectedCompany(null)} aria-label="Close detail pane" className="text-[#5B6472] hover:text-[#12161C] p-1 rounded-lg">
+              <button onClick={() => setSelectedCompanyId('')} aria-label="Close detail pane" className="text-[#5B6472] hover:text-[#12161C] p-1 rounded-lg">
                 <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
@@ -453,7 +456,7 @@ export const CompaniesView = ({
       {mergeTargetId && <MergeCustomerDialog kind="Company" records={companies} initialTargetId={mergeTargetId}
         onClose={() => setMergeTargetId(null)} onMerge={async (targetId, sourceId) => {
           await onMergeCompanies(targetId, sourceId);
-          setSelectedCompany(null);
+          setSelectedCompanyId('');
         }} />}
     </div>
   );

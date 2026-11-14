@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { fetchRecordsPage } from '../api/crmClient.js';
 import { getCachedRecordsPage } from '../api/recordsCache.js';
 
-export function useRecordsPage(resource, filters = {}, revision = 0, enabled = true) {
+export function useRecordsPage(resource, filters = {}, revision = 0, enabled = true, paginationControl = null) {
   const key = JSON.stringify({ resource, ...filters });
   const [navigation, setNavigation] = useState({ key, cursors: [''] });
   const cursors = navigation.key === key ? navigation.cursors : [''];
-  const cursor = cursors.at(-1);
+  const cursor = paginationControl ? paginationControl.cursor : cursors.at(-1);
   const [retry, setRetry] = useState(0);
   const [page, setPage] = useState(() => {
     const cached = enabled && getCachedRecordsPage(resource, { ...filters, cursor });
@@ -25,7 +25,8 @@ export function useRecordsPage(resource, filters = {}, revision = 0, enabled = t
         const result = await fetchRecordsPage(collection, { ...query, cursor }, controller.signal);
         if (controller.signal.aborted) return;
         if (!result.items.length && cursor && result.total > 0) {
-          setNavigation({ key, cursors: cursors.slice(0, -1) });
+          if (paginationControl) paginationControl.onPrevious();
+          else setNavigation({ key, cursors: cursors.slice(0, -1) });
           return;
         }
         setPage({ ...result, dataKey: key, hasData: true, loading: false, refreshing: false, error: '' });
@@ -35,10 +36,12 @@ export function useRecordsPage(resource, filters = {}, revision = 0, enabled = t
     }, filters.q ? 250 : 0);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [key, cursor, revision, retry, enabled]);
-  return { ...page, number: cursors.length,
-    previous: () => setNavigation({ key, cursors: cursors.slice(0, -1) }),
-    next: () => page.nextCursor && setNavigation({ key, cursors: [...cursors, page.nextCursor] }),
-    firstPage: () => setNavigation({ key, cursors: [''] }),
+  return { ...page, number: paginationControl?.pageNumber ?? cursors.length,
+    previous: () => paginationControl ? paginationControl.onPrevious() : setNavigation({ key, cursors: cursors.slice(0, -1) }),
+    next: () => page.nextCursor && (paginationControl
+      ? paginationControl.onNext(page.nextCursor)
+      : setNavigation({ key, cursors: [...cursors, page.nextCursor] })),
+    firstPage: () => paginationControl ? paginationControl.onFirstPage() : setNavigation({ key, cursors: [''] }),
     retry: () => setRetry(value => value + 1),
   };
 }

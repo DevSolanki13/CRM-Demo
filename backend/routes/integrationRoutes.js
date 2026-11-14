@@ -29,7 +29,7 @@ integrationRouter.get('/google/callback', asyncHandler(async (req, res) => {
     // OAuth errors may carry tokens in their HTTP request; never log the object.
     console.error('[Google connection]', error.statusCode || 'provider_error');
   }
-  res.redirect(`/#connections?connection=${result}`);
+  res.redirect(`/connections?connection=${result}`);
 }));
 
 integrationRouter.get('/status', attachWorkspaceActor, asyncHandler(async (req, res) => {

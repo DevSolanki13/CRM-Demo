@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { defaultStageProbability } from '../utils/reportMetrics.js';
 import { DEFAULT_APPROVAL_POLICY } from '../../backend/services/approvalPolicy.js';
 import { ReferenceRepairView } from './ReferenceRepairView.jsx';
+import { useUrlParamState } from '../hooks/useUrlParamState.js';
 
 export const SettingsView = ({
   branding,
@@ -38,12 +39,12 @@ export const SettingsView = ({
   onResetDemoData
 }) => {
   const [brandingForm, setBrandingForm] = useState({ ...branding });
-  const [activeTab, setActiveTab] = useState('branding'); // 'branding' | 'stages' | 'automation' | 'reset'
+  const [activeTab, setActiveTab] = useUrlParamState('section', 'branding');
   
   const [newStageName, setNewStageName] = useState('');
   const [newStageColor, setNewStageColor] = useState('#FFFFFF');
   const [newPipelineName, setNewPipelineName] = useState('');
-  const [settingsPipelineId, setSettingsPipelineId] = useState('pipeline-sales');
+  const [settingsPipelineId, setSettingsPipelineId] = useUrlParamState('settingsPipeline', 'pipeline-sales');
   const settingsPipeline = pipelines.find(pipeline => pipeline.id === settingsPipelineId);
   const pipelineStages = stages.filter(stage => stage.pipelineId === settingsPipelineId);
 
@@ -54,7 +55,7 @@ export const SettingsView = ({
   const [loadingRules, setLoadingRules] = useState(false);
   const [savingRules, setSavingRules] = useState(false);
   const [automationStatus, setAutomationStatus] = useState(null);
-  const [forecastMonth, setForecastMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [forecastMonth, setForecastMonth] = useUrlParamState('month', new Date().toISOString().slice(0, 7));
   const [reporting, setReporting] = useState(() => branding.customFields?.reporting || {});
   const [approvalPolicy, setApprovalPolicy] = useState(() => ({
     ...DEFAULT_APPROVAL_POLICY, ...(branding.customFields?.approvalPolicy || {})
@@ -338,6 +339,27 @@ export const SettingsView = ({
                 onChange={(e) => setBrandingForm({ ...brandingForm, defaultRecurrenceDays: Number(e.target.value) })}
                 className="w-full bg-[#F6F7F8] border border-[#E3E6EA] rounded-xl p-2.5 text-[#12161C] font-mono focus:outline-none focus:border-[#1D4E63]"
               />
+            </div>
+          </div>
+
+          <div className="border-t border-[#E3E6EA] pt-4">
+            <h3 className="mb-3 text-sm font-bold text-[#12161C]">Recurring lead follow-ups</h3>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="text-xs font-semibold text-[#5B6472]">Due after cycle ends (days)
+                <input type="number" min="0" max="3650" step="1" value={brandingForm.recurringFollowUpDueDays ?? 2}
+                  onChange={event => setBrandingForm({ ...brandingForm, recurringFollowUpDueDays: Number(event.target.value) })}
+                  className="mt-1 w-full rounded-lg border border-[#E3E6EA] bg-[#F6F7F8] p-2.5 text-[#12161C] focus-visible:outline-2 focus-visible:outline-[#1D4E63]" />
+              </label>
+              <label className="text-xs font-semibold text-[#5B6472]">Reminder interval (days)
+                <input type="number" min="1" max="3650" step="1" value={brandingForm.recurringFollowUpReminderDays ?? 1}
+                  onChange={event => setBrandingForm({ ...brandingForm, recurringFollowUpReminderDays: Number(event.target.value) })}
+                  className="mt-1 w-full rounded-lg border border-[#E3E6EA] bg-[#F6F7F8] p-2.5 text-[#12161C] focus-visible:outline-2 focus-visible:outline-[#1D4E63]" />
+              </label>
+              <label className="text-xs font-semibold text-[#5B6472]">Escalate after overdue (days)
+                <input type="number" min="1" max="3650" step="1" value={brandingForm.recurringFollowUpEscalationDays ?? 3}
+                  onChange={event => setBrandingForm({ ...brandingForm, recurringFollowUpEscalationDays: Number(event.target.value) })}
+                  className="mt-1 w-full rounded-lg border border-[#E3E6EA] bg-[#F6F7F8] p-2.5 text-[#12161C] focus-visible:outline-2 focus-visible:outline-[#1D4E63]" />
+              </label>
             </div>
           </div>
 

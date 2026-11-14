@@ -9,6 +9,7 @@ import { logAudit } from './activityNoteService.js';
 import { triggerFollowUp } from './followUpEngine.js';
 import { deleteUnlinkedCustomerRecord } from './deletionPolicy.js';
 import { syncRecurringLead } from './leadRecurrenceService.js';
+import { recordRecurringLeadReassignment, recordRecurringLeadStatusChange } from './recurringFollowUpService.js';
 
 import {
   DEFAULT_LEAD_RECURRENCE_FREQUENCY,
@@ -632,6 +633,10 @@ export const updateLead = async (id, lead) => {
     where: { id },
     data,
   });
+
+  const actor = actorContext.getStore();
+  await recordRecurringLeadStatusChange(tx, existing, updated, actor);
+  await recordRecurringLeadReassignment(tx, existing, updated, actor);
 
   if (existing.isRecurring || isRecurring) {
     await tx.auditLog.create({ data: {

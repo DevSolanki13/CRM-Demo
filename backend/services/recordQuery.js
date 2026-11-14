@@ -39,6 +39,7 @@ export function recordVisibility(resource, actor) {
 export function recordFilters(resource, actor, query = {}) {
   if (!COLLECTIONS[resource]) throw Object.assign(new Error('Unknown record collection.'), { statusCode: 404 });
   const filters = [recordVisibility(resource, actor)];
+  if (resource === 'leads' && !query.id) filters.push(Prisma.sql`r."archivedAt" IS NULL`);
   const supported = ['cursor', 'limit', 'q', 'owner', 'status', 'stage', 'pipeline', 'source', 'quick',
     'recurring', 'recurrenceDate', 'type', 'queue', 'showCompleted', 'linkedType', 'linkedId', 'leadId',
     'companyId', 'contactId', 'id', 'sort', 'recurrenceView', 'showMockData'];
@@ -121,6 +122,10 @@ export function recordFilters(resource, actor, query = {}) {
       missing: Prisma.sql`NOT r."recurrencePaused" AND (r."lastRecurringReviewDate" IS NULL OR r."lastRecurringReviewDate" < ${today.slice(0, 7) + '-01'})`,
       paused: Prisma.sql`r."recurrencePaused"`,
       unassigned: Prisma.sql`r."ownerId" IS NULL`,
+      overdue_followups: Prisma.sql`EXISTS (
+        SELECT 1 FROM "RecurringLeadFollowUp" rf
+        WHERE rf."leadId" = r.id AND rf.status = 'overdue'
+      )`,
     };
     if (!views[query.recurrenceView]) throw invalid('Choose a valid recurring view.');
     filters.push(Prisma.sql`r."isRecurring" = TRUE`, views[query.recurrenceView]);
@@ -146,7 +151,7 @@ export function recordFilters(resource, actor, query = {}) {
   }
   if (showCompleted !== undefined) {
     if (resource !== 'tasks' || !['true', 'false'].includes(showCompleted)) throw invalid('Use true or false for completed tasks.');
-    if (showCompleted === 'false') filters.push(Prisma.sql`r.status = 'pending'`);
+    if (showCompleted === 'false') filters.push(Prisma.sql`r.status IN ('pending', 'overdue')`);
   }
   for (const field of ['linkedType', 'linkedId', 'leadId', 'companyId', 'contactId', 'id']) {
     if (!query[field]) continue;

@@ -1,20 +1,29 @@
 import { getCachedRecordsPage } from '../api/recordsCache.js';
 import { ConnectionsSkeleton } from './skeletons/ConnectionsSkeleton.jsx';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Calendar, Mail, RefreshCw, Unplug } from 'lucide-react';
 import { fetchIntegrationStatus, connectGoogleWorkspace, queueCommunicationSync, disconnectCommunication } from '../api/crmClient.js';
 import { formatDateTime } from '../utils/crmHelpers.js';
 
 export function ConnectionsView() {
+  const [searchParams] = useSearchParams();
   const [state, setState] = useState(() => getCachedRecordsPage('connections', {}) || null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(() => {
-    const result = new URLSearchParams(window.location.hash.split('?')[1] || '').get('connection');
+    const result = new URLSearchParams(window.location.hash.split('?')[1] || '').get('connection') ||
+      new URLSearchParams(window.location.search).get('connection');
     return result === 'connected' ? 'Google Workspace connected. Your first sync is queued.'
       : result === 'declined' ? 'Connection cancelled. You can connect again when ready.'
       : result === 'failed' ? 'The connection could not be completed. Try connecting again.' : '';
   });
+  useEffect(() => {
+    const result = searchParams.get('connection');
+    if (result === 'connected') setNotice('Google Workspace connected. Your first sync is queued.');
+    else if (result === 'declined') setNotice('Connection cancelled. You can connect again when ready.');
+    else if (result === 'failed') setNotice('The connection could not be completed. Try connecting again.');
+  }, [searchParams]);
   async function refresh() {
     try { setState(await fetchIntegrationStatus()); setError(''); }
     catch (err) { setError(err.message || 'Could not load your connections.'); }

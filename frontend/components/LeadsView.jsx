@@ -1,5 +1,6 @@
 import { LeadsSkeleton } from './skeletons/LeadsSkeleton.jsx';
-import { useRecordsPage } from '../hooks/useRecordsPage.js';
+import { useUrlRecordsPage } from '../hooks/useUrlRecordsPage.js';
+import { useUrlParamState } from '../hooks/useUrlParamState.js';
 import { RecordPagination } from './RecordPagination.jsx';
 import React, { useState, useMemo } from 'react';
 import {
@@ -37,6 +38,8 @@ import {
 
 export const LeadsView = ({
   revision = 0,
+  leadSection: activeSection = 'new',
+  onLeadSectionChange,
   createRequest = 0,
   onConsumeCreateRequest,
   stages = [],
@@ -50,6 +53,7 @@ export const LeadsView = ({
   onClearRecurringLeads,
   onUpdateLead,
   onDeleteLead,
+  onArchiveRecurringLead,
   onConvertToDeal,
   onTransitionDealStage,
   onCreateActivity,
@@ -59,24 +63,22 @@ export const LeadsView = ({
   onApproveStageGateCheck,
   onRejectStageGateCheck,
   onOpenDrawer,
-  onOpenLeadJourney
+  onOpenLeadJourney,
+  onOpenRecurringFollowUp
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSource, setSelectedSource] = useState('All');
-  const [selectedOwner, setSelectedOwner] = useState('All');
-  const [selectedStage, setSelectedStage] = useState('All');
-  const [leadsView, setLeadsView] = useState(() => {
-    try { return localStorage.getItem('crm.leadsView') === 'board' ? 'board' : 'detailed'; }
-    catch { return 'detailed'; }
-  });
-  const [quickLeadFilter, setQuickLeadFilter] = useState('All'); // 'All' | 'MyLeads' | 'Outbound' | 'Inbound' | 'New'
-  const [leadSection, setLeadSection] = useState('regular');
-  const [recurringSearch, setRecurringSearch] = useState('');
-  const [recurringStatus, setRecurringStatus] = useState('All');
-  const [recurringOwner, setRecurringOwner] = useState('All');
-  const [recurringDateFilter, setRecurringDateFilter] = useState('');
-  const [recurrenceView, setRecurrenceView] = useState('All');
-  const [recurringSort, setRecurringSort] = useState('recurrence-asc');
+  const [searchQuery, setSearchQuery] = useUrlParamState('q', '', { replace: true, pageKeyPrefix: 'new' });
+  const [selectedSource, setSelectedSource] = useUrlParamState('source', 'All', { pageKeyPrefix: 'new' });
+  const [selectedOwner, setSelectedOwner] = useUrlParamState('owner', 'All', { pageKeyPrefix: 'new' });
+  const [selectedStage, setSelectedStage] = useUrlParamState('stage', 'All', { pageKeyPrefix: 'new' });
+  const [quickLeadFilter, setQuickLeadFilter] = useUrlParamState('quick', 'All', { pageKeyPrefix: 'new' });
+  const [leadsView, setLeadsView] = useUrlParamState('view', 'list', { clearPagination: false });
+  const leadSection = activeSection === 'recurring' ? 'recurring' : 'regular';
+  const [recurringSearch, setRecurringSearch] = useUrlParamState('rQ', '', { replace: true, pageKeyPrefix: 'recurring' });
+  const [recurringStatus, setRecurringStatus] = useUrlParamState('rStatus', 'All', { pageKeyPrefix: 'recurring' });
+  const [recurringOwner, setRecurringOwner] = useUrlParamState('rOwner', 'All', { pageKeyPrefix: 'recurring' });
+  const [recurringDateFilter, setRecurringDateFilter] = useUrlParamState('rDate', '', { pageKeyPrefix: 'recurring' });
+  const [recurrenceView, setRecurrenceView] = useUrlParamState('rView', 'All', { pageKeyPrefix: 'recurring' });
+  const [recurringSort, setRecurringSort] = useUrlParamState('rSort', 'recurrence-asc', { pageKeyPrefix: 'recurring' });
   const isAdmin = currentUser.role === 'Admin';
 
   // 3-Dots Menu & Action Modals State
@@ -130,11 +132,11 @@ export const LeadsView = ({
     nextFollowUpDate: ''
   });
 
-  const page = useRecordsPage('leads', {
+  const page = useUrlRecordsPage('leads', {
     q: searchQuery, source: selectedSource,
-    owner: selectedOwner, stage: selectedStage, quick: quickLeadFilter, recurring: 'All'
-  }, revision);
-  const recurringPage = useRecordsPage('leads', {
+    owner: selectedOwner, stage: selectedStage, quick: quickLeadFilter, recurring: 'false'
+  }, revision, activeSection === 'new', 'new');
+  const recurringPage = useUrlRecordsPage('leads', {
     q: recurringSearch,
     owner: recurringOwner,
     status: recurringStatus,
@@ -142,7 +144,7 @@ export const LeadsView = ({
     recurring: 'true',
     sort: recurringSort,
     recurrenceView,
-  }, revision);
+  }, revision, activeSection === 'recurring', 'recurring');
   const showMockData = typeof window !== 'undefined' && localStorage.getItem('crm.showMockData') === 'true';
   const leads = useMemo(() => {
     return showMockData ? page.items : page.items.filter(lead => !isMockLead(lead));
@@ -150,10 +152,6 @@ export const LeadsView = ({
   const deals = [...leads.map(lead => lead.primaryDeal).filter(Boolean), ...contextualDeals];
   const filteredLeads = leads;
 
-  const changeLeadsView = view => {
-    setLeadsView(view);
-    try { localStorage.setItem('crm.leadsView', view); } catch { /* Keep the current session usable when storage is blocked. */ }
-  };
   const { MyLeads: myLeadsCount = 0, Outbound: outboundCount = 0,
     Inbound: inboundCount = 0, New: newCount = 0 } = page.facets || {};
 
@@ -300,7 +298,7 @@ export const LeadsView = ({
 
   const handleOpenEditModal = (lead) => {
     if (lead.isRecurring && !isAdmin) {
-      setLeadSection('recurring');
+      onLeadSectionChange?.('recurring');
       return;
     }
     setEditingLead(lead);
@@ -458,7 +456,7 @@ export const LeadsView = ({
   if ((leadSection === 'recurring' ? recurringPage : page).loading) return <LeadsSkeleton recurring={leadSection === 'recurring'} />;
 
   return (
-    <div className={`p-6 md:p-8 space-y-6 bg-[#F6F7F8] text-[#12161C] ${leadSection === 'recurring' ? 'md:h-full md:flex md:flex-col md:min-h-0 md:overflow-hidden md:space-y-4' : 'min-h-full'}`}>
+    <div className={`p-6 md:p-8 space-y-6 bg-[#F6F7F8] text-[#12161C] ${leadSection === 'recurring' ? 'md:space-y-4' : 'min-h-full'}`}>
 
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] border border-[#E3E6EA] p-6 rounded-2xl shadow-2xs shrink-0">
@@ -520,18 +518,20 @@ export const LeadsView = ({
       </div>
 
       <div className="flex items-center justify-between gap-3 border-b border-[#E3E6EA] shrink-0">
-        <div role="tablist" aria-label="Lead type" className="flex min-w-0 items-center gap-2">
+        <div role="tablist" aria-label="Lead section" className="flex min-w-0 items-center gap-2">
           {[
-            { id: 'regular', label: 'All Leads', count: page.facets?.All || 0 },
-            { id: 'recurring', label: 'Recurring Leads', count: recurringPage.total },
+            { id: 'regular', route: 'new', label: 'New Leads', count: page.facets?.All || 0 },
+            { id: 'recurring', route: 'recurring', label: 'Recurring Leads', count: recurringPage.total },
           ].map(tab => (
             <button
               key={tab.id}
               type="button"
               role="tab"
+              id={`lead-section-${tab.route}`}
               aria-selected={leadSection === tab.id}
+              aria-controls={`lead-section-panel-${tab.route}`}
               onClick={() => {
-                setLeadSection(tab.id);
+                onLeadSectionChange?.(tab.route);
                 setSelectedLeadIds([]);
               }}
               className={`relative -mb-px flex min-h-10 items-center gap-2 border px-3 py-2 text-xs font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D4E63] ${leadSection === tab.id
@@ -546,20 +546,22 @@ export const LeadsView = ({
             </button>
           ))}
         </div>
-        <div role="group" aria-label="Lead view" className="ml-auto inline-flex shrink-0 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-1">
-          <button type="button" aria-pressed={leadsView === 'detailed'} onClick={() => changeLeadsView('detailed')}
-            className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors ${leadsView === 'detailed' ? 'bg-[var(--surface)] text-[var(--ink)] shadow-sm' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}>
-            <List size={15} aria-hidden="true" />Detailed
-          </button>
-          <button type="button" aria-pressed={leadsView === 'board'} onClick={() => changeLeadsView('board')}
-            className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors ${leadsView === 'board' ? 'bg-[var(--surface)] text-[var(--ink)] shadow-sm' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}>
-            <LayoutGrid size={15} aria-hidden="true" />Board
-          </button>
-        </div>
       </div>
 
       {leadSection === 'regular' && (
-        <>
+        <section id="lead-section-panel-new" role="tabpanel" aria-labelledby="lead-section-new" className="space-y-6">
+          <div className="flex justify-end">
+            <div role="group" aria-label="Lead view" className="inline-flex rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-1">
+              <button type="button" aria-pressed={leadsView === 'list'} onClick={() => setLeadsView('list')}
+                className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors ${leadsView === 'list' ? 'bg-[var(--surface)] text-[var(--ink)] shadow-sm' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}>
+                <List size={15} aria-hidden="true" />List
+              </button>
+              <button type="button" aria-pressed={leadsView === 'board'} onClick={() => setLeadsView('board')}
+                className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-colors ${leadsView === 'board' ? 'bg-[var(--surface)] text-[var(--ink)] shadow-sm' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}>
+                <LayoutGrid size={15} aria-hidden="true" />Board
+              </button>
+            </div>
+          </div>
           {/* Filter Bar */}
           <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#E3E6EA] bg-white p-4">
 
@@ -626,7 +628,7 @@ export const LeadsView = ({
           {/* Quick Filter Chips */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
             {[
-              { id: 'All', label: 'All Leads', count: page.facets?.All || 0 },
+              { id: 'All', label: 'All', count: page.facets?.All || 0 },
               { id: 'MyLeads', label: 'My Leads', count: myLeadsCount },
               { id: 'Outbound', label: 'Outbound Leads', count: outboundCount },
               { id: 'Inbound', label: 'Inbound Inquiries', count: inboundCount },
@@ -651,13 +653,14 @@ export const LeadsView = ({
 
           <RecordPagination page={page} label="leads" />
 
-          {/* Responsive Mobile Cards View (< md) */}
           {leadsView === 'board' && <LeadsBoard leads={filteredLeads} stages={stages} deals={deals} users={users}
             currentUser={currentUser} onOpenLeadJourney={onOpenLeadJourney} onOpenDrawer={onOpenDrawer}
             onTransitionDealStage={onTransitionDealStage} onSubmitStageGateCheck={onSubmitStageGateCheck}
             onApproveStageGateCheck={onApproveStageGateCheck} onRejectStageGateCheck={onRejectStageGateCheck} />}
 
-          <div className={`${leadsView === 'detailed' ? 'block md:hidden' : 'hidden'} space-y-3`}>
+          {leadsView === 'list' && <>
+          {/* Responsive Mobile Cards View (< md) */}
+          <div className="space-y-3 md:hidden">
             {filteredLeads.length === 0 ? (
               <div className="bg-[#FFFFFF] border border-[#E3E6EA] rounded-2xl p-6 text-center text-xs text-[#5B6472]">
                 No leads found matching criteria.
@@ -804,7 +807,7 @@ export const LeadsView = ({
           </div>
 
           {/* Desktop Leads Table (>= md) */}
-          <div className={`${leadsView === 'detailed' ? 'hidden md:block' : 'hidden'} bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm`}>
+          <div className="hidden md:block bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-sm">
             <div className="overflow-x-auto max-h-[640px] overflow-y-auto no-scrollbar pb-10">
               <table className="w-full text-left text-xs text-[var(--ink)]">
                 <thead className="sticky top-0 z-10 bg-[var(--canvas)] text-[var(--ink-muted)] uppercase font-mono font-bold text-[10px] tracking-wider border-b border-[var(--border)] shadow-xs">
@@ -1044,20 +1047,20 @@ export const LeadsView = ({
               </table>
             </div>
           </div>
-        </>)}
+          </>}
+        </section>)}
 
-      {leadSection === 'recurring' && <>
+      {leadSection === 'recurring' && <section id="lead-section-panel-recurring" role="tabpanel" aria-labelledby="lead-section-recurring" className="space-y-4">
         {recurringClearError && <p role="alert" className="text-sm text-[#922D27]">{recurringClearError}</p>}
         <RecurringLeadsPanel page={recurringPage} search={recurringSearch} onSearch={setRecurringSearch}
           owner={recurringOwner} onOwner={setRecurringOwner} sort={recurringSort} onSort={setRecurringSort}
           view={recurrenceView} onView={setRecurrenceView} users={users} currentUser={currentUser}
-          onChanged={onRecurringChanged} onEdit={handleOpenEditModal} onDelete={onDeleteLead} onOpen={lead => onOpenDrawer?.('lead', lead)}
-          stages={stages} hideRecords={leadsView === 'board'} />
-        {leadsView === 'board' && <LeadsBoard leads={recurringPage.items} stages={stages} deals={deals} users={users}
-          currentUser={currentUser} onOpenLeadJourney={onOpenLeadJourney} onOpenDrawer={onOpenDrawer}
-          onTransitionDealStage={onTransitionDealStage} onSubmitStageGateCheck={onSubmitStageGateCheck}
-          onApproveStageGateCheck={onApproveStageGateCheck} onRejectStageGateCheck={onRejectStageGateCheck} />}
-      </>}
+          onChanged={onRecurringChanged} onEdit={handleOpenEditModal} onDelete={onDeleteLead}
+          onArchive={onArchiveRecurringLead} onOpenFollowUp={onOpenRecurringFollowUp} onOpen={lead => onOpenLeadJourney
+            ? onOpenLeadJourney(lead, 'recurring')
+            : onOpenDrawer?.('lead', lead)}
+          stages={stages} />
+      </section>}
 
       {/* Add / Edit Lead Modal */}
       {isModalOpen && (

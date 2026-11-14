@@ -1,6 +1,6 @@
 import { LeadsSkeleton } from './skeletons/LeadsSkeleton.jsx';
 import { useState } from 'react';
-import { Repeat, Edit3, ArrowRightLeft, Trash2 } from 'lucide-react';
+import { Repeat, Edit3, ArrowRightLeft, Trash2, Archive } from 'lucide-react';
 import { RecordPagination } from './RecordPagination.jsx';
 import { RecurringCycleDialog } from './RecurringCycleDialog.jsx';
 import { recurrenceLabel, CYCLE_OUTCOMES } from '../../shared/leadRecurrence.js';
@@ -8,10 +8,10 @@ import { formatDate, getLocalDateInputValue, getRecurringLeadRenewalStatus } fro
 
 const filterClass = 'min-h-10 rounded-lg border border-[#E3E6EA] bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-[#1D4E63]';
 const views = [['All', 'All recurring'], ['overdue', 'Overdue'], ['today', 'Due today'], ['upcoming', 'Next 10 days'],
-['awaiting', 'Awaiting confirmation'], ['missing', 'Missing monthly update'], ['unassigned', 'Unassigned'], ['paused', 'Paused']];
+['overdue_followups', 'Overdue Follow-ups'], ['awaiting', 'Awaiting confirmation'], ['missing', 'Missing monthly update'], ['unassigned', 'Unassigned'], ['paused', 'Paused']];
 
 export function RecurringLeadsPanel({ page, search, onSearch, owner, onOwner, sort, onSort, view, onView,
-  users, currentUser, onChanged, onEdit, onOpen, onDelete, stages = [], hideRecords = false }) {
+  users, currentUser, onChanged, onEdit, onOpen, onOpenFollowUp, onDelete, onArchive, stages = [], hideRecords = false }) {
   const [selected, setSelected] = useState(null);
   const [deleteError, setDeleteError] = useState('');
   const [deletingId, setDeletingId] = useState(null);
@@ -25,8 +25,14 @@ export function RecurringLeadsPanel({ page, search, onSearch, owner, onOwner, so
     catch (error) { setDeleteError(error.message || 'Could not delete this lead.'); }
     finally { setDeletingId(null); }
   };
+  const archive = async lead => {
+    if (!onArchive || !window.confirm(`Archive "${lead.title}"? Pending follow-ups will be cancelled and its history preserved.`)) return;
+    setDeleteError('');
+    try { await onArchive(lead.id); await changed(); }
+    catch (error) { setDeleteError(error.message || 'Could not archive this lead.'); }
+  };
   if (page.loading) return <LeadsSkeleton recurring />;
-  return <section aria-label="Recurring leads" className="space-y-4 md:flex-1 md:min-h-0 md:flex md:flex-col">
+  return <section aria-label="Recurring leads" className="space-y-4 md:flex md:flex-col">
     <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#E3E6EA] bg-white p-4 shrink-0">
       <label className="min-w-48 flex-1 text-xs font-semibold text-[#5B6472]">Search recurring leads<input className={`${filterClass} mt-1 block w-full`} type="search" value={search} onChange={event => onSearch(event.target.value)} placeholder="Name, company, phone, or email" /></label>
       {managed && <label className="text-xs font-semibold text-[#5B6472]">Responsible rep<select className={`${filterClass} mt-1 block`} value={owner} onChange={event => onOwner(event.target.value)}>
@@ -44,39 +50,71 @@ export function RecurringLeadsPanel({ page, search, onSearch, owner, onOwner, so
     {deleteError && <p role="alert" className="rounded-lg border border-[#F4C4C1] bg-[#FDF2F1] p-3 text-sm text-[#922D27] shrink-0">{deleteError}</p>}
     {page.error && <p role="alert" className="rounded-lg border border-[#F4C4C1] bg-[#FDF2F1] p-3 text-sm text-[#922D27] shrink-0">Could not load recurring leads. <button type="button" onClick={page.retry} className="font-semibold underline">Retry</button></p>}
     {!hideRecords && !page.loading && !page.error && !page.items.length && <div className="rounded-xl border border-[#E3E6EA] bg-white p-8 text-center shrink-0"><Repeat className="mx-auto mb-2 text-[#1D4E63]" /><p className="text-sm font-semibold">No recurring leads match these filters.</p><p className="mt-1 text-sm text-[#5B6472]">Reset filters or add a recurring lead.</p></div>}
-    {!hideRecords && !!page.items.length && <div className="overflow-x-auto rounded-xl border border-[#E3E6EA] bg-white shadow-sm md:flex-1 md:min-h-0 md:overflow-y-auto">
+    {!hideRecords && !!page.items.length && <div className="overflow-x-auto rounded-xl border border-[#E3E6EA] bg-white shadow-sm">
       <table className="hidden w-full text-left text-xs md:table"><thead className="sticky top-0 z-10 border-b border-[#E3E6EA] bg-[#F6F7F8] text-[10px] uppercase text-[#5B6472] shadow-xs"><tr>
-        {['Lead name', 'Company', 'Email / phone', 'Status', 'Assigned employee', 'Recurrence date', 'Next recurrence', 'Next follow-up', 'Last contacted', 'Actions'].map(label => <th scope="col" className={`px-4 py-4 font-semibold ${label === 'Actions' ? 'text-right' : ''}`} key={label}>{label}</th>)}
+        {['Lead name', 'Email / phone', 'Status', 'Assigned employee', 'Recurrence date', 'Next recurrence', 'Next follow-up', 'Last contacted', 'Actions'].map(label => <th scope="col" className={`px-4 py-4 font-semibold ${label === 'Actions' ? 'text-right' : ''}`} key={label}>{label}</th>)}
       </tr></thead><tbody className="divide-y divide-[#E3E6EA]">{page.items.map(lead => {
         const overdue = !lead.recurrencePaused && (lead.nextRecurrenceDate < today || (lead.nextFollowUpDate && lead.nextFollowUpDate < today));
+        const followUp = lead.activeRecurringFollowUp;
+        const canOpenFollowUp = Boolean(followUp && (managed || followUp.assigneeId === currentUser.id));
+        const overdueFollowUp = Boolean(lead.hasOverdueFollowUp || (followUp &&
+          (followUp.status === 'overdue' || followUp.dueDate < today)));
         const missing = !lead.lastRecurringReviewDate || lead.lastRecurringReviewDate.slice(0, 7) < today.slice(0, 7);
         const renewalStatus = getRecurringLeadRenewalStatus(lead, today, stages);
+        const leadName = lead.contactName || lead.title;
+        const companyName = lead.companyName?.trim();
         return <tr key={lead.id} className="even:bg-[#F6F7F8]/70 hover:bg-[#EFF6F9]/60">
-          <td className="min-w-40 max-w-56 px-4 py-3"><button type="button" onClick={() => onOpen?.(lead)} className="text-left font-bold text-[#12161C] underline-offset-2 hover:text-[#1D4E63] hover:underline">{lead.contactName || lead.title}</button></td>
-          <td className="min-w-44 max-w-64 px-4 py-3 text-[#5B6472]">{lead.companyName || '—'}</td>
+          <td className="min-w-40 max-w-56 px-4 py-3"><button type="button" onClick={() => onOpen?.(lead)} className="block text-left underline-offset-2 hover:text-[#1D4E63] hover:underline">
+            <span className="block font-bold text-[#12161C]">{leadName}</span>
+            {companyName && companyName !== leadName && <span className="mt-0.5 block text-[10px] font-normal text-[#5B6472]">{companyName}</span>}
+          </button></td>
           <td className="min-w-44 px-4 py-3"><div>{lead.contactEmail ? <a href={`mailto:${lead.contactEmail}`} className="text-[#1D4E63] hover:underline">{lead.contactEmail}</a> : '—'}</div><div className="mt-0.5 text-[10px] text-[#5B6472]">{lead.contactPhone ? <a href={`tel:${lead.contactPhone}`} className="hover:underline">{lead.contactPhone}</a> : '—'}</div></td>
-          <td className="min-w-36 px-4 py-3"><span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold shadow-2xs border ${renewalStatus.badgeClass}`}>{renewalStatus.label}</span><span className="sr-only">{CYCLE_OUTCOMES[lead.recurrenceState] || 'Awaiting response'}.</span><p className={`mt-1 whitespace-nowrap text-[10px] ${missing && !lead.recurrencePaused ? 'font-semibold text-[#922D27]' : 'text-[#5B6472]'}`}>{lead.recurrencePaused ? 'Paused' : missing ? 'Monthly update needed' : `Reviewed ${formatDate(lead.lastRecurringReviewDate)}`}</p></td>
+          <td className="min-w-36 px-4 py-3"><span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold shadow-2xs border ${renewalStatus.badgeClass}`}>{renewalStatus.label}</span>{overdueFollowUp && <span className="mt-1 inline-block rounded-full border border-[#F4C4C1] bg-[#FDF2F1] px-2 py-0.5 text-[10px] font-bold text-[#922D27]">Overdue follow-up</span>}<span className="sr-only">{CYCLE_OUTCOMES[lead.recurrenceState] || 'Awaiting response'}.</span><p className={`mt-1 whitespace-nowrap text-[10px] ${missing && !lead.recurrencePaused ? 'font-semibold text-[#922D27]' : 'text-[#5B6472]'}`}>{lead.recurrencePaused ? 'Paused' : missing ? 'Monthly update needed' : `Reviewed ${formatDate(lead.lastRecurringReviewDate)}`}</p></td>
           <td className="px-4 py-3 text-[#12161C]">{lead.ownerName || 'Unassigned'}</td>
           <td className="whitespace-nowrap px-4 py-3 text-[#5B6472]">{formatDate(lead.recurrenceDate) || '—'}<span className="mt-1 block text-[10px]">{recurrenceLabel(lead)}</span></td>
           <td className="whitespace-nowrap px-4 py-3">{formatDate(lead.nextRecurrenceDate) || '—'}</td>
           <td className="whitespace-nowrap px-4 py-3">{formatDate(lead.nextFollowUpDate) || '—'}{overdue && <span className="mt-1 block text-[10px] font-semibold text-[#922D27]">Action overdue</span>}</td>
           <td className="whitespace-nowrap px-4 py-3 text-[#5B6472]">{formatDate(lead.lastContactedDate) || '—'}</td>
           <td className="px-3 py-3"><div className="flex items-center justify-end gap-0.5">
+            {canOpenFollowUp && <button type="button" aria-label={`${followUp.assigneeId === currentUser.id ? 'Complete' : 'View'} follow-up for ${lead.title}`}
+              title={`Cycle ${followUp.cycleNumber} follow-up · Due ${formatDate(followUp.dueDate)}`}
+              onClick={() => onOpenFollowUp?.(lead, followUp.id)}
+              className="min-h-9 rounded-lg px-2.5 text-[11px] font-semibold text-[#1D4E63] hover:bg-[#EFF6F9] focus-visible:outline-2 focus-visible:outline-[#1D4E63]">
+              {followUp.assigneeId === currentUser.id ? 'Complete follow-up' : 'View follow-up'}
+            </button>}
             {currentUser.role === 'Admin' && <button type="button" aria-label={`Edit schedule for ${lead.title}`} title="Edit lead and repeat schedule" onClick={() => onEdit(lead)} className="rounded-lg p-2 text-[#5B6472] hover:bg-[#E3E6EA] focus-visible:outline-2 focus-visible:outline-[#1D4E63]"><Edit3 size={15} aria-hidden="true" /></button>}
             <button type="button" aria-label={lead.recurrencePaused ? 'View cycle' : 'Update cycle'} title={lead.recurrencePaused ? 'View cycle history and resume schedule' : 'Update cycle, confirmation, and monthly review'} onClick={() => setSelected(lead)} className="rounded-lg p-2 text-[#5B6472] hover:bg-[#E3E6EA] focus-visible:outline-2 focus-visible:outline-[#1D4E63]"><ArrowRightLeft size={15} aria-hidden="true" /></button>
+            {managed && onArchive && <button type="button" aria-label={`Archive ${lead.title}`} title="Archive lead and preserve history" onClick={() => archive(lead)} className="rounded-lg p-2 text-[#5B6472] hover:bg-[#E3E6EA] focus-visible:outline-2 focus-visible:outline-[#1D4E63]"><Archive size={15} aria-hidden="true" /></button>}
             {currentUser.role === 'Admin' && onDelete && <button type="button" aria-label={`Delete ${lead.title}`} title="Delete lead (history is protected)" disabled={deletingId !== null} onClick={() => remove(lead)} className="rounded-lg p-2 text-[#922D27] hover:bg-[#FDF2F1] focus-visible:outline-2 focus-visible:outline-[#922D27] disabled:opacity-50"><Trash2 size={15} aria-hidden="true" /></button>}
           </div></td>
         </tr>;
       })}</tbody></table>
       <ul className="divide-y divide-[#E3E6EA] md:hidden">{page.items.map(lead => {
         const renewalStatus = getRecurringLeadRenewalStatus(lead, today, stages);
+        const leadName = lead.contactName || lead.title;
+        const companyName = lead.companyName?.trim();
+          const followUp = lead.activeRecurringFollowUp;
+          const canOpenFollowUp = Boolean(followUp && (managed || followUp.assigneeId === currentUser.id));
+          const overdueFollowUp = Boolean(lead.hasOverdueFollowUp || (followUp &&
+            (followUp.status === 'overdue' || followUp.dueDate < today)));
         return <li key={lead.id} className="space-y-3 p-4">
-          <button type="button" onClick={() => onOpen?.(lead)} className="font-semibold text-[#1D4E63]">{lead.contactName || lead.title}</button><p className="text-sm text-[#5B6472]">{lead.companyName} · {lead.ownerName || 'Unassigned'}</p>
+          <button type="button" onClick={() => onOpen?.(lead)} className="block text-left text-[#1D4E63]">
+            <span className="block font-semibold">{leadName}</span>
+            {companyName && companyName !== leadName && <span className="mt-0.5 block text-xs font-normal text-[#5B6472]">{companyName}</span>}
+          </button><p className="text-sm text-[#5B6472]">{lead.ownerName || 'Unassigned'}</p>
           <dl className="grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-[#5B6472]">Expected purchase</dt><dd>{formatDate(lead.nextRecurrenceDate)}</dd></div><div><dt className="text-xs text-[#5B6472]">Next follow-up</dt><dd>{formatDate(lead.nextFollowUpDate) || 'See Tasks'}</dd></div><div><dt className="text-xs text-[#5B6472]">Schedule</dt><dd>{recurrenceLabel(lead)}</dd></div><div><dt className="text-xs text-[#5B6472]">Monthly review</dt><dd>{lead.recurrencePaused ? 'Paused' : lead.lastRecurringReviewDate?.slice(0, 7) === today.slice(0, 7) ? 'Updated' : 'Update needed'}</dd></div></dl>
           <div><span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${renewalStatus.badgeClass}`}>{renewalStatus.label}</span></div>
+          {overdueFollowUp && <p className="text-sm font-bold text-[#922D27]">Overdue follow-up</p>}
           {!lead.recurrencePaused && (lead.nextRecurrenceDate < today || (lead.nextFollowUpDate && lead.nextFollowUpDate < today)) && <p className="text-sm font-semibold text-[#922D27]">Action overdue</p>}
+          {canOpenFollowUp && <button type="button" aria-label={`${followUp.assigneeId === currentUser.id ? 'Complete' : 'View'} follow-up for ${lead.title}`}
+            onClick={() => onOpenFollowUp?.(lead, followUp.id)}
+            className="min-h-10 rounded-lg border border-[#D8E8EF] bg-[#EFF6F9] px-3 py-2 text-left text-sm font-semibold text-[#1D4E63]">
+            {followUp.assigneeId === currentUser.id ? 'Complete follow-up' : 'View follow-up'}
+            <span className="mt-0.5 block text-[11px] font-normal text-[#5B6472]">Cycle {followUp.cycleNumber} · Due {formatDate(followUp.dueDate)}</span>
+          </button>}
           <button type="button" onClick={() => setSelected(lead)} className="min-h-10 rounded-lg bg-[#1D4E63] px-3 py-2 text-sm font-semibold text-white">{lead.recurrencePaused ? 'View cycle' : 'Update cycle'}</button>
           {currentUser.role === 'Admin' && <button type="button" onClick={() => onEdit(lead)} className="ml-2 min-h-10 px-3 text-sm text-[#1D4E63]">Edit schedule</button>}
+          {managed && onArchive && <button type="button" onClick={() => archive(lead)} className="ml-2 min-h-10 px-3 text-sm font-semibold text-[#5B6472]">Archive</button>}
           {currentUser.role === 'Admin' && onDelete && <button type="button" disabled={deletingId !== null} onClick={() => remove(lead)} className="ml-2 min-h-10 px-3 text-sm text-[#922D27] disabled:opacity-50">Delete lead</button>}
         </li>;
       })}</ul>

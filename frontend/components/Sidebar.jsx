@@ -17,7 +17,7 @@ const tools = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
-function SidebarContent({ activeTab, userRole, currentUser, branding, pendingTasksCount, renewalsDueCount, navigate, onPrefetch, onOpenImportExport, onLogout, onClose }) {
+function SidebarContent({ activeTab, userRole, currentUser, branding, pendingTasksCount, renewalsDueCount, navigate, navigateToLeadSection, onPrefetch, onOpenImportExport, onLogout, onClose }) {
   const renderItems = items => items.filter(item => canAccessPage(currentUser, item.id)).map(item => {
     const Icon = item.icon, active = activeTab === item.id;
     const count = item.id === 'tasks' ? pendingTasksCount : 0;
@@ -40,7 +40,7 @@ function SidebarContent({ activeTab, userRole, currentUser, branding, pendingTas
       <div className="crm-sidebar-tools"><p className="crm-nav-group-label">Tools</p>{renderItems(tools)}</div>
     </nav>
     <div className="crm-sidebar-footer">
-      {renewalsDueCount > 0 && <button type="button" className="crm-sidebar-renewal" onClick={() => navigate('leads')} title={renewalsDueCount + ' renewals due'} aria-label={'View ' + renewalsDueCount + ' recurring orders'}>
+      {renewalsDueCount > 0 && <button type="button" className="crm-sidebar-renewal" onClick={navigateToLeadSection ? () => navigateToLeadSection('recurring') : () => navigate('leads')} title={renewalsDueCount + ' renewals due'} aria-label={'View ' + renewalsDueCount + ' recurring orders'}>
         <span><RefreshCw size={17} aria-hidden="true" /><strong className="crm-nav-label">{renewalsDueCount} renewals due</strong></span>
         <p className="crm-nav-label">Keep repeat orders on track.</p><span className="crm-nav-label">View leads <ArrowRight size={14} aria-hidden="true" /></span>
       </button>}
@@ -56,7 +56,7 @@ function SidebarContent({ activeTab, userRole, currentUser, branding, pendingTas
 }
 
 export const Sidebar = ({ activeTab, setActiveTab, userRole, currentUser, branding, pendingTasksCount = 0, renewalsDueCount = 0,
-  onPrefetch, onOpenImportExport, onLogout, isMobileOpen = false, onCloseMobile }) => {
+  navigateToLeadSection, onPrefetch, onOpenImportExport, onLogout, isMobileOpen = false, onCloseMobile }) => {
   const mobileRef = useRef(null);
   useEffect(() => {
     if (!isMobileOpen) return;
@@ -75,7 +75,7 @@ export const Sidebar = ({ activeTab, setActiveTab, userRole, currentUser, brandi
     return () => { node.removeEventListener('keydown', keydown); previousFocus?.focus(); };
   }, [isMobileOpen, onCloseMobile]);
   const navigate = tab => { setActiveTab(tab); if (isMobileOpen) onCloseMobile(); };
-  const props = { activeTab, userRole, currentUser, branding, pendingTasksCount, renewalsDueCount, navigate, onPrefetch, onOpenImportExport, onLogout };
+  const props = { activeTab, userRole, currentUser, branding, pendingTasksCount, renewalsDueCount, navigate, navigateToLeadSection, onPrefetch, onOpenImportExport, onLogout };
   return <>
     <aside aria-label="Main Navigation" className="crm-sidebar-rail"><SidebarContent {...props} /></aside>
     {isMobileOpen && <div className="crm-mobile-sidebar">

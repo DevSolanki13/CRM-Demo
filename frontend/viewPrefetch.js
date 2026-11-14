@@ -30,7 +30,7 @@ export function whenIdle(callback) {
 export function warmDefaultPages(user, state, signal) {
   const showMockData = String(localStorage.getItem('crm.showMockData') === 'true');
   const jobs = [
-    ['leads', 'leads', { q: '', source: 'All', owner: 'All', stage: 'All', quick: 'All', recurring: 'All' }],
+    ['leads', 'leads', { q: '', source: 'All', owner: 'All', stage: 'All', quick: 'All', recurring: 'false' }],
     ['leads', 'leads', { q: '', owner: 'All', status: 'All', recurrenceDate: 'All', recurring: 'true', sort: 'recurrence-asc', recurrenceView: 'All' }],
     ['pipeline', 'deals', { pipeline: state.stages?.find(stage => stage.pipelineId === 'pipeline-sales')?.pipelineId || state.stages?.[0]?.pipelineId, q: '', status: 'All', quick: 'All', showMockData }],
     ['contacts', 'contacts', { q: '' }],
