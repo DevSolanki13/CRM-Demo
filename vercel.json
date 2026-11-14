@@ -23,6 +23,13 @@
             }
         },
         {
+            "source": "/leads/:path*",
+            "destination": {
+                "service": "frontend",
+                "path": "/"
+            }
+        },
+        {
             "source": "/(.*)",
             "destination": {
                 "service": "frontend"
